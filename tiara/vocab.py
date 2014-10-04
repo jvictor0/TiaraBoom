@@ -16,7 +16,7 @@ class Vocab:
                     ListInsert(self.dict, part, word)
     
     def Register(self, word):
-        usedWords = self.g_data.DictLookup(word):
+        usedWords = self.g_data.DictLookup(word)
         for part, w in newWords:
             if w not in self.used:
                 self.used.append(w)

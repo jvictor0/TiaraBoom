@@ -2,7 +2,7 @@ import vocab
 import random
 
 def ChooseResponse(tweet, apiHandler, g_data, attempts = 10):
-    tweets = TweetsIterator(tweet apiHandler)
+    tweets = TweetsIterator(tweet, apiHandler)
     for i in xrange(attempts):
         tweets.Reset()
         rw = Rewriter(tweets, g_data.NextSentence(tweet["text"]), g_data)
@@ -13,9 +13,10 @@ def ChooseResponse(tweet, apiHandler, g_data, attempts = 10):
 
 class TweetsIterator:
     def __init__(self, original, apiHandler):
+        print "init"
         self.ix = 0
-        self.original = original
-        self.user_name = original.GetUser().GetName()
+        self.original = original.GetText()
+        self.user_id = original.GetUser().GetId()
         self.reply_id = original.GetInReplyToStatusId()
         self.original_reply_id = self.reply_id
         self.reply_id = original.GetInReplyToStatusId()
@@ -23,28 +24,31 @@ class TweetsIterator:
         self.userTweets = None
 
     def Next(self, allowUserTweets):
-        if ix == -1:
+        if self.ix == -1:
             return False
-        if ix == 0:
-            ix = ix + 1
+        if self.ix == 0:
+            self.ix = self.ix + 1
             return self.original
-        if not reply_id is None:
-            assert ix == 1
+        if not self.reply_id is None:
+            assert self.ix == 1
             try:
                 nextTweet = self.apiHandler.ShowStatus(self.reply_id)
                 self.reply_id = nextTweet.GetInReplyToStatusId()
                 return nextTweet.GetText()
-            catch:
+            except Exception as e:
+                print e
                 self.reply_id = None
         if allowUserTweets and self.userTweets is None:
-            assert ix == 1
+            assert self.ix == 1
             try:
                 self.userTweets = [t.GetText() for t in self.apiHandler.ShowStatuses(self.user_id)]
-            catch:
-                ix = -1
+            except Exception as e:
+                print e
+                self.ix = -1
                 return False
-        if ix <= len(self.userTweets):
-            return self.userTweets[ix-1]
+        if allowUserTweets and self.ix <= len(self.userTweets):
+            self.ix += 1
+            return self.userTweets[self.ix-2]
         return False
 
     def Reset(self):
@@ -87,7 +91,7 @@ class Rewriter:
         if self.sentence[ix][0] != "(":
             return False
         word = self.vocab[self.sentence[ix][0]]
-        if word is not None
+        if not word is None:
             self.sentence[ix] = word
             self.vocab.Register(word)
             self.progressEver = True

@@ -2,8 +2,8 @@ import twitter
 
 class FakeApiHandler:
     def __init__(self):
-        self.statuses = ["I am a status","I like to eat you", "you're weird","I like bananas","politics are republicans","I'm still a twitter post"]
-        self.replys = ["hello john","hello jo","nice weather isn't it","indeed it is"][-1::-1]
+        self.statuses = ["s I am a status","s I like to eat you", "s you're weird","s I like bananas","s politics are republicans","s I'm still a twitter post"]
+        self.replys = ["r3 hello john","r2 hello jo","r1 nice weather isn't it","r0 indeed it is"][-1::-1]
     
     def ShowStatus(self, status_id):
         if status_id < len(self.replys):
