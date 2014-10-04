@@ -66,9 +66,9 @@ CONJ_CONTRACT_NOT = 'g'
 
 CONJ_OTHER_CONTRACTION = 'h'
 
-NOUN_SINGULAR = 't'
+NOUN_SINGULAR = True
 
-NOUN_PLURAL = 'f'
+NOUN_PLURAL = False
 
 PROPER_NOUN_FORENAME = 'l'
 
@@ -274,7 +274,7 @@ def _command():
     return RandomChoice([(lambda : phrase([rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_adverb(_nil, _nil)]),1),
                          (lambda : phrase([rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), you), _possible_adverb(_nil, _nil)]),1),
                          (lambda : phrase([_possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), you)]),1),
-                         (lambda : phrase([_be, _being_target(False, you)]),2)])()
+                         (lambda : phrase([_be, _being_target(True, you)]),2)])()
 
 def _present_question():
     sub_and_tag = _subject_and_tag(rand_plural())
@@ -296,8 +296,8 @@ def _being_question_suffix(pl,pron):
                          (lambda : lit_phrase("or am I dumb"),1),
                          (lambda : lit_phrase("or am I on crack"),1),
                          (lambda : lit_phrase("or am I on wrong"),1),
-                         (lambda : phrase([lit_phrase("or am I "), _being_target(False, I)]),5),
-                         (lambda : phrase([lit_phrase("or are you "), _being_target(False, you)]),5),
+                         (lambda : phrase([lit_phrase("or am I "), _being_target(True, I)]),5),
+                         (lambda : phrase([lit_phrase("or are you "), _being_target(True, you)]),5),
                          (lambda : phrase([_or, _being_target(pl, pron)]),5),
                          (lambda : phrase([lit_phrase("or just"), _being_target(pl, pron)]),5)])()
 
@@ -307,8 +307,8 @@ def _being_question_past_suffix(pl,pron):
                          (lambda : lit_phrase("or am I dumb"),1),
                          (lambda : lit_phrase("or am I on crack"),1),
                          (lambda : lit_phrase("or am I on wrong"),1),
-                         (lambda : phrase([lit_phrase("or am I "), _being_target(False, I)]),10),
-                         (lambda : phrase([lit_phrase("or are you "), _being_target(False, you)]),10),
+                         (lambda : phrase([lit_phrase("or am I "), _being_target(True, I)]),10),
+                         (lambda : phrase([lit_phrase("or are you "), _being_target(True, you)]),10),
                          (lambda : lit_phrase("yesterday"),1),
                          (lambda : lit_phrase("just yesterday"),1),
                          (lambda : lit_phrase("since yesterday"),1),
@@ -505,13 +505,13 @@ def _conditional_clause_pl_infin_intrans(plural_):
     return phrase([_subject(plural_), _conditional_helper(), _possible_adverb(_nil, _nil), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_intrans_ego_1(plural_):
-    return phrase([_possible_adverb(_nil, _nil), (_we if plural_ else _I), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_prepositional_phrase()])
+    return phrase([_possible_adverb(_nil, _nil), (_I if plural_ else _we), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_intrans_ego_2(plural_):
-    return phrase([(_we if plural_ else _I), fix_helper(is_helper, _possible_adverb(_nil, _nil), _verb_ego(plural_)(POS_INTRANSITIVE_VERB)), _possible_prepositional_phrase()])
+    return phrase([(_I if plural_ else _we), fix_helper(is_helper, _possible_adverb(_nil, _nil), _verb_ego(plural_)(POS_INTRANSITIVE_VERB)), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_intrans_ego_3(plural_):
-    return phrase([(_we if plural_ else _I), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
+    return phrase([(_I if plural_ else _we), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_trans_1(plural_):
     return phrase([_possible_adverb(_nil, _nil), _indep_clause_pl_trans_no_obj(plural_, True), _object(rand_plural(), False), _possible_prepositional_phrase()])
@@ -539,13 +539,13 @@ def _conditional_clause_pl_infin_trans(plural_):
     return phrase([subj_and_tag[0], _conditional_helper(), _possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), subj_and_tag[1]), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_trans_ego_1(plural_):
-    return phrase([_possible_adverb(_nil, _nil), (_we if plural_ else _I), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (we if plural_ else I)), _possible_prepositional_phrase()])
+    return phrase([_possible_adverb(_nil, _nil), (_I if plural_ else _we), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (O if plural_ else we)), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_trans_ego_2(plural_):
-    return phrase([(_we if plural_ else _I), fix_helper(is_helper, _possible_adverb(_nil, _nil), _verb_ego(plural_)(POS_TRANSITIVE_VERB)), _object(rand_plural(), (we if plural_ else I)), _possible_prepositional_phrase()])
+    return phrase([(_I if plural_ else _we), fix_helper(is_helper, _possible_adverb(_nil, _nil), _verb_ego(plural_)(POS_TRANSITIVE_VERB)), _object(rand_plural(), (I if plural_ else we)), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_trans_ego_3(plural_):
-    return phrase([(_we if plural_ else _I), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (we if plural_ else I)), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
+    return phrase([(_I if plural_ else _we), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (I if plural_ else we)), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _being_clause(plurality):
     subj_and_tag = _subject_and_tag(plurality)
@@ -653,31 +653,31 @@ def _me_object(pronoun, plurality):
     if pronoun == we:
         return lit_phrase("ourselves")
     else:
-        return (lit_phrase("us") if plurality else lit_phrase("me"))
+        return (lit_phrase("me") if plurality else lit_phrase("us"))
 
 def _you_object(pronoun, plurality):
     if pronoun == you:
         return lit_phrase("yourself")
     else:
-        return (_being_target(plurality, pronoun) if plurality else lit_phrase("you"))
+        return lit_phrase("you") if plurality else _being_target(plurality, pronoun)
 
 def _being_target(plurality,pronoun):
     return RandomChoice([(lambda : rand_word(POS_PROPER_NOUN, PROPER_NOUN_FORENAME),2),
                          (lambda : _me_object(pronoun, plurality),1),
                          (lambda : _you_object(pronoun, plurality),1),
-                         (lambda : phrase([_article_indef(not(plurality)), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, not(plurality))]),2),
-                         (lambda : phrase([_like, _article_indef(not(plurality)), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, not(plurality))]),2),
+                         (lambda : phrase([_article_indef(plurality), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, plurality)]),2),
+                         (lambda : phrase([_like, _article_indef(plurality), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, plurality)]),2),
                          (lambda : _prepositional_phrase(),3),
                          (lambda : _adj(),3),
                          (lambda : phrase([_adj_comparative(), _than, _object(plurality, pronoun)]),3),
                          (lambda : phrase([_adj_comparative_1(), _than, _object(plurality, pronoun), _and, _adj_comparative_1(), _than, _object(plurality, pronoun)]),3),
-                         (lambda : phrase([_the, _adj_superlative(not(plurality))]),3)])()
+                         (lambda : phrase([_the, _adj_superlative(plurality)]),3)])()
 
 def _noun(plural, simple):
-    return (_noun_pl(simple) if plural else _noun_sing(simple))
+    return (_noun_sing(simple) if plural else _noun_pl(simple))
 
 def _verb(plural):
-    return (_verb_pl if plural == True else _verb_sing)
+    return (_verb_sing if plural else _verb_pl)
 
 def _possible_prefix():
     return RandomChoice([(_nil,30),
@@ -1013,7 +1013,7 @@ def _noun_sing(simple):
     return _noun_phrase(NOUN_SINGULAR, simple)
 
 def _noun_phrase_no_clause(plurality):
-    return (_noun_phrase_no_clause_pl() if not(plurality) else _noun_phrase_no_clause_sing())
+    return (_noun_phrase_no_clause_sing() if plurality else _noun_phrase_no_clause_pl())
 
 def _noun_phrase_no_clause_pl():
     return RandomChoice([(lambda : phrase([_article(False), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, False)]),8),
@@ -1028,7 +1028,7 @@ def _noun_phrase(plurality, simple):
     return (_noun_phrase_no_clause(plurality) if simple else phrase([_noun_phrase_no_clause(plurality)]))
 
 def _object_sing(is_I):
-    return RandomChoice([(lambda : _noun(False, False),20),
+    return RandomChoice([(lambda : _noun(True, False),20),
                          (lambda : (lit_phrase("myself") if is_I == I else (_object_sing(we) if is_I == we else lit_phrase("me"))),5),
                          (lambda : (lit_phrase("himself") if is_I == he else lit_phrase("him")),1),
                          (lambda : (lit_phrase("herself") if is_I == she else lit_phrase("her")),1),
@@ -1036,19 +1036,19 @@ def _object_sing(is_I):
                          (lambda : (lit_phrase("yourself") if is_I == you else lit_phrase("you")),2)])()
 
 def _object_pl(is_we):
-    return RandomChoice([(lambda : _noun(True, False),20),
+    return RandomChoice([(lambda : _noun(False, False),20),
                          (lambda : (lit_phrase("ourselves") if is_we == we else lit_phrase("us")),3),
                          (lambda : (lit_phrase("themselves") if is_we == them else lit_phrase("them")),2),
                          (lambda : lit_phrase("em"),2)])()
 
 def _object(plurality, is_ego):
-    return (_object_pl(is_ego) if plurality else _object_sing(is_ego))
+    return (_object_sing(is_ego) if plurality else _object_pl(is_ego))
 
 def _subject_and_tag(plurality):
-    return (_subj_and_tag_pl() if plurality else _subj_and_tag_sing())
+    return (_subj_and_tag_sing() if plurality else _subj_and_tag_pl())
 
 def _subj_and_tag_sing():
-    return RandomChoice([(lambda : (_noun(False, False), sing),10),
+    return RandomChoice([(lambda : (_noun(True, False), sing),10),
                          (lambda : (lit_phrase("I"), I),5),
                          (lambda : (lit_phrase("he"), he),1),
                          (lambda : (lit_phrase("she"), she),1),
@@ -1056,7 +1056,7 @@ def _subj_and_tag_sing():
                          (lambda : (lit_phrase("you"), you),10)])()
 
 def _subj_and_tag_pl():
-    return RandomChoice([(lambda : (_noun(True, False), plural),10),
+    return RandomChoice([(lambda : (_noun(False, False), plural),10),
                          (lambda : (lit_phrase("we"), we),5),
                          (lambda : (lit_phrase("they"), they),3)])()
 
@@ -1129,7 +1129,7 @@ def _verb_sing(trans):
     return _verb_sing_func()(trans)
 
 def _verb_ego(plural):
-    return (_verb_we_func() if plural else _verb_ego_func())
+    return (_verb_ego_func() if plural else _verb_we_func())
 
 def _random_inflect():
     return RandomChoice([(lambda : phrase([_random_modal(), _not]),2),
@@ -1208,7 +1208,7 @@ def _verb_future_perfect_continuous(trans):
     return phrase([_random_inflect(), _have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
 
 def _insult_body():
-    return RandomChoice([(lambda : phrase([_you_are(), _being_target(False, you)]),4),
+    return RandomChoice([(lambda : phrase([_you_are(), _being_target(True, you)]),4),
                          (lambda : phrase([lit_phrase("you"), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _comma, _and, _insult_body()]),1),
                          (lambda : phrase([_you_are(), lit_phrase("such a"), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, True)]),3),
                          (lambda : phrase([_you_are(), _a, rand_word(POS_TRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, True)]),4),

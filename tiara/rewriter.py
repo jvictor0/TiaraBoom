@@ -1,4 +1,4 @@
-import vocab
+import vocab as v
 import random
 
 def ChooseResponse(tweet, apiHandler, g_data, attempts = 10):
@@ -13,7 +13,6 @@ def ChooseResponse(tweet, apiHandler, g_data, attempts = 10):
 
 class TweetsIterator:
     def __init__(self, original, apiHandler):
-        print "init"
         self.ix = 0
         self.original = original.GetText()
         self.user_id = original.GetUser().GetId()
@@ -71,7 +70,7 @@ def SplitSentence(sentence):
 class Rewriter:
     def __init__(self, tweets, sentence, g_data):
         self.progressEver = False
-        self.vocab = Vocab(g_data)
+        self.vocab = v.Vocab(g_data)
         self.tweets = tweets
         self.sentence = sentence
         assert self.AddVocab()
@@ -90,7 +89,7 @@ class Rewriter:
     def RewriteSingle(self, ix):
         if self.sentence[ix][0] != "(":
             return False
-        word = self.vocab[self.sentence[ix][0]]
+        word = self.vocab[self.sentence[ix]]
         if not word is None:
             self.sentence[ix] = word
             self.vocab.Register(word)
@@ -104,19 +103,20 @@ class Rewriter:
     # returns sentence if rewrite is sucessful, false otherwise
     #
     def Rewrite(self):
+        print self.sentence
         while True:
             ix = 0
             while ix < len(self.sentence):
-                ix = 0 if self.RewriteSingle(ix) else ix + 1
+                ix = (0 if self.RewriteSingle(ix) else ix + 1)
             if self.AllDone():
                 return self.Finalize()
             if not self.AddVocab():
                 return False
 
-    def Finalize():
+    def Finalize(self):
         for i in xrange(len(self.sentence)-1):
             if len(self.sentence[i]) > 3 and self.sentence[i][-3:] == " a ":
                 if self.sentence[i+1][0] in ['a','e','i','o']:
                     self.sentence[i][-1] = 'n'
                     self.sentence[i].append(' ')
-        return "".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").strip()
+        return " ".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").strip()

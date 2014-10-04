@@ -1,6 +1,6 @@
 import random
 import re
-import util
+from util import *
 
 class Vocab:
     def __init__(self, g_data):
@@ -11,22 +11,26 @@ class Vocab:
     def Add(self, tweet):
         words = re.split(r"[^a-zA-Z\'\-]", tweet)
         for w in words:
-            for word, part in self.g_data.DictLookup(w):
-                if word not in self.used:
+            rep = self.g_data.FamilyRepresentative(w)
+            if rep not in self.used:  
+                for word, part in self.g_data.FamilyLookup(rep):
                     ListInsert(self.dict, part, word)
-    
+
     def Register(self, word):
-        usedWords = self.g_data.DictLookup(word)
-        for part, w in newWords:
-            if w not in self.used:
-                self.used.append(w)
-            self.dict[part] = filter(lambda v: v != w, self.dict[part])
-        for coWord, pres in self.g_data.CoOccuring(word):
+        rep = self.g_data.FamilyRepresentative(word)
+        self.used.append(rep)
+        for w, part in self.g_data.FamilyLookup(rep):
+            if part in self.dict:
+                self.dict[part] = filter(lambda v: v != w, self.dict[part])
+        for coWord, pres in self.g_data.Cooccuring(word):
             for i in xrange(pres):
                 self.Add(coWord)
     
     def __getitem__(self, part):
         if part in self.dict:
-            return random.choice(self.dict[part])
+            entries = self.dict[part]
+            if len(entries) ==0:
+                return None
+            return random.choice(entries)
         return None
 
