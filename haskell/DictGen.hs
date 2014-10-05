@@ -117,6 +117,10 @@ ideas = do
     $ fmap (\l -> let len = length l in filter (\(_,x) -> (len == 1) || x /= "Nl") l)
     $ fmap (filter ((`notElem`sw).(map toLower).fst)) is
   
+families = do
+  is <- ideas
+  return $ Map.fromList $ concatMap (\(k,v) -> map (flip (,) k) v) $ Map.toList is
+  
 lookupOrEmpty x mp = case Map.lookup x mp of
   Nothing -> []
   (Just a) -> a

@@ -1,6 +1,6 @@
 module WordCluster where
 
-import ColourlessIdeas
+import DictGen
 
 import Data.List
 import Data.Char
@@ -11,7 +11,7 @@ import Data.Maybe
 readBaskets file = do
   f <- readFile file
   g <- readFile "quotes2.txt"
-  i <- ideas
+  i <- families
   putStrLn $ i`deepseq`"Gen'd Ideas"
   return $ filter (not . null) $
     map (lineToBasket i) $ (lines g) ++ (map unwords $ groupBy (\a b -> null b || head b /= '\"') $ lines f)
@@ -24,9 +24,7 @@ lineToBasket ideas str = nub $ concatMap (normalize ideas) $ words $ map (\x -> 
 
 normalize ideas str = case Map.lookup str ideas of
   Nothing -> []
-  (Just ideas) -> case find (\(w,tp) -> "t" == tail tp) ideas of
-    (Just (w,tp)) -> [w]
-    Nothing -> [str]
+  (Just norm) -> [norm]
   
 pairs [] = []
 pairs (a:as') = let as = filter (/=a) as' in (concatMap (\b -> [(a,b),(b,a)]) as) ++ (pairs as)
@@ -63,7 +61,7 @@ generateCoOccuranceDict = do
     
 saveCoOcc = do
   f <- generateCoOccuranceDict
-  writeFile "CoOcc.txt" $ "{" ++ (concat $ intersperse "," $ map 
-                                  (\(a,b) -> (show a) ++ ":[" ++ (concat $ intersperse "," $ map 
-                                                                  (\(a,b) -> "[" ++ (show a) ++"," ++ (show b) ++"]") b) ++ "]") f)
+  writeFile "../data/cooccuring.json" $ "{" ++ (concat $ intersperse "," $ map 
+                                                  (\(a,b) -> (show a) ++ ":[" ++ (concat $ intersperse "," $ map 
+                                                                                  (\(a,b) -> "[" ++ (show a) ++"," ++ (show b) ++"]") b) ++ "]") f)
     ++ "}"

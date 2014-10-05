@@ -22,7 +22,7 @@ class Vocab:
         for w, part in self.g_data.FamilyLookup(rep):
             if part in self.dict:
                 self.dict[part] = filter(lambda v: v != w, self.dict[part])
-        for coWord, pres in self.g_data.Cooccuring(word):
+        for coWord, pres in self.g_data.Cooccuring(rep):
             for i in xrange(pres):
                 self.Add(coWord)
     
