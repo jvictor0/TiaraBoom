@@ -14,7 +14,7 @@ def ReplyTo(g_data, tweet):
         g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
         response = r.ChooseResponse(tweet, g_data, inReply = True)
         if response:
-            result = g_data.ApiHandler().Tweet(response, in_reply_to_id=tweet.GetId())
+            result = g_data.ApiHandler().Tweet(response, in_reply_to_status_id=tweet.GetId())
             if not result is None:
                 return True
         g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
