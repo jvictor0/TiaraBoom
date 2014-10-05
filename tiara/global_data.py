@@ -21,7 +21,10 @@ class GlobalData:
         logging.basicConfig(format=log_format)
 
         self.logger = logging.getLogger('TiaraBoom')
+        self.tweetLogger = logging.getLogger('TiaraBoomTweets')
+
         self.logger.setLevel(logging.DEBUG)
+        self.tweetLogger.setLevel(logging.DEBUG)
             
         two_fifty_six_meg = 256000000
         
@@ -30,6 +33,10 @@ class GlobalData:
                                                        backupCount=4)
         handler.setFormatter(logging.Formatter(log_format,"%Y-%m-%d %H:%M:%S"))
         self.logger.addHandler(handler)
+
+        tweetHandler = logging.FileHandler(abs_prefix + "/tweet_log")
+        tweetHandler.setFormatter(logging.Formatter('%(asctime)s: %(message)s', "%Y-%m-%d %H:%M:%S"))
+        self.tweetLogger.addHandler(tweetHandler)
 
         
         self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
@@ -46,6 +53,9 @@ class GlobalData:
         self.logger.warn(msg)
     def TraceError(self, msg):
         self.logger.error(msg)
+
+    def LogTweet(self, user, body, id, reply):
+        self.tweetLogger.debug("%s, %d, %s, %s" % (user,id,reply,body))
 
     def ApiHandler(self):
         return self.apiHandler
@@ -83,4 +93,3 @@ class GlobalData:
         if res:
             return res
         return []
-

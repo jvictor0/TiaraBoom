@@ -53,9 +53,23 @@ class ApiHandler():
     def ShowStatus(self, status_id):
         return self.ApiCall("ShowStatus", status_id, lambda: api.GetStatus(status_id))
 
-    def Tweet(self, status, in_reply_to_status_id=None):
-        return self.ApiCall("Tweet", status, lambda: True, cache=False)
-        #api.PostUpdate(status, in_reply_to_status_id=in_reply_to_status_id)
+    def Tweet(self, status, in_reply_to_status=None):
+        if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == "TiaraBoom1":
+            self.g_data.TraceWarn("  Attempt to respond to self is a bad idea, posting general tweet")
+            in_reply_to_status = None
+        result = self.ApiCall("Tweet", status,
+                              lambda: api.PostUpdate(status, in_reply_to_status_id=in_reply_to_status.GetId()),
+                              cache=False)
+        
+        if not result is None:
+            if not in_reply_to_status is None:
+                self.g_data.LogTweet(in_reply_to_status.GetUser().GetScreenName(),
+                                     in_reply_to_status.GetText(),
+                                     in_reply_to_status.GetId(),
+                                     in_reply_to_status.GetInReplyToStatusId())
+            reply_id = None if in_reply_to_status is None else in_reply_to_status.GetId()
+            self.g_data.LogTweet("TiaraBoom1", status, result.GetId(), reply_id)
+        return result
         
     def ShowStatuses(self, screen_name, count=500):
         return self.ApiCall("ShowStatuses",screen_name,
