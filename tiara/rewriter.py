@@ -1,25 +1,33 @@
 import vocab as v
 import random
 
-def ChooseResponse(tweet, apiHandler, g_data, attempts = 10):
-    tweets = TweetsIterator(tweet, apiHandler)
+def ChooseResponse(tweet, g_data, inReply = False, attempts = 10):
+    tweets = TweetsIterator(tweet, g_data)
     for i in xrange(attempts):
         tweets.Reset()
-        rw = Rewriter(tweets, g_data.NextSentence(tweet["text"]), g_data)
+        sentence = g_data.NextSentence(tweet.GetText())
+        g_data.TraceInfo("Rewriting sentence \"%s\"" % " ".join(sentence))
+        rw = Rewriter(tweets, sentence, inReply, g_data)
         result = rw.Rewrite()
-        if result:
+        if result and inReply:
+            result = '@' + tweet.GetUser().GetScreenName() + ": " + result
+        if result and len(result) <= 140:
             return result
+        elif result:
+            g_data.TraceWarn("Failing long tweet \"%s\"" % result)
+        else:
+            g_data.TraceWarn("Failed to rewrite \"%s\"" % ' '.join(sentence))
     return False
 
 class TweetsIterator:
-    def __init__(self, original, apiHandler):
+    def __init__(self, original, g_data):
         self.ix = 0
         self.original = original.GetText()
-        self.user_id = original.GetUser().GetId()
+        self.user_id = original.GetUser().GetScreenName()
         self.reply_id = original.GetInReplyToStatusId()
         self.original_reply_id = self.reply_id
         self.reply_id = original.GetInReplyToStatusId()
-        self.apiHandler = apiHandler
+        self.g_data = g_data
         self.userTweets = None
 
     def Next(self, allowUserTweets):
@@ -30,21 +38,21 @@ class TweetsIterator:
             return self.original
         if not self.reply_id is None:
             assert self.ix == 1
-            try:
-                nextTweet = self.apiHandler.ShowStatus(self.reply_id)
+            nextTweet = self.g_data.ApiHandler().ShowStatus(self.reply_id)
+            if not nextTweet is None:
                 self.reply_id = nextTweet.GetInReplyToStatusId()
                 return nextTweet.GetText()
-            except Exception as e:
-                print e
+            else:
                 self.reply_id = None
+                g_data.TraceWarn("Unable to get reply, resorting to getting all user tweets")
         if allowUserTweets and self.userTweets is None:
             assert self.ix == 1
-            try:
-                self.userTweets = [t.GetText() for t in self.apiHandler.ShowStatuses(self.user_id)]
-            except Exception as e:
-                print e
+            self.userTweets = self.g_data.ApiHandler().ShowStatuses(self.user_id)
+            if self.userTweets is None:
                 self.ix = -1
+                g_data.TraceWarn("Unable to get user tweets, failing TweetsIterator")
                 return False
+            self.userTweets = [t.GetText() for t in self.userTweets]
         if allowUserTweets and self.ix <= len(self.userTweets):
             self.ix += 1
             return self.userTweets[self.ix-2]
@@ -68,8 +76,8 @@ def SplitSentence(sentence):
 
 
 class Rewriter:
-    def __init__(self, tweets, sentence, g_data):
-        self.progressEver = False
+    def __init__(self, tweets, sentence, inReply, g_data):
+        self.progressEver = not inReply
         self.vocab = v.Vocab(g_data)
         self.tweets = tweets
         self.sentence = sentence
@@ -103,7 +111,6 @@ class Rewriter:
     # returns sentence if rewrite is sucessful, false otherwise
     #
     def Rewrite(self):
-        print self.sentence
         while True:
             ix = 0
             while ix < len(self.sentence):

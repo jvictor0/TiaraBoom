@@ -1,3 +1,5 @@
+tiara/twitterkeys.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -55,3 +57,6 @@ target/
 
 
 *~
+
+data/max_id
+data/tiaraboom_log*

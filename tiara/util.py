@@ -1,10 +1,28 @@
 from bisect import bisect_left
+import logging
+import sys
+import inspect
 
+# puts traceback into the log
+def log_assert(bool_, message, g_data):
+    try:
+        assert bool_, message
+    except AssertionError:
+        # construct an exception message from the code of the calling frame
+        last_stackframe = inspect.stack()[-2]
+        source_file, line_no, func = last_stackframe[1:4]
+        source = "Traceback (most recent call last):\n" + \
+            '  File "%s", line %s, in %s\n    ' % (source_file, line_no, func)
+        source_code = open(source_file).readlines()
+        source += "".join(source_code[line_no - 3:line_no + 1])
+        g_data.TraceError("%s\n%s" % (message, source))
+        raise AssertionError("%s\n%s" % (message, source))
 
 # does binary search in a sorted alist
 #
-def BinarySearch(l, key, lo=0, hi=None):  
-    hi = hi if hi is not None else len(l)
+def BinarySearch(l, key):  
+    hi = len(l)
+    lo = 0
     pos = bisect_left(l,(key,None),lo,hi)         
     if pos != hi and l[pos][0] == key:
         return l[pos][1]

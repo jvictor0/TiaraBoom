@@ -3,6 +3,9 @@ from util import *
 import json
 import sys
 import os
+import logging
+import logging.handlers
+import api_handler
 
 class GlobalData:
     def __init__(self):
@@ -14,11 +17,39 @@ class GlobalData:
         with open(abs_prefix + '/cooccuring.json',"r") as f:
             self.cooccuring = DictToSortedTuple(json.load(f))
 
-        print "size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies))
-        print "size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos))
-        print "size of coocurring.json in memory is %d, len = %d" % (sys.getsizeof(self.cooccuring),len(self.cooccuring))
+        log_format = '%(levelname)s %(asctime)s: %(message)s'
+        logging.basicConfig(format=log_format)
 
-                
+        self.logger = logging.getLogger('TiaraBoom')
+        self.logger.setLevel(logging.DEBUG)
+            
+        two_fifty_six_meg = 256000000
+        
+        handler = logging.handlers.RotatingFileHandler(abs_prefix + "/tiaraboom_log", 
+                                                       maxBytes=two_fifty_six_meg, 
+                                                       backupCount=4)
+        handler.setFormatter(logging.Formatter(log_format,"%Y-%m-%d %H:%M:%S"))
+        self.logger.addHandler(handler)
+
+        
+        self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
+        self.TraceDebug("size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos)))
+        self.TraceDebug("size of coocurring.json in memory is %d, len = %d" % (sys.getsizeof(self.cooccuring),len(self.cooccuring)))
+
+        self.apiHandler = api_handler.ApiHandler(self)
+
+    def TraceDebug(self, msg):
+        self.logger.debug(msg)
+    def TraceInfo(self, msg):
+        self.logger.info(msg)
+    def TraceWarn(self, msg):
+        self.logger.warn(msg)
+    def TraceError(self, msg):
+        self.logger.error(msg)
+
+    def ApiHandler(self):
+        return self.apiHandler
+
     def NextSentence(self, query):
         return Sentence()
     

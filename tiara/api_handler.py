@@ -1,25 +1,77 @@
 import twitter
+from twitterkeys import api
+import os
+from util import *
 
-class FakeApiHandler:
-    def __init__(self):
-        self.statuses = ["s I am a status","s I like to eat you", "s you're weird","s I like bananas","s politics are republicans","s I'm still a twitter post"]
-        self.replys = ["r3 hello john","r2 hello jo","r1 nice weather isn't it","r0 indeed it is"][-1::-1]
-    
-    def ShowStatus(self, status_id):
-        if status_id < len(self.replys):
-            u = twitter.Status()
-            u.SetText(self.replys[status_id])
-            if status_id + 1 < len(self.replys):
-                u.SetInReplyToStatusId(status_id + 1)
-            return u
-        return None
+CACHE_SIZE = 26
 
-    def ShowStatuses(self, user_id):
-        if user_id == 0:
-            result = []
-            for st in self.statuses:
-                u = twitter.Status()
-                u.SetText(st)
-                result.append(u)
+class ApiHandler():
+    def __init__(self, g_data):
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        with open(abs_prefix + '/max_id',"r") as f:
+            self.max_id = int(f.readline())
+        self.g_data = g_data
+        self.cache = {}
+            
+    def SetMaxId(self, max_id):
+        log_assert(self.max_id <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
+        self.g_data.TraceInfo("    Setting max_id to %d" % max_id)
+        self.max_id = max_id
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        with open(abs_prefix + '/max_id',"w") as f:
+            print >>f, str(max_id)
+
+    def CacheInsert(self, key, value, old_value=None):
+        self.cache[key] = (value,0)
+        if old_value == None:
+            old_value = CACHE_SIZE
+        for k, v in self.cache.items():
+            if v[1] < old_value:
+                if v[1] + 1 < CACHE_SIZE:
+                    self.cache[k] = (v[0],v[1]+1)
+                else: 
+                    del self.cache[k]
+        assert len(self.cache) <= CACHE_SIZE
+            
+    def ApiCall(self, name, args, fun, cache=True):
+        if cache and (name,args) in self.cache:
+            result = self.cache[(name,args)]
+            self.g_data.TraceInfo("  %s(%s) cache hit!" % (name,args))
+            self.CacheInsert((name,args), result[0], result[1])
+            return result[0]
+        try:
+            result = fun()
+            self.g_data.TraceInfo("  %s(%s) success!" % (name,args))
+            if cache:
+                self.CacheInsert((name,args), result)
             return result
-        return None
+        except Exception as e:
+            self.g_data.TraceWarn("  %s(%s) failure" % (name,args))
+            self.g_data.TraceWarn(str(e))
+            return None
+
+    def ShowStatus(self, status_id):
+        return self.ApiCall("ShowStatus", status_id, lambda: api.GetStatus(status_id))
+
+    def Tweet(self, status, in_reply_to_status_id=None):
+        return self.ApiCall("Tweet", status, lambda: True, cache=False)
+        #api.PostUpdate(status, in_reply_to_status_id=in_reply_to_status_id)
+        
+    def ShowStatuses(self, screen_name, count=500):
+        return self.ApiCall("ShowStatuses",screen_name,
+                            lambda: api.GetSearch(term="from:" + screen_name,
+                                                  count=count,
+                                                  result_type="recent",
+                                                  include_entities=False,
+                                                  lang="en"),
+                            cache=False)
+
+    def RecentTweets(self, count=5):
+        return self.ApiCall("RecentTweets","",
+                            lambda: api.GetSearch(term="to:TiaraBoom1",
+                                                  count=count,
+                                                  result_type="recent",
+                                                  include_entities=False,
+                                                  since_id=self.max_id,
+                                                  lang="en"),
+                            cache=False)

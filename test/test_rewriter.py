@@ -5,18 +5,21 @@ from tiara import global_data as g
 
 import twitter
 
-def FakeIterator():
-    api = a.FakeApiHandler()
-    tweet = twitter.Status()
-    tweet.SetText("Original Tweet")
-    tweet.SetInReplyToStatusId(0)
-    u = twitter.User()
-    u.SetId(0)
-    tweet.SetUser(u)
-    return r.TweetsIterator(tweet, api)
+g_data = None
+
+def InitializeGlobalData():
+    global g_data
+    if g_data is None:
+        g_data = g.GlobalData()
+    
+
+def HurshalIterator():
+    InitializeGlobalData()
+    tweet = g_data.ApiHandler().ShowStatus(516828410635489280)
+    return r.TweetsIterator(tweet, g_data)
 
 def TestIterator():
-    it = FakeIterator()
+    it = HurshalIterator()
     for i in xrange(2):
         print i
         while True:
@@ -33,7 +36,7 @@ def TestIterator():
         it.Reset()
 
 def TestVocab():
-    g_data = g.GlobalData()
+    InitializeGlobalData()
     print "loaded"
     vocab = v.Vocab(g_data)
     vocab.Add("smelled")
@@ -63,7 +66,7 @@ def TestVocab():
         print vocab["(Hfd)"]
     
 def TestCooccuring():
-    g_data = g.GlobalData()
+    InitializeGlobalData()
     vocab = v.Vocab(g_data)
     vocab.Add("legging")
     vocab.Register("legging")
@@ -72,13 +75,7 @@ def TestCooccuring():
 
 
 def TestRewriter():
-    tweets = FakeIterator()
-    g_data = g.GlobalData()
-    for i in xrange(10):
-        tweets.Reset()
-        rw = r.Rewriter(tweets, g_data.NextSentence("Original Tweet"), g_data)
-        result = rw.Rewrite()
-        if result:
-            return result
-    return False
+    InitializeGlobalData()
+    tweet = g_data.ApiHandler().ShowStatus(516828410635489280)
+    print r.ChooseResponse(tweet, g_data, True)
 
