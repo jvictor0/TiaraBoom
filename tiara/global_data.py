@@ -8,7 +8,7 @@ import logging.handlers
 import api_handler
 
 class GlobalData:
-    def __init__(self):
+    def __init__(self, read_only_mode = False):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         with open(abs_prefix + '/english_families.json',"r") as f:
             self.englishFamilies = DictToSortedTuple(json.load(f))
@@ -16,6 +16,8 @@ class GlobalData:
             self.englishPos = DictToSortedTuple(json.load(f))
         with open(abs_prefix + '/cooccuring.json',"r") as f:
             self.cooccuring = DictToSortedTuple(json.load(f))
+
+        self.read_only_mode = read_only_mode
 
         log_format = '%(levelname)s %(asctime)s: %(message)s'
         logging.basicConfig(format=log_format)

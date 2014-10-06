@@ -54,6 +54,9 @@ class ApiHandler():
         return self.ApiCall("ShowStatus", status_id, lambda: api.GetStatus(status_id))
 
     def Tweet(self, status, in_reply_to_status=None):
+        if g_data.read_only_mode:
+            self.g_data.TraceWarn("  Tweet in Read-Only-Mode: \"%s\"" % status)
+            return None
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == "TiaraBoom1":
             self.g_data.TraceWarn("  Attempt to respond to self is a bad idea, posting general tweet")
             in_reply_to_status = None
