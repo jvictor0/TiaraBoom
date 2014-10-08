@@ -6,6 +6,7 @@ import os
 import logging
 import logging.handlers
 import api_handler
+import social_logic
 
 class GlobalData:
     def __init__(self, read_only_mode = False):
@@ -46,6 +47,7 @@ class GlobalData:
         self.TraceDebug("size of coocurring.json in memory is %d, len = %d" % (sys.getsizeof(self.cooccuring),len(self.cooccuring)))
 
         self.apiHandler = api_handler.ApiHandler(self)
+        self.socialLogic = social_logic.SocialLogic(self)
 
     def TraceDebug(self, msg):
         self.logger.debug(msg)
@@ -57,10 +59,13 @@ class GlobalData:
         self.logger.error(msg)
 
     def LogTweet(self, user, body, id, reply):
-        self.tweetLogger.debug("%s, %d, %s, %s" % (user,id,reply,body))
+        self.tweetLogger.debug("%s, %d, %s, %s" % (user,id,reply,body.replace("\n"," ")))
 
     def ApiHandler(self):
         return self.apiHandler
+
+    def SocialLogic(self):
+        return self.socialLogic
 
     def NextSentence(self, query):
         return Sentence()

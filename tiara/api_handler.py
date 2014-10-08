@@ -3,24 +3,13 @@ from twitterkeys import api
 import os
 from util import *
 
-CACHE_SIZE = 26
+CACHE_SIZE = 25
 
 class ApiHandler():
     def __init__(self, g_data):
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + '/max_id',"r") as f:
-            self.max_id = int(f.readline())
         self.g_data = g_data
         self.cache = {}
             
-    def SetMaxId(self, max_id):
-        log_assert(self.max_id <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
-        self.g_data.TraceInfo("    Setting max_id to %d" % max_id)
-        self.max_id = max_id
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + '/max_id',"w") as f:
-            print >>f, str(max_id)
-
     def CacheInsert(self, key, value, old_value=None):
         self.cache[key] = (value,0)
         if old_value == None:
@@ -54,9 +43,9 @@ class ApiHandler():
         return self.ApiCall("ShowStatus", status_id, lambda: api.GetStatus(status_id))
 
     def Tweet(self, status, in_reply_to_status=None):
-        if g_data.read_only_mode:
+        if self.g_data.read_only_mode:
             self.g_data.TraceWarn("  Tweet in Read-Only-Mode: \"%s\"" % status)
-            return None
+            return False
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == "TiaraBoom1":
             self.g_data.TraceWarn("  Attempt to respond to self is a bad idea, posting general tweet")
             in_reply_to_status = None
@@ -74,21 +63,38 @@ class ApiHandler():
             self.g_data.LogTweet("TiaraBoom1", status, result.GetId(), reply_id)
         return result
         
-    def ShowStatuses(self, screen_name, count=500):
-        return self.ApiCall("ShowStatuses",screen_name,
-                            lambda: api.GetSearch(term="from:" + screen_name,
-                                                  count=count,
-                                                  result_type="recent",
-                                                  include_entities=False,
-                                                  lang="en"),
+    def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=True):
+        return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
+                            lambda:  api.GetUserTimeline(screen_name=screen_name,
+                                                         user_id=user_id,
+                                                         count=count,
+                                                         include_rts=False,
+                                                         trim_user=trim_user,
+                                                         exclude_replies=False),
                             cache=False)
 
-    def RecentTweets(self, count=5):
+    def GetFollowerIDs(self, screen_name=None, user_id=None):
+         return self.ApiCall("GetFollowerIDs", NotNone(screen_name, user_id),
+                             lambda: api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1),
+                             cache=False)
+
+    def GetFollowers(self, user_id=None, screen_name=None):
+        def GFP(scn,uid):
+            next,prev,data = api.GetFollowersPaged(screen_name=scn,user_id=uid,cursor=-1)
+            return [twitter.User.NewFromJsonDict(x) for x in data['users']]
+
+        return self.ApiCall("GetFollowers", NotNone(screen_name, user_id), 
+                             lambda: GFP(screen_name, user_id),
+                             cache=False)
+
+    def RecentTweets(self, max_id, count=5):
         return self.ApiCall("RecentTweets","",
                             lambda: api.GetSearch(term="to:TiaraBoom1",
                                                   count=count,
                                                   result_type="recent",
                                                   include_entities=False,
-                                                  since_id=self.max_id,
+                                                  since_id=max_id,
                                                   lang="en"),
                             cache=False)
+
+

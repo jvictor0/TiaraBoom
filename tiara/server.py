@@ -1,4 +1,3 @@
-import social_logic as sl
 import global_data as g
 import sys
 import time
@@ -9,7 +8,7 @@ import Queue
 def HandleInput(g_data, inp):
     inp = inp.strip()
     if inp == 'reply':
-        sl.Reply(g_data)
+        g_data.SocialLogic().Reply()
         return "ok"
     return "syntax error"
 
@@ -37,9 +36,9 @@ if __name__ == '__main__':
     message_queues = {}
 
     while inputs:
-        
-        sl.Reply(g_data)
 
+        g_data.SocialLogic().Act()
+        
         ############# Begin server stuff ##################
         readable, writable, exceptional = select.select(inputs, outputs, inputs, 60)
         for s in readable:

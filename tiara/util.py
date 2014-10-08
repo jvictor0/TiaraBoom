@@ -38,3 +38,7 @@ def ListInsert(dict, k, v):
         dict[k] = [v]
     else:
         dict[k].append(v)
+
+def NotNone(arg1, arg2):
+    return arg1 if not arg1 is None else arg2
+    
