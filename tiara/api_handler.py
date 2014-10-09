@@ -96,5 +96,9 @@ class ApiHandler():
                                                   since_id=max_id,
                                                   lang="en"),
                             cache=False)
-
-
+    
+    def Follow(self, screen_name):
+        if self.g_data.read_only_mode:
+            self.g_data.TraceWarn("  Follow in Read-Only-Mode: \"@%s\"" % screen_name)
+            return False
+        return self.ApiCall("Follow",screen_name,lambda: api.CreateFriendship(screen_name=screen_name), cache=False)

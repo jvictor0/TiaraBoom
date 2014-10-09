@@ -1,13 +1,14 @@
 import vocab as v
 import random
 
-def ChooseResponse(tweet, g_data, inReply = False, attempts = 10):
-    tweets = TweetsIterator(tweet, g_data)
+def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
+    assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
+    tweets = TweetsIterator(g_data, tweet=tweet, user=user)
     for i in xrange(attempts):
         tweets.Reset()
-        sentence = g_data.NextSentence(tweet.GetText())
+        sentence = g_data.NextSentence(tweet.GetText() if not tweet is None else "")
         g_data.TraceInfo("Rewriting sentence \"%s\"" % " ".join(sentence))
-        rw = Rewriter(tweets, sentence, inReply, g_data)
+        rw = Rewriter(tweets, sentence, user_name is None, g_data)
         result = rw.Rewrite()
         if result and inReply:
             result = '@' + tweet.GetUser().GetScreenName() + ": " + result
@@ -20,22 +21,28 @@ def ChooseResponse(tweet, g_data, inReply = False, attempts = 10):
     return False
 
 class TweetsIterator:
-    def __init__(self, original, g_data):
+    def __init__(self, g_data, original = None, user=None):
         self.ix = 0
-        self.original = original.GetText()
-        self.user_id = original.GetUser().GetScreenName()
-        self.reply_id = original.GetInReplyToStatusId()
-        self.original_reply_id = self.reply_id
-        self.reply_id = original.GetInReplyToStatusId()
         self.g_data = g_data
         self.userTweets = None
+        self.reply_id = None
+        self.original = None
+        if not original is None:
+            self.original = original.GetText()
+            self.user_id = original.GetUser().GetScreenName()
+            self.reply_id = original.GetInReplyToStatusId()
+            self.reply_id = original.GetInReplyToStatusId()
+        else:
+            self.user_id = user.GetScreenName()
+        self.original_reply_id = self.reply_id
 
     def Next(self, allowUserTweets):
         if self.ix == -1:
             return False
         if self.ix == 0:
             self.ix = self.ix + 1
-            return self.original
+            if not self.original is None:
+                return self.original
         if not self.reply_id is None:
             assert self.ix == 1
             nextTweet = self.g_data.ApiHandler().ShowStatus(self.reply_id)

@@ -37,7 +37,7 @@ class SocialLogic:
 
     def ReplyTo(self, tweet):
         self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
-        response = r.ChooseResponse(tweet, self.g_data, inReply = True)
+        response = r.ChooseResponse(self.g_data, tweet=tweet)
         if response:
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
@@ -66,7 +66,7 @@ class SocialLogic:
             if score > self.bestNewFriendScore:
                 self.g_data.TraceInfo("Interested in new friend @%s with score %d" % (user.GetScreenName(), score))
                 self.bestNewFriendScore = score
-                self.bestnewFriend = user
+                self.bestNewFriend = user
 
     # we shall eventually replace this with a learning machine
     #
@@ -74,6 +74,8 @@ class SocialLogic:
         numFriends = user.GetFriendsCount()
         numFollowers = user.GetFollowersCount()
         result = 0
+        if 'follow' in user.GetScreenName().lower() or 'follow' in user.GetName().lower:
+            return -1 # because fuck you, thats why
         if numFriends < 100 or numFollowers < 100:
             return -1 # stay away from people with very few friends!
         if 400 < numFriends <= 600:
@@ -94,7 +96,49 @@ class SocialLogic:
             result += 1
 
         return result
-            
+
+    def Bother(self, user):
+        self.g_data.TraceInfo("Bothering @%s" % user.GetScreenName())
+        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = user.GetScreenName())
+        for t in tweets:
+            if self.BotherAppropriate(t):
+                self.ReplyTo(t)
+                return
+        self.g_data.TraceWarn("No tweet by @%s was found botherable!" % user.GetScreenName())
+        
+    def TweetFrom(self, user):
+        self.g_data.TraceInfo("Tweeting from @%s" % user.GetScreenName())
+        response = r.ChooseResponse(self.g_data, user=tweet)
+        if response:
+            result = self.g_data.ApiHandler().Tweet(response)
+            if not result is None:
+                return
+        self.g_data.TraceWarn("Failed to tweet from @%s" % user.GetSceenName())
+
+    def BotherAppropriate(self, tweet):
+        if tweet.lang != "en":
+            return False
+        if len(tweet.hashtags) > 2:
+            return False
+        if len(tweet.media) != 0 or len(tweet.urls) != 0:
+            return False
+        if not tweet.GetInReplyToStatusId() is None or not tweet.GetRetweeted_status() is None:
+            return False
+        return True
+
+    def Follow(self):
+        if self.bestNewFriend is None:
+            return
+        user = self.bestNewFriend
+        self.bestNewFriend = None
+        self.bestNewFriendScore = 0
+        result = self.g_data.ApiHandler().Follow(user.GetScreenName())
+        if result is None:
+            return
+        fn = random.choice([lambda : self.TweetFrom(user),
+                            lambda : self.Bother(user)])
+        fn()
+                
     def Act(self):
         self.untilNextAction -= 1
         if self.untilNextAction == 0:

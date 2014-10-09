@@ -16,7 +16,7 @@ def InitializeGlobalData():
 def HurshalIterator():
     InitializeGlobalData()
     tweet = g_data.ApiHandler().ShowStatus(516828410635489280)
-    return r.TweetsIterator(tweet, g_data)
+    return r.TweetsIterator(g_data, tweet=tweet)
 
 def TestIterator():
     it = HurshalIterator()
@@ -77,5 +77,5 @@ def TestCooccuring():
 def TestRewriter():
     InitializeGlobalData()
     tweet = g_data.ApiHandler().ShowStatus(516828410635489280)
-    print r.ChooseResponse(tweet, g_data, True)
+    print r.ChooseResponse(g_data, tweet=tweet)
 
