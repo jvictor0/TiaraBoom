@@ -29,21 +29,21 @@ class SocialLogic:
         tweets = self.g_data.ApiHandler().RecentTweets(self.max_id, count=5)
         if tweets is None:
             # warning already in log, no need to warn again
-            return
+            return None
         for t in tweets[-1::-1]:
             if self.ReplyTo(t):
                 self.SetMaxId(t.GetId())
-            
+        return True
 
     def ReplyTo(self, tweet):
         self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
         response = r.ChooseResponse(self.g_data, tweet=tweet)
-        if response:
+        if not response is None:
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
                 return True
         self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
-        return False
+        return None
 
     def RandomFollowerID(self, name):
         result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=name)
@@ -98,22 +98,24 @@ class SocialLogic:
         return result
 
     def Bother(self, user):
-        self.g_data.TraceInfo("Bothering @%s" % user.GetScreenName())
-        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = user.GetScreenName())
+        self.g_data.TraceInfo("Bothering @%s" % user)
+        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = user, trim_user=False)
         for t in tweets:
             if self.BotherAppropriate(t):
                 self.ReplyTo(t)
-                return
-        self.g_data.TraceWarn("No tweet by @%s was found botherable!" % user.GetScreenName())
+                return True
+        self.g_data.TraceWarn("No tweet by @%s was found botherable!" % user)
+        return None
         
     def TweetFrom(self, user):
         self.g_data.TraceInfo("Tweeting from @%s" % user.GetScreenName())
-        response = r.ChooseResponse(self.g_data, user=tweet)
-        if response:
+        response = r.ChooseResponse(self.g_data, user=user)
+        if not response is None:
             result = self.g_data.ApiHandler().Tweet(response)
             if not result is None:
-                return
-        self.g_data.TraceWarn("Failed to tweet from @%s" % user.GetSceenName())
+                return True
+        self.g_data.TraceWarn("Failed to tweet from @%s" % user.GetScreenName())
+        return None
 
     def BotherAppropriate(self, tweet):
         if tweet.lang != "en":
@@ -128,22 +130,24 @@ class SocialLogic:
 
     def Follow(self):
         if self.bestNewFriend is None:
-            return
+            return None
         user = self.bestNewFriend
         self.bestNewFriend = None
         self.bestNewFriendScore = 0
-        result = self.g_data.ApiHandler().Follow(user.GetScreenName())
+        result = self.g_data.ApiHandler().Follow(screen_name = user.GetScreenName())
         if result is None:
-            return
+            return None
         fn = random.choice([lambda : self.TweetFrom(user),
-                            lambda : self.Bother(user)])
-        fn()
+                            lambda : self.Bother(user.GetScreenName())])
+        return fn()
+        
                 
     def Act(self):
         self.untilNextAction -= 1
         if self.untilNextAction == 0:
             self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
             self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
+            self.Follow()
         self.Reply()
         if self.tix % 15 == 0:
             self.StalkTwitter()

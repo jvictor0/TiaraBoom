@@ -3,12 +3,13 @@ import random
 
 def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
-    tweets = TweetsIterator(g_data, tweet=tweet, user=user)
+    inReply = user is None
+    tweets = TweetsIterator(g_data, original=tweet, user=user)
     for i in xrange(attempts):
         tweets.Reset()
         sentence = g_data.NextSentence(tweet.GetText() if not tweet is None else "")
         g_data.TraceInfo("Rewriting sentence \"%s\"" % " ".join(sentence))
-        rw = Rewriter(tweets, sentence, user_name is None, g_data)
+        rw = Rewriter(tweets, sentence, inReply, g_data)
         result = rw.Rewrite()
         if result and inReply:
             result = '@' + tweet.GetUser().GetScreenName() + ": " + result
@@ -18,7 +19,7 @@ def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
             g_data.TraceWarn("Failing long tweet \"%s\"" % result)
         else:
             g_data.TraceWarn("Failed to rewrite \"%s\"" % ' '.join(sentence))
-    return False
+    return None
 
 class TweetsIterator:
     def __init__(self, g_data, original = None, user=None):

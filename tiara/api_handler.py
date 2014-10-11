@@ -46,11 +46,12 @@ class ApiHandler():
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("  Tweet in Read-Only-Mode: \"%s\"" % status)
             return False
+        irtsi = in_reply_to_status.GetId() if not in_reply_to_status is None else None
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == "TiaraBoom1":
             self.g_data.TraceWarn("  Attempt to respond to self is a bad idea, posting general tweet")
             in_reply_to_status = None
         result = self.ApiCall("Tweet", status,
-                              lambda: api.PostUpdate(status, in_reply_to_status_id=in_reply_to_status.GetId()),
+                              lambda: api.PostUpdate(status, in_reply_to_status_id=irtsi),
                               cache=False)
         
         if not result is None:
@@ -96,8 +97,11 @@ class ApiHandler():
                                                   since_id=max_id,
                                                   lang="en"),
                             cache=False)
+
+    def Search(self, term):
+        return self.ApiCall("Search",term,lambda : api.GetSearch(term=term))
     
-    def Follow(self, screen_name):
+    def Follow(self, screen_name=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("  Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return False
