@@ -27,10 +27,29 @@ class Vocab:
                 self.Add(coWord)
     
     def __getitem__(self, part):
+        if part in ["(_Kvt)","(_Kvf)"]: # verber
+            return self.Verber(part[4])
         if part in self.dict:
             entries = self.dict[part]
-            if len(entries) ==0:
+            if len(entries) == 0:
                 return None
             return random.choice(entries)
+        return None
+
+
+    def Shuffled(self, part):
+        if part in self.dict:
+            entries = self.dict[part]
+            random.shuffle(entries)
+            return entries
+        return []
+        
+    def Verber(self, pl):
+        for v in self.Shuffled("(Ht)") + self.Shuffled("(It)"):
+            for vr in [v + "er", v + "r", v[:-1] + "ier", v + v[-1] + "er"]:
+                if pl == 'f':
+                    vr += "s"
+                if "(K" + pl + ")" in self.g_data.DictLookup(vr) and not vr in self.used:
+                    return vr        
         return None
 

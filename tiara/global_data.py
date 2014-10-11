@@ -6,6 +6,7 @@ import os
 import logging
 import logging.handlers
 import api_handler
+import random
 import social_logic
 
 class GlobalData:
@@ -70,6 +71,9 @@ class GlobalData:
     def NextSentence(self, query):
         return Sentence()
     
+    def RandomEnglishWord(self):
+        return random.choice(self.englishFamilies)[0] 
+
     def DictLookup(self, word):
         res = BinarySearch(self.englishPos,word)
         if res:

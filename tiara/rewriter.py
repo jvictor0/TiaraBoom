@@ -21,6 +21,16 @@ def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
             g_data.TraceWarn("Failed to rewrite \"%s\"" % ' '.join(sentence))
     return None
 
+class RandomWordIterator:
+    def __init__(self, g_data):
+        self.g_data = g_data
+
+    def Next(self, ignore):
+        return self.g_data.RandomEnglishWord()
+
+    def Reset(self):
+        pass
+
 class TweetsIterator:
     def __init__(self, g_data, original = None, user=None):
         self.ix = 0
@@ -69,18 +79,6 @@ class TweetsIterator:
     def Reset(self):
         self.ix = 0
         self.reply_id = self.original_reply_id
-
-def SplitSentence(sentence):
-    sentence = sentence.split("(")
-    result = []
-    for i in xrange(1,len(sentence)):
-        sentence[i] = ("(" + sentence[i]).split(")")
-        for j in xrange(len(sentence[i])-1):
-            sentence[i][j] = sentence[i][j] + ")"
-    for s in sentence:
-        for t in s:
-            result.append(t)
-    return result
 
 
 class Rewriter:
@@ -134,4 +132,4 @@ class Rewriter:
                 if self.sentence[i+1][0] in ['a','e','i','o']:
                     self.sentence[i][-1] = 'n'
                     self.sentence[i].append(' ')
-        return " ".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").strip()
+        return " ".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").replace(" ;",";").strip()

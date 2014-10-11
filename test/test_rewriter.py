@@ -79,3 +79,11 @@ def TestRewriter():
     tweet = g_data.ApiHandler().ShowStatus(516828410635489280)
     print r.ChooseResponse(g_data, tweet=tweet)
 
+def RewriterRandom():
+    InitializeGlobalData()
+    tweets = r.RandomWordIterator(g_data)
+    for i in xrange(100):
+        sentence = g_data.NextSentence("")
+        rw = r.Rewriter(tweets, sentence, False, g_data)
+        print " ".join(sentence)
+        print rw.Rewrite()

@@ -5,7 +5,7 @@ def ConstructSentence(phr):
     first = True
     result = []
     for w in phr:
-        tpunc = (w in [",",".","?","!"])
+        tpunc = (w in [",",".","?","!",";","..."])
         if tpunc and first:
             continue
         if first:
