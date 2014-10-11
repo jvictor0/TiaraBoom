@@ -50,13 +50,13 @@ class GlobalData:
         self.socialLogic = social_logic.SocialLogic(self)
 
     def TraceDebug(self, msg):
-        self.logger.debug(msg)
+        self.logger.debug(Indentation() + msg)
     def TraceInfo(self, msg):
-        self.logger.info(msg)
+        self.logger.info(Indentation() + msg)
     def TraceWarn(self, msg):
-        self.logger.warn(msg)
+        self.logger.warn(Indentation() + msg)
     def TraceError(self, msg):
-        self.logger.error(msg)
+        self.logger.error(Indentation() + msg)
 
     def LogTweet(self, user, body, id, reply):
         self.tweetLogger.debug("%s, %d, %s, %s" % (user,id,reply,body.replace("\n"," ")))

@@ -3,6 +3,9 @@ import logging
 import sys
 import inspect
 
+def Indentation():
+    return ' ' * len(inspect.stack())
+
 # puts traceback into the log
 def log_assert(bool_, message, g_data):
     try:

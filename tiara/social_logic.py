@@ -19,7 +19,7 @@ class SocialLogic:
 
     def SetMaxId(self, max_id):
         log_assert(self.max_id <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
-        self.g_data.TraceInfo("    Setting max_id to %d" % max_id)
+        self.g_data.TraceInfo("Setting max_id to %d" % max_id)
         self.max_id = max_id
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         with open(abs_prefix + '/max_id',"w") as f:

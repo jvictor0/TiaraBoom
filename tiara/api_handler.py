@@ -25,17 +25,17 @@ class ApiHandler():
     def ApiCall(self, name, args, fun, cache=True):
         if cache and (name,args) in self.cache:
             result = self.cache[(name,args)]
-            self.g_data.TraceInfo("  %s(%s) cache hit!" % (name,args))
+            self.g_data.TraceInfo("%s(%s) cache hit!" % (name,args))
             self.CacheInsert((name,args), result[0], result[1])
             return result[0]
         try:
             result = fun()
-            self.g_data.TraceInfo("  %s(%s) success!" % (name,args))
+            self.g_data.TraceInfo("%s(%s) success!" % (name,args))
             if cache:
                 self.CacheInsert((name,args), result)
             return result
         except Exception as e:
-            self.g_data.TraceWarn("  %s(%s) failure" % (name,args))
+            self.g_data.TraceWarn("%s(%s) failure" % (name,args))
             self.g_data.TraceWarn(str(e))
             return None
 
@@ -44,11 +44,11 @@ class ApiHandler():
 
     def Tweet(self, status, in_reply_to_status=None):
         if self.g_data.read_only_mode:
-            self.g_data.TraceWarn("  Tweet in Read-Only-Mode: \"%s\"" % status)
+            self.g_data.TraceWarn("Tweet in Read-Only-Mode: \"%s\"" % status)
             return False
         irtsi = in_reply_to_status.GetId() if not in_reply_to_status is None else None
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == "TiaraBoom1":
-            self.g_data.TraceWarn("  Attempt to respond to self is a bad idea, posting general tweet")
+            self.g_data.TraceWarn("Attempt to respond to self is a bad idea, posting general tweet")
             in_reply_to_status = None
         result = self.ApiCall("Tweet", status,
                               lambda: api.PostUpdate(status, in_reply_to_status_id=irtsi),
@@ -103,6 +103,6 @@ class ApiHandler():
     
     def Follow(self, screen_name=None):
         if self.g_data.read_only_mode:
-            self.g_data.TraceWarn("  Follow in Read-Only-Mode: \"@%s\"" % screen_name)
+            self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return False
         return self.ApiCall("Follow",screen_name,lambda: api.CreateFriendship(screen_name=screen_name), cache=False)
