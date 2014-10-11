@@ -74,7 +74,7 @@ class SocialLogic:
         numFriends = user.GetFriendsCount()
         numFollowers = user.GetFollowersCount()
         result = 0
-        if 'follow' in user.GetScreenName().lower() or 'follow' in user.GetName().lower:
+        if 'follow' in user.GetScreenName().lower() or 'follow' in user.GetName().lower():
             return -1 # because fuck you, thats why
         if numFriends < 100 or numFollowers < 100:
             return -1 # stay away from people with very few friends!
