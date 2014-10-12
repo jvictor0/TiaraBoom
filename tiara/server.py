@@ -24,10 +24,11 @@ def HandleInput(g_data, inp):
         return "ok" if not res is None else "error"
     if inp[0] == 'reply' and len(inp) == 2:
         try:
-            tweet = g_data.ShowStatus(int(inp[1]))
+            tweet = g_data.ApiHandler().ShowStatus(int(inp[1]))
             if tweet == None:
                 return "error"
         except Exception as e:
+            print e
             return "syntax error"
         res = g_data.SocialLogic().ReplyTo(tweet)
         return "ok" if not res is None else "error"
