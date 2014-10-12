@@ -64,7 +64,7 @@ class ApiHandler():
             self.g_data.LogTweet("TiaraBoom1", status, result.GetId(), reply_id)
         return result
         
-    def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=True):
+    def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
                             lambda:  api.GetUserTimeline(screen_name=screen_name,
                                                          user_id=user_id,

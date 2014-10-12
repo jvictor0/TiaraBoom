@@ -29,6 +29,7 @@ class RandomWordIterator:
     def Next(self, ignore):
         result = twitter.Status()
         result.SetText(self.g_data.RandomEnglishWord())
+        result.SetUser(twitter.User())
         return result
 
     def Reset(self):

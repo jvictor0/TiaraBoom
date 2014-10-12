@@ -315,13 +315,13 @@ def _conditional_clause():
     return _conditional_clause_pl(rand_plural())
 
 def _indep_clause_pl_random():
-    return RandomChoice([(_indep_clause_pl_intrans_2,3),
+    return RandomChoice([#(_indep_clause_pl_intrans_2,3),
                          (_indep_clause_pl_intrans_3,2),
-                         (_indep_clause_pl_trans_2,6),
+                         #(_indep_clause_pl_trans_2,6),
                          (_indep_clause_pl_trans_3,3),
-                         (_indep_clause_pl_intrans_ego_2,5),
+                         #(_indep_clause_pl_intrans_ego_2,5),
                          (_indep_clause_pl_intrans_ego_3,2),
-                         (_indep_clause_pl_trans_ego_2,6),
+                         #(_indep_clause_pl_trans_ego_2,6),
                          (_indep_clause_pl_trans_ego_3,3),
                          (_being_clause,7)])
 
@@ -537,7 +537,7 @@ def _possible_conditional_filler():
 
 def _indep_clause_pl_trans_no_obj(plural_, no_adverb):
     return phrase([_noun(plural_),
-                   fix_helper((_possible_adverb(_nil, _nil) if no_adverb else _nil), _verb(plural_)(POS_TRANSITIVE_VERB))])
+                   _verb(plural_)(POS_TRANSITIVE_VERB), (_possible_adverb(_nil, _nil) if no_adverb else _nil)])
 
 def _indep_clause_pl_intrans_1(plural_):
     return phrase([_possible_adverb(_nil, _nil), _noun(plural_), _verb(plural_)(POS_INTRANSITIVE_VERB), _possible_prepositional_phrase()])
@@ -549,16 +549,16 @@ def _indep_clause_pl_intrans_3(plural_):
     return phrase([_noun(plural_), _verb(plural_)(POS_INTRANSITIVE_VERB), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _subjunctive_clause_pl_intrans(plural_):
-    return phrase([_subject(plural_), _were, _possible_adverb(_nil, _nil), rand_word(POS_INTRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _possible_prepositional_phrase()])
+    return phrase([_subject(plural_), _were, rand_word(POS_INTRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _subjunctive_clause_pl_infin_intrans(plural_):
-    return phrase([_subject(plural_), _were, _to, _possible_adverb(_nil, _nil), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_prepositional_phrase()])
+    return phrase([_subject(plural_), _were, _to, rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _conditional_clause_pl_intrans(plural_):
-    return phrase([_subject(plural_), _conditional_helper(), _be, _possible_adverb(_nil, _nil), rand_word(POS_INTRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _possible_prepositional_phrase()])
+    return phrase([_subject(plural_), _conditional_helper(), _be, rand_word(POS_INTRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART),  _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _conditional_clause_pl_infin_intrans(plural_):
-    return phrase([_subject(plural_), _conditional_helper(), _possible_adverb(_nil, _nil), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_prepositional_phrase()])
+    return phrase([_subject(plural_), _conditional_helper(), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_intrans_ego_1(plural_):
     return phrase([_possible_adverb(_nil, _nil), (_I if plural_ else _we), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_prepositional_phrase()])
@@ -580,19 +580,19 @@ def _indep_clause_pl_trans_3(plural_):
 
 def _subjunctive_clause_pl_trans(plural_):
     subj_and_tag = _subject_and_tag(plural_)
-    return phrase([subj_and_tag[0], _were, _possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _object(rand_plural(), subj_and_tag[1]), _possible_prepositional_phrase()])
+    return phrase([subj_and_tag[0], _were, rand_word(POS_TRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _object(rand_plural(), subj_and_tag[1]),  _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _subjunctive_clause_pl_infin_trans(plural_):
     subj_and_tag = _subject_and_tag(plural_)
-    return phrase([subj_and_tag[0], _were, _to, _possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), subj_and_tag[1]), _possible_prepositional_phrase()])
+    return phrase([subj_and_tag[0], _were, _to, rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), subj_and_tag[1]), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _conditional_clause_pl_trans(plural_):
     subj_and_tag = _subject_and_tag(plural_)
-    return phrase([subj_and_tag[0], _conditional_helper(), _be, _possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _object(rand_plural(), subj_and_tag[1]), _possible_prepositional_phrase()])
+    return phrase([subj_and_tag[0], _conditional_helper(), _be, rand_word(POS_TRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _object(rand_plural(), subj_and_tag[1]), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _conditional_clause_pl_infin_trans(plural_):
     subj_and_tag = _subject_and_tag(plural_)
-    return phrase([subj_and_tag[0], _conditional_helper(), _possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), subj_and_tag[1]), _possible_prepositional_phrase()])
+    return phrase([subj_and_tag[0], _conditional_helper(), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), subj_and_tag[1]),  _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
 def _indep_clause_pl_trans_ego_1(plural_):
     return phrase([_possible_adverb(_nil, _nil), (_I if plural_ else _we), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (O if plural_ else we)), _possible_prepositional_phrase()])
@@ -964,15 +964,15 @@ def _coordinating_conjunction():
                          (lit_phrase("so"),1)])
 
 def _coordinating_conjunction_advice():
-    return RandomChoice([(lit_phrase("and"),1),
-                         (lit_phrase("and try to"),1),
-                         (lit_phrase("and you will"),1),
-                         (lit_phrase("and don't"),1),
-                         (lit_phrase("or"),1),
-                         (lit_phrase("or you won't be able to"),1),
-                         (lit_phrase("but"),1),
-                         (lit_phrase("but don't"),1),
-                         (lit_phrase("but try to"),1),
+    return RandomChoice([(cm_lit_phrase("and"),1),
+                         (cm_lit_phrase("and try to"),1),
+                         (cm_lit_phrase("and you will"),1),
+                         (cm_lit_phrase("and don't"),1),
+                         (cm_lit_phrase("or"),1),
+                         (cm_lit_phrase("or you won't be able to"),1),
+                         (cm_lit_phrase("but"),1),
+                         (cm_lit_phrase("but don't"),1),
+                         (cm_lit_phrase("but try to"),1),
                          (lit_phrase("so you can"),1)])
 
 def _subordinating_conjunction():
@@ -1047,9 +1047,9 @@ def _superlative_modify():
     return RandomChoice([(lit_phrase("ever"),1),
                          (lit_phrase("anywhere"),1),
                          (lit_phrase("yet"),1),
-                         (lit_phrase("I ve seen"),1),
-                         (lit_phrase("I ve know"),1),
-                         (lit_phrase("I ve heard of"),1)])
+                         (lit_phrase("I've seen"),1),
+                         (lit_phrase("I've know"),1),
+                         (lit_phrase("I've heard of"),1)])
 
 def _possible_adj_clause():
     return RandomChoice([(_nil_func0,2),
