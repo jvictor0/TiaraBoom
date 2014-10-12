@@ -44,4 +44,3 @@ def ListInsert(dict, k, v):
 
 def NotNone(arg1, arg2):
     return arg1 if not arg1 is None else arg2
-    

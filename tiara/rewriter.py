@@ -1,5 +1,6 @@
 import vocab as v
 import random
+import twitter
 
 def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
@@ -26,7 +27,9 @@ class RandomWordIterator:
         self.g_data = g_data
 
     def Next(self, ignore):
-        return self.g_data.RandomEnglishWord()
+        result = twitter.Status()
+        result.SetText(self.g_data.RandomEnglishWord())
+        return result
 
     def Reset(self):
         pass
@@ -39,9 +42,8 @@ class TweetsIterator:
         self.reply_id = None
         self.original = None
         if not original is None:
-            self.original = original.GetText()
+            self.original = original
             self.user_id = original.GetUser().GetScreenName()
-            self.reply_id = original.GetInReplyToStatusId()
             self.reply_id = original.GetInReplyToStatusId()
         else:
             self.user_id = user.GetScreenName()
@@ -59,7 +61,7 @@ class TweetsIterator:
             nextTweet = self.g_data.ApiHandler().ShowStatus(self.reply_id)
             if not nextTweet is None:
                 self.reply_id = nextTweet.GetInReplyToStatusId()
-                return nextTweet.GetText()
+                return nextTweet
             else:
                 self.reply_id = None
                 g_data.TraceWarn("Unable to get reply, resorting to getting all user tweets")
@@ -70,7 +72,7 @@ class TweetsIterator:
                 self.ix = -1
                 self.g_data.TraceWarn("Unable to get user tweets, failing TweetsIterator")
                 return False
-            self.userTweets = [t.GetText() for t in self.userTweets]
+            self.userTweets = self.userTweets
         if allowUserTweets and self.ix <= len(self.userTweets):
             self.ix += 1
             return self.userTweets[self.ix-2]
@@ -94,7 +96,7 @@ class Rewriter:
     def AddVocab(self):
         tweet = self.tweets.Next(self.progressEver)
         if tweet:
-            self.vocab.Add(tweet)
+            self.vocab.Add(tweet.GetText(), addSimilar = tweet.GetUser().GetScreenName() == "TiaraBoom1")
             return True
         return False
 

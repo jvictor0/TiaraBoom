@@ -18,6 +18,8 @@ class GlobalData:
             self.englishPos = DictToSortedTuple(json.load(f))
         with open(abs_prefix + '/cooccuring.json',"r") as f:
             self.cooccuring = DictToSortedTuple(json.load(f))
+        with open(abs_prefix + '/similar.json',"r") as f:
+            self.similar = DictToSortedTuple(json.load(f))
 
         self.read_only_mode = read_only_mode
 
@@ -46,6 +48,7 @@ class GlobalData:
         self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
         self.TraceDebug("size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos)))
         self.TraceDebug("size of coocurring.json in memory is %d, len = %d" % (sys.getsizeof(self.cooccuring),len(self.cooccuring)))
+        self.TraceDebug("size of similar.json in memory is %d, len = %d" % (sys.getsizeof(self.similar),len(self.similar)))
 
         self.apiHandler = api_handler.ApiHandler(self)
         self.socialLogic = social_logic.SocialLogic(self)
@@ -86,7 +89,7 @@ class GlobalData:
             if not isinstance(res, list):
                 return res
             return word
-        return []
+        return None
 
     def WordFamily(self, word):
         res = BinarySearch(self.englishFamilies,word)
@@ -104,3 +107,9 @@ class GlobalData:
         if res:
             return res
         return []
+
+    def Similar(self, word):
+        res = BinarySearch(self.similar,word)
+        if res:
+            return res
+        return ""

@@ -8,16 +8,19 @@ class Vocab:
         self.g_data = g_data
         self.used = []
 
-    def Add(self, tweet):
+    def Add(self, tweet, addSimilar = False):
         words = re.split(r"[^a-zA-Z\'\-]", tweet)
         for w in words:
             rep = self.g_data.FamilyRepresentative(w)
-            if rep not in self.used:  
+            if not rep is None and rep not in self.used:  
                 for word, part in self.g_data.FamilyLookup(rep):
                     ListInsert(self.dict, part, word)
+                if addSimilar:
+                    self.Add(self.g_data.Similar(rep))
 
     def Register(self, word):
         rep = self.g_data.FamilyRepresentative(word)
+        log_assert(not rep is None, "somehow we registered '%s'" % word, self.g_data)
         self.used.append(rep)
         for w, part in self.g_data.FamilyLookup(rep):
             if part in self.dict:
