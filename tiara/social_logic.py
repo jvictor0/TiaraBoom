@@ -100,6 +100,8 @@ class SocialLogic:
     def Bother(self, user):
         self.g_data.TraceInfo("Bothering @%s" % user)
         tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = user, trim_user=False)
+        if tweets is None:
+            return None
         for t in tweets:
             if self.BotherAppropriate(t):
                 self.ReplyTo(t)
