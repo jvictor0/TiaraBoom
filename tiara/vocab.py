@@ -20,7 +20,8 @@ class Vocab:
 
     def Register(self, word):
         rep = self.g_data.FamilyRepresentative(word)
-        log_assert(not rep is None, "somehow we registered '%s'" % word, self.g_data)
+        if rep is None:
+            return
         self.used.append(rep)
         for w, part in self.g_data.FamilyLookup(rep):
             if part in self.dict:
