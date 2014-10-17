@@ -289,7 +289,7 @@ def _possible_sub_clause(begin, end):
     return _possible_sub_clause_func()(begin, end)
 
 def _possible_adverb_func():
-    return RandomChoice([(_adverb_punc,1),
+    return RandomChoice([(_adverb_punc,0),
                          (_nil_func2,3)])
 
 def _possible_adverb(begin, end):
