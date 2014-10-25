@@ -1,4 +1,5 @@
 import global_data as g
+from util import *
 import sys
 import time
 import select
@@ -43,12 +44,13 @@ def HandleInput(g_data, inp):
 
 if __name__ == '__main__':
 
+    sys.excepthook = exceptionTrace
+
     read_only_mode = "--read-only-mode" in sys.argv
     g_data = g.GlobalData(read_only_mode)
     if read_only_mode:
         g_data.TraceInfo("In Read Only Mode!")
     
-
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.setblocking(0)

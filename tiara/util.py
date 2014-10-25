@@ -44,3 +44,13 @@ def ListInsert(dict, k, v):
 
 def NotNone(arg1, arg2):
     return arg1 if not arg1 is None else arg2
+
+
+def exceptionTrace(exctype, value, tb):
+    logger = logging.getLogger('TiaraBoom')
+    
+    logger.error('I seem to have crashed with an exception')
+    logger.error('Type: %s' % exctype)
+    logger.error('Value: %s' % value)
+    logger.error('Traceback:\n%s' % tb)
+    
