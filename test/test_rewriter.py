@@ -2,6 +2,8 @@ from tiara import api_handler as a
 from tiara import rewriter as r
 from tiara import vocab as v
 from tiara import global_data as g
+from tiara import sentence_gen as s
+from tiara import grammar as gr
 
 import twitter
 
@@ -82,8 +84,8 @@ def TestRewriter():
 def RewriterRandom():
     InitializeGlobalData()
     tweets = r.RandomWordIterator(g_data)
-    for i in xrange(100):
-        sentence = g_data.NextSentence("")
+    for i in xrange(2500):
+        sentence = s.Sentence()
         rw = r.Rewriter(tweets, sentence, False, g_data)
-        print " ".join(sentence)
+#        print " ".join(sentence)
         print rw.Rewrite()

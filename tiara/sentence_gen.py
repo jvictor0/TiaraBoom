@@ -1,4 +1,4 @@
-from grammar import _sentence, _advice, _sentence_bother, _insult
+from grammar import _sentence, _advice, _insult
 
 def ConstructSentence(phr):
     punc = False
@@ -21,9 +21,3 @@ def ConstructSentence(phr):
 
 def Sentence():
     return ConstructSentence(_sentence())
-
-def SentenceBother():
-    return ConstructSentence(_sentence_bother())
-
-def Insult():
-    return ConstructSentence(_insult())

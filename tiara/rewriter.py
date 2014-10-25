@@ -131,8 +131,6 @@ class Rewriter:
 
     def Finalize(self):
         for i in xrange(len(self.sentence)-1):
-            if len(self.sentence[i]) > 3 and self.sentence[i][-3:] == " a ":
-                if self.sentence[i+1][0] in ['a','e','i','o']:
-                    self.sentence[i][-1] = 'n'
-                    self.sentence[i].append(' ')
-        return " ".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").replace(" ;",";").strip()
+            if self.sentence[i] == "a" and self.sentence[i+1][0] in ['a','e','i','o']:
+                self.sentence[i] = "an"
+        return " ".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").replace(" ;",";").replace(" - ","-").strip()

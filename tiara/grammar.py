@@ -30,6 +30,17 @@ def RandomChoice(choices):
       upto += w
    assert False
 
+def RandomFilteredChoice(choices):
+   total = sum(w for b, c, w in choices if b)
+   r = random.uniform(0, total)
+   upto = 0
+   for b, c, w in choices:
+      if b and upto + w > r:
+         return c
+      upto += w
+   assert False
+
+
 you = "you"
 me = "me"
 I = "I"
@@ -52,7 +63,7 @@ def fix_helper(adverb, verb):
 
 _comma = lit_phrase(",")
 _question = lit_phrase("?")
-
+_hyphen = lit_phrase("-")
 
 
 POS_VERBER = '_Kv'
@@ -275,38 +286,21 @@ _five = lit_phrase("five")
 
 _six = lit_phrase("six")
 
-def _adverb_punc(begin, end):
-    return (phrase([rand_word(POS_ADVERB, ADVERB_NORMAL), end]) if _nil == begin else rand_word(POS_ADVERB, ADVERB_NORMAL))
-
-def _sub_clause_punc(begin, end):
-    return phrase([begin, _sub_clause(), end])
-
-def _possible_sub_clause_func():
-    return RandomChoice([(_sub_clause_punc,1),
-                         (_nil_func2,12)])
-
 def _possible_sub_clause(begin, end):
-    return _possible_sub_clause_func()(begin, end)
-
-def _possible_adverb_func():
-    return RandomChoice([(_adverb_punc,0),
-                         (_nil_func2,3)])
+    return RandomChoice([(_nil,12),
+                         (phrase([begin, _subordinating_conjunction(), _indep_clause(None)[0],end]),1)])
 
 def _possible_adverb(begin, end):
-    return _possible_adverb_func()(begin, end)
+    return RandomChoice([(phrase([rand_word(POS_ADVERB, ADVERB_NORMAL), end]),1),
+                         (_nil,3000000000)])
 
-def _sub_clause_start():
-    return _subordinating_conjunction()
-
-def _sub_clause():
-    return phrase([_sub_clause_start(), _indep_clause()])
 
 def rand_plural():
-    return RandomChoice([(True,1),
-                         (False,2)])
+    return RandomChoice([(True,2),
+                         (False,1)])
 
-def _indep_clause():
-    return _indep_clause_pl(rand_plural())
+def _indep_clause(tense):
+    return _indep_clause_pl(rand_plural(), tense)
 
 def _subjunctive_clause():
     return _subjunctive_clause_pl(rand_plural())
@@ -314,22 +308,18 @@ def _subjunctive_clause():
 def _conditional_clause():
     return _conditional_clause_pl(rand_plural())
 
-def _indep_clause_pl_random():
-    return RandomChoice([#(_indep_clause_pl_intrans_2,3),
-                         (_indep_clause_pl_intrans_3,2),
-                         #(_indep_clause_pl_trans_2,6),
-                         (_indep_clause_pl_trans_3,3),
-                         #(_indep_clause_pl_intrans_ego_2,5),
-                         (_indep_clause_pl_intrans_ego_3,2),
-                         #(_indep_clause_pl_trans_ego_2,6),
-                         (_indep_clause_pl_trans_ego_3,3),
-                         (_being_clause,7)])
+def _indep_clause_pl(p,t):
+    return RandomFilteredChoice([(True,lambda: _indep_clause_pl_intrans_3(p,t),2),
+                                 (True,lambda: _indep_clause_pl_trans_3(p,t),3),
+                                 (True,lambda: _indep_clause_pl_intrans_ego_3(p,t),2),
+                                 (True,lambda: _indep_clause_pl_trans_ego_3(p,t),3),
+                                 (_is_cont(t),lambda: _being_clause(p,t),5)])()
 
 def _command():
     return RandomChoice([(lambda : phrase([rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_adverb(_nil, _nil)]),1),
                          (lambda : phrase([rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), you), _possible_adverb(_nil, _nil)]),1),
                          (lambda : phrase([_possible_adverb(_nil, _nil), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), you)]),1),
-                         (lambda : phrase([_be, _being_target(True, you)]),2)])()
+                         (lambda : phrase([_be, _being_target(you)]),2)])()
 
 def _present_question():
     sub_and_tag = _subject_and_tag(rand_plural())
@@ -339,9 +329,9 @@ def _transitive_question():
     sub_and_tag = _subject_and_tag(rand_plural())
     return phrase([_transitive_question_word(), rand_word(POS_COUNTABLE_NOUN, NOUN_SINGULAR), _simple_question_word(sub_and_tag[1]), sub_and_tag[0], rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _likely_prepositional_phrase(), _transitive_question_suffix(), _question])
 
-def _possible_advice_sub_clause():
+def _possible_advice_sub_clause(who_cares):
     return RandomChoice([(lambda : _nil,7),
-                         (lambda : phrase([_subordinating_conjunction(), _indep_clause()]),5),
+                         (lambda : phrase([_subordinating_conjunction(), _indep_clause(None)[0]]),5),
                          (lambda : phrase([_coordinating_conjunction_advice(), _command()]),5),
                          (lambda : phrase([_comma, _negatory_conjunction(), _being_clause_conditional(rand_plural())]),5)])()
 
@@ -351,10 +341,10 @@ def _being_question_suffix(pl,pron):
                          (lambda : lit_phrase("or am I dumb"),1),
                          (lambda : lit_phrase("or am I on crack"),1),
                          (lambda : lit_phrase("or am I on wrong"),1),
-                         (lambda : phrase([lit_phrase("or am I "), _being_target(True, I)]),5),
-                         (lambda : phrase([lit_phrase("or are you "), _being_target(True, you)]),5),
-                         (lambda : phrase([_or, _being_target(pl, pron)]),5),
-                         (lambda : phrase([lit_phrase("or just"), _being_target(pl, pron)]),5)])()
+                         (lambda : phrase([lit_phrase("or am I "), _being_target(I)]),5),
+                         (lambda : phrase([lit_phrase("or are you "), _being_target(you)]),5),
+                         (lambda : phrase([_or, _being_target(pron)]),5),
+                         (lambda : phrase([lit_phrase("or just"), _being_target(pron)]),5)])()
 
 def _being_question_past_suffix(pl,pron):
     return RandomChoice([(lambda : _nil,40),
@@ -362,8 +352,8 @@ def _being_question_past_suffix(pl,pron):
                          (lambda : lit_phrase("or am I dumb"),1),
                          (lambda : lit_phrase("or am I on crack"),1),
                          (lambda : lit_phrase("or am I on wrong"),1),
-                         (lambda : phrase([lit_phrase("or am I "), _being_target(True, I)]),10),
-                         (lambda : phrase([lit_phrase("or are you "), _being_target(True, you)]),10),
+                         (lambda : phrase([lit_phrase("or am I "), _being_target(I)]),10),
+                         (lambda : phrase([lit_phrase("or are you "), _being_target(you)]),10),
                          (lambda : lit_phrase("yesterday"),1),
                          (lambda : lit_phrase("just yesterday"),1),
                          (lambda : lit_phrase("since yesterday"),1),
@@ -374,30 +364,30 @@ def _being_question_past_suffix(pl,pron):
                          (lambda : lit_phrase("last Tuesday"),1),
                          (lambda : lit_phrase("since Sunday"),1),
                          (lambda : lit_phrase("just last Friday"),1),
-                         (lambda : phrase([_or, _being_target(pl, pron)]),10),
-                         (lambda : phrase([lit_phrase("or just"), _being_target(pl, pron)]),10),
+                         (lambda : phrase([_or, _being_target(pron)]),10),
+                         (lambda : phrase([lit_phrase("or just"), _being_target(pron)]),10),
                          (lambda : _being_question_smart_suffix(pl, pron),10)])()
 
 def _being_question_smart_suffix(pl, pron):
     plurality = rand_plural()
     subj_and_tag = _subject_and_tag(plurality)
-    return phrase([_or, _to_be_pos(subj_and_tag[1]), subj_and_tag[0], _being_target(plurality, subj_and_tag[1])])
+    return phrase([_or, _to_be_pos(subj_and_tag[1]), subj_and_tag[0], _being_target(subj_and_tag[1])])
 
 def _being_question():
     plurality = rand_plural()
     subj_and_tag = _subject_and_tag(plurality)
-    return phrase([_fix_am_not(_to_be(subj_and_tag[1])), subj_and_tag[0], _being_target(plurality, subj_and_tag[1]), _being_question_suffix(plurality, subj_and_tag[1]), _question])
+    return phrase([_fix_am_not(_to_be(subj_and_tag[1], None))[0], subj_and_tag[0], _being_target(subj_and_tag[1]), _being_question_suffix(plurality, subj_and_tag[1]), _question])
 
 def _being_question_alt():
     plurality = rand_plural()
     subj_and_tag = _subject_and_tag(plurality)
-    target = _being_target(plurality, subj_and_tag[1])
+    target = _being_target(subj_and_tag[1])
     return phrase([_fix_am_not(_to_be_pos(subj_and_tag[1])), subj_and_tag[0], target, _or, _fix_am_not(_to_be_pos(subj_and_tag[1])), subj_and_tag[0], target, _question])
 
 def _being_question_past():
     plurality = rand_plural()
     subj_and_tag = _subject_and_tag(plurality)
-    return phrase([_fix_am_not(_to_be_past(subj_and_tag[1])), subj_and_tag[0], _being_target(plurality, subj_and_tag[1]), _being_question_past_suffix(plurality, subj_and_tag[1]), _question])
+    return phrase([_fix_am_not(_to_be_past(subj_and_tag[1])), subj_and_tag[0], _being_target(subj_and_tag[1]), _being_question_past_suffix(plurality, subj_and_tag[1]), _question])
 
 def _fix_am_not(p):
     return (lit_phrase("aren't") if p == lit_phrase("am not") else p)
@@ -497,9 +487,6 @@ def _conditional_clause_pl_random():
                          (_conditional_clause_pl_infin_trans,8),
                          (_being_clause_conditional,3)])
 
-def _indep_clause_pl(plural_):
-    return _indep_clause_pl_random()(plural_)
-
 def _subjunctive_clause_pl(plural_):
     return _subjunctive_clause_pl_random()(plural_)
 
@@ -535,18 +522,9 @@ def _possible_conditional_filler():
                          (lit_phrase("think I could"),1),
                          (lit_phrase("think I should"),1)])
 
-def _indep_clause_pl_trans_no_obj(plural_, no_adverb):
-    return phrase([_noun(plural_),
-                   _verb(plural_)(POS_TRANSITIVE_VERB), (_possible_adverb(_nil, _nil) if no_adverb else _nil)])
-
-def _indep_clause_pl_intrans_1(plural_):
-    return phrase([_possible_adverb(_nil, _nil), _noun(plural_), _verb(plural_)(POS_INTRANSITIVE_VERB), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_intrans_2(plural_):
-    return phrase([_noun(plural_), fix_helper(_possible_adverb(_nil, _nil), _verb(plural_)(POS_INTRANSITIVE_VERB)), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_intrans_3(plural_):
-    return phrase([_noun(plural_), _verb(plural_)(POS_INTRANSITIVE_VERB), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
+def _indep_clause_pl_intrans_3(plural_, tense):
+    vb, res = _verb(plural_, tense)(POS_INTRANSITIVE_VERB)
+    return phrase([_noun(plural_), vb, _possible_adverb(_nil, _nil), _possible_prepositional_phrase()]), res
 
 def _subjunctive_clause_pl_intrans(plural_):
     return phrase([_subject(plural_), _were, rand_word(POS_INTRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
@@ -560,23 +538,13 @@ def _conditional_clause_pl_intrans(plural_):
 def _conditional_clause_pl_infin_intrans(plural_):
     return phrase([_subject(plural_), _conditional_helper(), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
-def _indep_clause_pl_intrans_ego_1(plural_):
-    return phrase([_possible_adverb(_nil, _nil), (_I if plural_ else _we), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_prepositional_phrase()])
+def _indep_clause_pl_intrans_ego_3(plural_, tense):
+    vb, res = _verb_ego(plural_, tense)(POS_INTRANSITIVE_VERB)
+    return phrase([(_I if plural_ else _we), vb, _possible_adverb(_nil, _nil), _possible_prepositional_phrase()]) , res
 
-def _indep_clause_pl_intrans_ego_2(plural_):
-    return phrase([(_I if plural_ else _we), fix_helper(_possible_adverb(_nil, _nil), _verb_ego(plural_)(POS_INTRANSITIVE_VERB)), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_intrans_ego_3(plural_):
-    return phrase([(_I if plural_ else _we), _verb_ego(plural_)(POS_INTRANSITIVE_VERB), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_trans_1(plural_):
-    return phrase([_possible_adverb(_nil, _nil), _indep_clause_pl_trans_no_obj(plural_, True), _object(rand_plural(), False), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_trans_2(plural_):
-    return phrase([_indep_clause_pl_trans_no_obj(plural_, False), _object(rand_plural(), False), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_trans_3(plural_):
-    return phrase([_indep_clause_pl_trans_no_obj(plural_, True), _object(rand_plural(), False), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
+def _indep_clause_pl_trans_3(plural_, tense):
+    vb, res = _verb(plural_, tense)(POS_TRANSITIVE_VERB)
+    return phrase([_noun(plural_),vb, _object(rand_plural(), False), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()]), res
 
 def _subjunctive_clause_pl_trans(plural_):
     subj_and_tag = _subject_and_tag(plural_)
@@ -594,30 +562,30 @@ def _conditional_clause_pl_infin_trans(plural_):
     subj_and_tag = _subject_and_tag(plural_)
     return phrase([subj_and_tag[0], _conditional_helper(), rand_word(POS_TRANSITIVE_VERB, VERB_INFINITIVE), _object(rand_plural(), subj_and_tag[1]),  _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
 
-def _indep_clause_pl_trans_ego_1(plural_):
-    return phrase([_possible_adverb(_nil, _nil), (_I if plural_ else _we), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (O if plural_ else we)), _possible_prepositional_phrase()])
+def _indep_clause_pl_trans_ego_3(plural_, tense):
+    vb, res = _verb_ego(plural_, tense)(POS_TRANSITIVE_VERB)
+    return phrase([(_I if plural_ else _we), vb, _object(rand_plural(), (I if plural_ else we)), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()]), res
 
-def _indep_clause_pl_trans_ego_2(plural_):
-    return phrase([(_I if plural_ else _we), fix_helper(_possible_adverb(_nil, _nil), _verb_ego(plural_)(POS_TRANSITIVE_VERB)), _object(rand_plural(), (I if plural_ else we)), _possible_prepositional_phrase()])
-
-def _indep_clause_pl_trans_ego_3(plural_):
-    return phrase([(_I if plural_ else _we), _verb_ego(plural_)(POS_TRANSITIVE_VERB), _object(rand_plural(), (I if plural_ else we)), _possible_adverb(_nil, _nil), _possible_prepositional_phrase()])
-
-def _being_clause(plurality):
+def _being_clause(plurality, tense):
     subj_and_tag = _subject_and_tag(plurality)
-    return phrase([subj_and_tag[0], _to_be(subj_and_tag[1]), _being_target(plurality, subj_and_tag[1])])
+    tobe, t = _to_be(subj_and_tag[1], tense)
+    return phrase([subj_and_tag[0], tobe, _being_target(subj_and_tag[1])]), t
 
 def _being_clause_subjunctive(plurality):
     subj_and_tag = _subject_and_tag(plurality)
-    return phrase([subj_and_tag[0], _were, _being_target(plurality, subj_and_tag[1])])
+    return phrase([subj_and_tag[0], _were, _being_target(subj_and_tag[1])])
 
 def _being_clause_conditional(plurality):
     subj_and_tag = _subject_and_tag(plurality)
-    return phrase([subj_and_tag[0], _conditional_helper(), _be, _being_target(plurality, subj_and_tag[1])])
+    return phrase([subj_and_tag[0], _conditional_helper(), _be, _being_target(subj_and_tag[1])])
 
-def _to_be(tag):
+def _to_be(tag, tense):
+    if not tense is None and _is_past_cont([tense]):
+        return _to_be_past(tag), "past_cont"
+    if not tense is None and _is_futr_cont([tense]):
+        return RandomChoice([(phrase([_will,_be]),4),(phrase[_wont,_be],1)]), "futr_cont"
     return RandomChoice([(lambda : _to_be_pos(tag),3),
-                         (lambda : _to_be_(tag),1)])()
+                         (lambda : _to_be_neg(tag),1)])(), "pres_cont"
 
 def _to_be_pos(tag):
     if tag == I:
@@ -639,7 +607,7 @@ def _to_be_pos(tag):
     if tag == we:
         return _are
 
-def _to_be_(tag):
+def _to_be_neg(tag):
     if tag == I:
         return lit_phrase("am not")
     if tag == sing:
@@ -715,9 +683,13 @@ def _you_object(pronoun, plurality):
     if pronoun == you:
         return lit_phrase("yourself")
     else:
-        return lit_phrase("you") if plurality else _being_target(plurality, pronoun)
+        return lit_phrase("you") if plurality else _being_target(pronoun)
 
-def _being_target(plurality,pronoun):
+def _pronoun_plurality(pronoun):
+    return pronoun in [I,he,she,it,you,me,sing]
+
+def _being_target(pronoun):
+    plurality = _pronoun_plurality(pronoun)
     return RandomChoice([(lambda : _me_object(pronoun, plurality),1),
                          (lambda : _you_object(pronoun, plurality),1),
                          (lambda : phrase([_article(plurality), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, plurality)]),2),
@@ -731,8 +703,8 @@ def _being_target(plurality,pronoun):
 def _noun(plural):
     return (_noun_sing() if plural else _noun_pl())
 
-def _verb(plural):
-    return (_verb_sing if plural else _verb_pl)
+def _verb(plural, tense):
+    return (_verb_sing_func(tense) if plural else _verb_pl_func(tense))
 
 def _possible_prefix():
     return RandomChoice([(_nil,30),
@@ -796,97 +768,112 @@ def _question_adapted_prefix():
                          (lit_phrase("don't you love that"),1),
                          (lit_phrase("what if"),1)])
 
-def _advice_prefix():
+def _advice_prefix(positive):
+    return _advice_prefix_pos() if positive else _advice_prefix_neg()
+
+def _advice_prefix_pos():
     return RandomChoice([(lit_phrase("I think you should"),1),
                          (lit_phrase("you should"),1),
                          (lit_phrase("you ought to"),1),
-                         (lit_phrase("you ought not"),1),
                          (lit_phrase("you shouldn't"),1),
                          (lit_phrase("perhaps you should"),1),
                          (lit_phrase("perhaps you ought to"),1),
-                         (lit_phrase("perhaps you shouldn't"),1),
                          (lit_phrase("please"),2),
-                         (lit_phrase("please don't"),1),
                          (lit_phrase("you need to"),1),
                          (lit_phrase("you gotta"),1),
                          (lit_phrase("perhaps you need to"),1),
                          (lit_phrase("perhaps you gotta"),1),
-                         (lit_phrase("you don't have to"),1),
                          (lit_phrase("I have to ask you to"),1)])
+def _advice_prefix_neg():
+    return RandomChoice([(lit_phrase("you ought not"),1),
+                         (lit_phrase("you shouldn't"),1),
+                         (lit_phrase("perhaps you shouldn't"),1),
+                         (lit_phrase("please don't"),1),
+                         (lit_phrase("you don't have to"),1),
+                         (lit_phrase("I have to ask you to not to"),1)])
 
+                         
 def _sentence():
-    return RandomChoice([(lambda : phrase([_possible_prefix(), _sentence_random(), _end_punc_random()]),3),
-                         (lambda : phrase([_sentence_random(), _possible_suffix(), _end_punc_random()]),2),
+    return RandomChoice([(lambda : phrase([_sentence_random(), _end_punc_random()]),8),
                          (lambda : phrase([_second_conditional_prefix(), _subjunctive_clause(), _comma, _conditional_clause(), _end_punc_random()]),3),
                          (lambda : phrase([_conditional_clause(), _second_conditional_prefix(), _subjunctive_clause(), _end_punc_random()]),3),
                          (lambda : phrase([_subjunctive_prefix(), _subjunctive_clause(), _question]),2),
                          (_advice,2),
                          (_question_sentence,3)])()
 
-def _sentence_bother():
-    return RandomChoice([(lambda : phrase([_possible_prefix(), _sentence_random(), _end_punc_random()]),3),
-                         (lambda : phrase([_sentence_random(), _possible_suffix(), _end_punc_random()]),2),
-                         (lambda : phrase([_second_conditional_prefix(), _subjunctive_clause(), _comma, _conditional_clause(), _end_punc_random()]),3),
-                         (lambda : phrase([_conditional_clause(), _second_conditional_prefix(), _subjunctive_clause(), _end_punc_random()]),3),
-                         (lambda : phrase([_subjunctive_prefix(), _subjunctive_clause(), _question]),2),
-                         (_advice,12),
-                         (_question_sentence,18)])()
 
 def _end_punc_random():
     return RandomChoice([(_exclamation,1),
                          (_period,9)])
 
 def _sentence_random():
-    return RandomChoice([(_sentence_single,5),
+    return RandomChoice([(lambda : [_possible_prefix(),_sentence_single(None)[0]],3),
+                         (lambda : [_sentence_single(None)[0],_possible_suffix()],2),
                          (_sentence_compound,2)])()
 
-def _sentence_single():
-    return phrase([_possible_sub_clause(_comma, _comma), _indep_clause(), _possible_sub_clause(_comma, _nil), _comma])
-
-def _sentence_compound_conjunction():
-    return phrase([_sentence_single(), _comma, _coordinating_conjunction(), _sentence_single()])
-
-def _conjunctive_adverb():
-    return random.choice(["accordingly",
-                          "also",
-                          "anyway",
-                          "besides",
-                          "certainly",
-                          "consequently",
-                          "finally",
-                          "further",
-                          "furthermore",
-                          "hence",
-                          "however",
-                          "incidentally",
-                          "indeed",
-                          "instead",
-                          "likewise",
-                          "meanwhile",
-                          "moreover",
-                          "namely",
-                          "nevertheless",
-                          "next",
-                          "now",
-                          "otherwise",
-                          "similarly",
-                          "still",
-                          "then",
-                          "thereafter",
-                          "therefore",
-                          "thus",
-                          "undoubtedly"])
-
-
-def _sentence_compound_adverb():
-    return phrase([_sentence_single(), _semicolon, _conjunctive_adverb(), _comma, _sentence_single()])
+def _sentence_single(tense):
+    ic,res = _indep_clause(tense)
+    return phrase([_possible_sub_clause(_comma, _comma), ic, _possible_sub_clause(_comma, _nil), _comma]), res
 
 def _sentence_compound():
-    return RandomChoice([(_sentence_compound_conjunction,5),
-                         (_sentence_compound_adverb,3)])()
+    fst, tn = _indep_clause(None)
+    pre, conj, post, tn2 = _conjunction(tn)
+    if tn2 is None:
+        tn2 = RandomChoice([(None,3),([tn],1)])
+    return phrase([pre, fst, conj, _indep_clause(tn2)[0], post])
+
+# the dog eats                    the dog ate              the dog will eat
+# the dog is eating               the was eating           the dog will be eating
+# the dog has eaten               the dog had eaten        the dog will have eaten
+# the dog has been eating         the dog had been eating  the dog will have been eating
+def _conjunction(t):
+    return RandomFilteredChoice([
+        (True,(_nil,[_comma,"and"],_nil,None),6),
+        (True,("either",[_comma,"or"],_nil,None),4),        
+        (t == "futr" or not _is_futr_any([t]),(_nil,[_comma,"but"],_nil,None),3),
+        (not _is_futr([t]),(_nil,[_comma, "yet"],_nil,_no_earlier(t)),1),
+        (t != "past_perf" and _is_past([t]),(_nil,[_comma,"then"],_nil,["past"]),1),
+        (not _is_perf([t]),(_nil,[_comma,"so"],_nil, _futr_tenses + _cont_tenses+_perf_cont_tenses),2),
+        (True,(_nil,[_period,
+                     random.choice(["Also","Besides","Incidently","Indeed","Instead","Likewise",
+                                    "Meanwhile","Moreover","Similarly"]),
+                     _comma],_nil, None),4),
+        (True,(_nil,[_period,
+                     random.choice(["Anyways","However","Nevertheless","Accordingly",
+                                    "Still","Therefore","Thus","Consequently","Furthermore"]),
+                     _comma],_nil, _futr_tenses + _cont_tenses+_perf_cont_tenses),6),
+        (True,(_nil,[_period,
+                     random.choice(["Then","Thus"])],_nil, _futr_tenses + _cont_tenses+_perf_cont_tenses),1),
+        (True,(_nil,[_period,
+                     random.choice(["Now"])],_nil, ["pres_cont","pres","futr","futr_cont"]),2),
+        (True,(_nil,[_period,
+                     random.choice(["Otherwise"])],_nil, _futr_tenses),1),
+        (True,(_nil,[_comma,_and,random.choice(["certainly"])],_nil,None),1),
+        (True,(_nil,[_comma,_and,
+                     random.choice(["consequently","finally","furthermore","hence","thus","therefore","still"])
+                     ],_nil,_futr_tenses),3),
+        (True,(_nil,[_comma, random.choice(["else"])],_nil,_futr_tenses),1),
+        
+        (_is_base([t]) or _is_cont([t]),
+         (_nil,random.choice(["until","after",[_comma,"as","if"],
+                              [_comma,"as","though"],[_comma,"even","if"],[_comma,"even","though"],
+                              "when","whenever","wherever","while","because","provided","before"]),_nil,
+          [_get_time(t) if not _is_futr_any([t]) else "pres"]),4),
+        
+        (_is_base([t]) or _is_cont([t]),
+         (_nil,random.choice(["because","wherever",[_comma,"as","if"],[_comma,"as","if"],
+                              [_comma,"even","if"],[_comma,"even","though"],[_comma,"provided"]]),_nil,
+          [random.choice(["past_cont","past"])]),4),
+        
+        (not _is_past_any([t]) and (_is_base([t]) or _is_cont([t])),
+         (_nil,random.choice([["now","that"],"if","unless",
+                              [_comma,"so","that"],[_comma,"as","long","as"],[_comma,"as","soon","as"]]),_nil,
+          [random.choice(["pres_cont","pres"])]),4)
+        ])
 
 def _advice():
-    return phrase([_advice_prefix(), _command(), _possible_advice_sub_clause(), _end_punc_random()])
+    positive = RandomChoice([(True,3), (False,1)])
+    return phrase([_advice_prefix(positive), _command(), _possible_advice_sub_clause(positive), _end_punc_random()])
 
 def _question_sentence():
     return RandomChoice([(_present_question(),2),
@@ -896,10 +883,11 @@ def _question_sentence():
                          (_being_question_alt(),1)])
 
 def _prepositional_phrase():
-    return phrase([_preposition_sing(), _noun_phrase_no_clause(rand_plural())])
+    prep, punc = _preposition_sing()
+    return phrase([prep, _noun_phrase_no_clause(rand_plural()), punc])
 
 def _possible_prepositional_phrase():
-    return RandomChoice([(_prepositional_phrase,1),
+    return RandomChoice([(lambda: phrase([_prepositional_phrase(),_comma]),1),
                          (_nil_func0,6)])()
 
 def _likely_prepositional_phrase():
@@ -907,15 +895,15 @@ def _likely_prepositional_phrase():
                          (_nil_func0,1)])()
 
 def _preposition_sing():
-    return RandomChoice([(lit_phrase("across from"),1),
-                         (lit_phrase("around"),1),
-                         (lit_phrase("beyond"),1),
-                         (lit_phrase("by"),1),
-                         (lit_phrase("for"),2),
-                         (lit_phrase("like"),4),
-                         (lit_phrase("near"),1),
-                         (lit_phrase("with"),1),
-                         (lit_phrase("without"),1)])
+    return RandomChoice([((lit_phrase("across from"),_nil),1),
+                         ((lit_phrase("around"),_nil),1),
+                         ((lit_phrase("beyond"),_nil),1),
+                         ((lit_phrase("by"),_nil),1),
+                         ((lit_phrase("for"),_nil),2),
+                         ((lit_phrase("like"),_nil),4),
+                         ((lit_phrase("near"),_nil),1),
+                         ((lit_phrase("with"),_nil),2),
+                         ((lit_phrase("without"),_nil),2)])
 
 def _article(plurality):
     return (_article_sing() if plurality else _article_pl())
@@ -954,14 +942,6 @@ def _possessive_pronoun():
                          (lit_phrase("her"),2),
                          (lit_phrase("their"),4)])
 
-
-def _coordinating_conjunction():
-    return RandomChoice([(lit_phrase("and"),1),
-                         (lit_phrase("or"),1),
-                         (lit_phrase("but"),1),
-                         (lit_phrase("yet"),1),
-                         (lit_phrase("for"),1),
-                         (lit_phrase("so"),1)])
 
 def _coordinating_conjunction_advice():
     return RandomChoice([(cm_lit_phrase("and"),1),
@@ -1051,23 +1031,9 @@ def _superlative_modify():
                          (lit_phrase("I've know"),1),
                          (lit_phrase("I've heard of"),1)])
 
-def _possible_adj_clause():
-    return RandomChoice([(_nil_func0,2),
-                         (_adj_clause,3)])()
-
-def _adj_clause():
-    return RandomChoice([(_that_adj_clause,3),
-                         (_which_adj_clause,1)])()
-
-def _that_adj_clause():
-    return phrase([_that, _indep_clause_pl_trans_no_obj(rand_plural(), False)])
-
-def _which_adj_clause():
-    return phrase([_which, _indep_clause_pl_trans_no_obj(rand_plural(), False)])
-
 def _noun_pl():
-    return RandomChoice([(lambda : _noun_phrase(NOUN_PLURAL),100),
-                         (lambda : phrase([_noun_phrase_no_clause(NOUN_SINGULAR), _and, _noun_phrase(NOUN_SINGULAR)]),25)])()
+    return RandomChoice([(lambda : _noun_phrase(NOUN_PLURAL),5),
+                         (lambda : phrase([_noun_phrase_no_clause(NOUN_SINGULAR), _and, _noun_phrase(NOUN_SINGULAR)]),1)])()
 
 def _noun_sing():
     return _noun_phrase(NOUN_SINGULAR)
@@ -1079,7 +1045,7 @@ def _noun_phrase_no_clause_pl():
     return RandomChoice([(lambda : phrase([_article(False), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, False)]),4),
                          (lambda : phrase([_possessive_pronoun(), rand_word(POS_ADJECTIVE, ADJECTIVE_OTHER, ADJECTIVE_SUPERLATIVE), rand_word(POS_COUNTABLE_NOUN, False)]),1),
                          (lambda : phrase([_article(False),  _possible_adj(), 
-                                           rand_word(POS_COUNTABLE_NOUN, True), rand_word(POS_VERBER, False)]), 1)
+                                           rand_word(POS_COUNTABLE_NOUN, True), _hyphen, rand_word(POS_VERBER, False)]), 1)
                          ])()
 
 def _noun_phrase_no_clause_sing():
@@ -1087,22 +1053,22 @@ def _noun_phrase_no_clause_sing():
                          (lambda : phrase([_possessive_pronoun(), rand_word(POS_ADJECTIVE, ADJECTIVE_OTHER, ADJECTIVE_SUPERLATIVE), rand_word(POS_COUNTABLE_NOUN, True)]),1),
                          (lambda : rand_word(POS_PROPER_NOUN, PROPER_NOUN_FORENAME),1),
                          (lambda : phrase([_article(True),  _possible_adj(), 
-                                           rand_word(POS_COUNTABLE_NOUN, True) , rand_word(POS_VERBER, True)]), 1)
+                                           rand_word(POS_COUNTABLE_NOUN, True) , _hyphen, rand_word(POS_VERBER, True)]), 1)
                          ])()
 
 def _noun_phrase(plurality):
     return _noun_phrase_no_clause(plurality)
 
 def _object_sing(is_I):
-    return RandomChoice([(lambda : _noun(True),20),
+    return RandomChoice([(lambda : _noun(True),60),
                          (lambda : (lit_phrase("myself") if is_I == I else (_object_sing(we) if is_I == we else lit_phrase("me"))),5),
                          (lambda : (lit_phrase("himself") if is_I == he else lit_phrase("him")),1),
                          (lambda : (lit_phrase("herself") if is_I == she else lit_phrase("her")),1),
-                         (lambda : (lit_phrase("itself") if is_I == it else lit_phrase("it")),2),
-                         (lambda : (lit_phrase("yourself") if is_I == you else lit_phrase("you")),2)])()
+                         (lambda : (lit_phrase("itself") if is_I == it else lit_phrase("it")),1),
+                         (lambda : (lit_phrase("yourself") if is_I == you else lit_phrase("you")),5)])()
 
 def _object_pl(is_we):
-    return RandomChoice([(lambda : _noun_phrase(False),20),
+    return RandomChoice([(lambda : _noun_phrase(False),40),
                          (lambda : (lit_phrase("ourselves") if is_we == we else lit_phrase("us")),3),
                          (lambda : (lit_phrase("themselves") if is_we == them else lit_phrase("them")),2)
                          ])()
@@ -1129,152 +1095,225 @@ def _subj_and_tag_pl():
 def _subject(plurality):
     return _subject_and_tag(plurality)[0]
 
-def _verb_pl_func():
-    return RandomChoice([(_verb_simple_present_pl,4),
-                         (_verb_simple_past,4),
-                         (_verb_simple_future,3),
-                         (_verb_present_continuous_pl,3),
-                         (_verb_past_continuous_pl,3),
-                         (_verb_future_continuous,3),
-                         (_verb_present_perfect_pl,2),
-                         (_verb_past_perfect,2),
-                         (_verb_future_perfect,2),
-                         (_verb_present_perfect_continuous_pl,1),
-                         (_verb_past_perfect_continuous,1),
-                         (_verb_future_perfect_continuous,1)])
+def _verb_pl_func(tense):
+    return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_pl,4),
+                                 (_is_past(tense),_verb_simple_past,4),
+                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_pres_cont(tense),_verb_present_continuous_pl,3),
+                                 (_is_past_cont(tense),_verb_past_continuous_pl,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_pres_perf(tense),_verb_present_perfect_pl,2),
+                                 (_is_past_perf(tense),_verb_past_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_pl,1),
+                                 (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
 
-def _verb_sing_func():
-    return RandomChoice([(_verb_simple_present_sing,4),
-                         (_verb_simple_past,4),
-                         (_verb_simple_future,3),
-                         (_verb_present_continuous_sing,3),
-                         (_verb_past_continuous_sing,3),
-                         (_verb_future_continuous,3),
-                         (_verb_present_perfect_sing,2),
-                         (_verb_past_perfect,2),
-                         (_verb_future_perfect,2),
-                         (_verb_present_perfect_continuous_sing,1),
-                         (_verb_past_perfect_continuous,1),
-                         (_verb_future_perfect_continuous,1)])
+def _verb_sing_func(tense):
+    return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_sing,4),
+                                 (_is_past(tense),_verb_simple_past,4),
+                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_pres_cont(tense),_verb_present_continuous_sing,3),
+                                 (_is_past_cont(tense),_verb_past_continuous_sing,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_pres_perf(tense),_verb_present_perfect_sing,2),
+                                 (_is_past_perf(tense),_verb_past_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_sing,1),
+                                 (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
 
-def _verb_ego_func():
-    return RandomChoice([(_verb_simple_present_ego,4),
-                         (_verb_simple_past,4),
-                         (_verb_simple_future,3),
-                         (_verb_present_continuous_ego,3),
-                         (_verb_past_continuous_sing,3),
-                         (_verb_future_continuous,3),
-                         (_verb_present_perfect_ego,2),
-                         (_verb_past_perfect,2),
-                         (_verb_future_perfect,2),
-                         (_verb_present_perfect_continuous_ego,1),
-                         (_verb_past_perfect_continuous,1),
-                         (_verb_future_perfect_continuous,1)])
+def _verb_ego_func(tense):
+    return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_ego,4),
+                                 (_is_past(tense),_verb_simple_past,4),
+                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_pres_cont(tense),_verb_present_continuous_ego,3),
+                                 (_is_past_cont(tense),_verb_past_continuous_sing,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_pres_perf(tense),_verb_present_perfect_ego,2),
+                                 (_is_past_perf(tense),_verb_past_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_ego,1),
+                                 (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
 
-def _verb_we_func():
-    return RandomChoice([(_verb_simple_present_ego,4),
-                         (_verb_simple_past,4),
-                         (_verb_simple_future,3),
-                         (_verb_present_continuous_pl,3),
-                         (_verb_past_continuous_pl,3),
-                         (_verb_future_continuous,3),
-                         (_verb_present_perfect_ego,2),
-                         (_verb_past_perfect,2),
-                         (_verb_future_perfect,2),
-                         (_verb_present_perfect_continuous_ego,1),
-                         (_verb_past_perfect_continuous,1),
-                         (_verb_future_perfect_continuous,1)])
+def _verb_we_func(tense):
+    return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_ego,4),
+                         (_is_past(tense),_verb_simple_past,4),
+                         (_is_futr(tense),_verb_simple_future,3),
+                         (_is_pres_cont(tense),_verb_present_continuous_pl,3),
+                         (_is_past_cont(tense),_verb_past_continuous_pl,3),
+                         (_is_futr_cont(tense),_verb_future_continuous,3),
+                         (_is_pres_perf(tense),_verb_present_perfect_ego,2),
+                         (_is_past_perf(tense),_verb_past_perfect,2),
+                         (_is_futr_perf(tense),_verb_future_perfect,2),
+                         (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_ego,1),
+                         (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
+                         (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
+
+_sub_tenses = ["","perf","cont","perf_cont"]
+_past_tenses = ["past_" + t for t in _sub_tenses]
+_pres_tenses = ["pres_" + t for t in _sub_tenses]
+_futr_tenses = ["futr_" + t for t in _sub_tenses]
+
+_temp_tenses = ["past","pres","futr"]
+_cont_tenses = [t + "_cont" for t in _temp_tenses]
+_perf_cont_tenses = [t + "_perf_cont" for t in _temp_tenses]
+
+def _no_earlier(t):
+    if _is_futr_any([t]):
+        return _past_tenses + _pres_tenses + _futr_tenses
+    if _is_pres_any([t]):
+        return _past_tenses + _pres_tenses
+    if _is_past_any([t]):
+        return _past_tenses
+
+def _no_later(t):
+    if _is_futr_any([t]):
+        return _futr_tenses
+    if _is_pres_any([t]):
+        return _pres_tenses + _futr_tenses
+    if _is_past_any([t]):
+        return _past_tenses + _pres_tenses + _futr_tenses
+
+def _get_time(t):
+    return t[0:4]
+
+def _is_base(tense):
+    return _is_pres(tense) or _is_past(tense) or _is_futr(tense)
+def _is_perf(tense):
+    return _is_pres_perf(tense) or _is_past_perf(tense) or _is_futr_perf(tense)
+def _is_perf_cont(tense):
+    return _is_pres_perf_cont(tense) or _is_past_perf_cont(tense) or _is_futr_perf_cont(tense)
+def _is_cont(tense):
+    return _is_pres_cont(tense) or _is_past_cont(tense) or _is_futr_cont(tense)
+def _is_pres(tense):
+    return tense is None or "pres" in tense
+def _is_past(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "past" in tense
+def _is_futr(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "futr" in tense
+def _is_pres_cont(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "pres_cont" in tense
+def _is_past_cont(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "past_cont" in tense
+def _is_futr_cont(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "futr_cont" in tense
+def _is_pres_perf(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "pres_perf" in tense
+def _is_past_perf(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "past_perf" in tense
+def _is_futr_perf(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "futr_perf" in tense
+def _is_pres_perf_cont(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "pres_perf_cont" in tense
+def _is_past_perf_cont(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "past_perf_cont" in tense
+def _is_futr_perf_cont(tense):
+    assert isinstance(tense,list) or tense is None, tense
+    return tense is None or "futr_perf_cont" in tense
+def _is_futr_any(tense):
+    return _is_futr(tense) or _is_futr_cont(tense) or _is_futr_perf(tense) or _is_futr_perf_cont(tense)
+def _is_past_any(tense):
+    return _is_past(tense) or _is_past_cont(tense) or _is_past_perf(tense) or _is_past_perf_cont(tense)
+def _is_pres_any(tense):
+    return _is_pres(tense) or _is_pres_cont(tense) or _is_pres_perf(tense) or _is_pres_perf_cont(tense)
 
 def is_helper(x):
     return phrase([x]) in [_not, _would, _will, _should, _may, _might, _could, _must, _is, _are, _am, _was, _were, _be, _has, _have, _had, _been]
 
-def _verb_pl(trans):
-    return _verb_pl_func()(trans)
-
-def _verb_sing(trans):
-    return _verb_sing_func()(trans)
-
-def _verb_ego(plural):
-    return (_verb_ego_func() if plural else _verb_we_func())
+def _verb_ego(plural, tense):
+    return (_verb_ego_func(tense) if plural else _verb_we_func(tense))
 
 def _random_inflect():
     return RandomChoice([(lambda : phrase([_random_modal(), _not]),2),
                          (_random_modal,5)])()
 
 def _random_modal():
-    return RandomChoice([(_would,3),
-                         (_will,8),
+    return RandomChoice([(_will,5),
+                         (_would,3),
                          (_should,2),
                          (_may,1),
                          (_might,2),
                          (_could,2),
                          (_must,2)])
+        
 
 def _verb_simple_present_sing(trans):
-    return rand_word(trans, VERB_CONJUGATED, CONJ_3RD_SING)
+    return rand_word(trans, VERB_CONJUGATED, CONJ_3RD_SING), "pres"
 
 def _verb_simple_present_pl(trans):
-    return rand_word(trans, VERB_INFINITIVE)
+    return rand_word(trans, VERB_INFINITIVE), "pres"
 
 def _verb_simple_present_ego(trans):
-    return rand_word(trans, VERB_INFINITIVE)
+    return rand_word(trans, VERB_INFINITIVE), "pres"
 
 def _verb_simple_past(trans):
-    return rand_word(trans, VERB_CONJUGATED, CONJ_PAST)
+    return rand_word(trans, VERB_CONJUGATED, CONJ_PAST), "past"
 
 def _verb_simple_future(trans):
-    return phrase([_random_inflect(), rand_word(trans, VERB_INFINITIVE)])
+    return phrase([_random_inflect(), rand_word(trans, VERB_INFINITIVE)]), "futr"
 
 def _verb_present_continuous_sing(trans):
-    return phrase([_is, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_is, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_cont"
 
 def _verb_present_continuous_pl(trans):
-    return phrase([_are, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_are, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_cont"
 
 def _verb_present_continuous_ego(trans):
-    return phrase([_am, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_am, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_cont"
 
 def _verb_past_continuous_sing(trans):
-    return phrase([_was, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_was, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "past_cont"
 
 def _verb_past_continuous_pl(trans):
-    return phrase([_were, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_were, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "past_cont"
 
 def _verb_future_continuous(trans):
-    return phrase([_random_inflect(), _be, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_random_inflect(), _be, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "futr_cont"
 
 def _verb_present_perfect_sing(trans):
-    return phrase([_has, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)])
+    return phrase([_has, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "pres_perf"
 
 def _verb_present_perfect_pl(trans):
-    return phrase([_have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)])
+    return phrase([_have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "pres_perf"
 
 def _verb_present_perfect_ego(trans):
-    return phrase([_have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)])
+    return phrase([_have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "pres_perf"
 
 def _verb_past_perfect(trans):
-    return phrase([_had, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)])
+    return phrase([_had, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "past_perf"
 
 def _verb_future_perfect(trans):
-    return phrase([_random_inflect(), _have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)])
+    return phrase([_random_inflect(), _have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "futr_perf"
 
 def _verb_present_perfect_continuous_sing(trans):
-    return phrase([_has, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_has, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_perf_cont"
 
 def _verb_present_perfect_continuous_pl(trans):
-    return phrase([_have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_perf_cont"
 
 def _verb_present_perfect_continuous_ego(trans):
-    return phrase([_have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_perf_cont"
 
 def _verb_past_perfect_continuous(trans):
-    return phrase([_had, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_had, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "past_perf_cont"
 
 def _verb_future_perfect_continuous(trans):
-    return phrase([_random_inflect(), _have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)])
+    return phrase([_random_inflect(), _have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "futr_perf_cont"
 
 def _insult_body():
-    return RandomChoice([(lambda : phrase([_you_are(), _being_target(True, you)]),4),
+    return RandomChoice([(lambda : phrase([_you_are(), _being_target(you)]),4),
                          (lambda : phrase([lit_phrase("you"), rand_word(POS_INTRANSITIVE_VERB, VERB_INFINITIVE), _comma, _and, _insult_body()]),1),
                          (lambda : phrase([_you_are(), lit_phrase("such a"), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, True)]),3),
                          (lambda : phrase([_you_are(), _a, rand_word(POS_TRANSITIVE_VERB, VERB_CONJUGATED, CONJ_PRESENT_PART), _possible_adj(), rand_word(POS_COUNTABLE_NOUN, True)]),4),
