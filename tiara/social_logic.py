@@ -4,6 +4,7 @@ import random
 from util import *
 
 AVERAGE_MINUTES_TO_ACT = 120
+AVERAGE_MINUTES_TO_RESPOND = 60
 
 class SocialLogic:
     def __init__(self, g_data):
@@ -11,8 +12,13 @@ class SocialLogic:
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         with open(abs_prefix + '/max_id',"r") as f:
             self.max_id = int(f.readline())
+            
         self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
         self.g_data.TraceInfo("%d cycles until first action." % self.untilNextAction)
+        
+        self.untilNextResponse = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_RESPOND))
+        self.g_data.TraceInfo("%d cycles until first action." % self.untilNextResponse)
+
         self.tix = 0
 
         self.bestNewFriend      = None
@@ -98,16 +104,23 @@ class SocialLogic:
 
         return result
 
-    def Bother(self, user):
-        self.g_data.TraceInfo("Bothering @%s" % user)
-        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = user, trim_user=False)
-        if tweets is None:
+    def BotherRandom(self):
+        id = self.RandomFollowerID("TiaraBoom1")
+        self.Bother(user_id=id)
+
+    def Bother(self, screen_name=None, user_id=None):
+        if not screen_name is None:
+            self.g_data.TraceInfo("Bothering @%s" % screen_name)
+        else:
+            self.g_data.TraceInfo("Bothering id = %s" % user_id)
+        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = screen_name, user_id=user_id, trim_user=False)
+        if tweets is None or tweets == []:
             return None
         for t in tweets:
             if self.BotherAppropriate(t):
                 self.ReplyTo(t)
                 return True
-        self.g_data.TraceWarn("No tweet by @%s was found botherable!" % user)
+        self.g_data.TraceWarn("No tweet by @%s was found botherable!" % tweets[0].GetUser().GetScreenName())
         return None
         
     def TweetFrom(self, user):
@@ -141,7 +154,7 @@ class SocialLogic:
         if result is None:
             return None
         fn = random.choice([lambda : self.TweetFrom(user),
-                            lambda : self.Bother(user.GetScreenName())])
+                            lambda : self.Bother(screen_name = user.GetScreenName())])
         return fn()
         
                 
@@ -151,6 +164,10 @@ class SocialLogic:
             self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
             self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
             self.Follow()
+        if self.untilNextResponse <= 0:
+            self.untilNextResponse = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_RESPONSE))
+            self.g_data.TraceInfo("Performing response! %d cycles until next action." % self.untilNextResponse)
+            self.BotherRandom()
         self.Reply()
         if self.tix % 15 == 0:
             self.StalkTwitter()
