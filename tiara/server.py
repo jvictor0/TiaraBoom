@@ -58,7 +58,6 @@ if __name__ == '__main__':
     server.bind(server_address)
     server.listen(5)
     
-
     g_data.TraceInfo("Starting up Tiara Boom Server on %s, port %s!" % server_address)
 
     inputs = [server]

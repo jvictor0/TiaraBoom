@@ -83,6 +83,8 @@ class SocialLogic:
         result = 0
         if 'follow' in user.GetScreenName().lower() or 'follow' in user.GetName().lower():
             return -1 # because fuck you, thats why
+        if user.GetProtected():
+            return -1 # I don't want to talk to you anyways!
         if numFriends < 100 or numFollowers < 100:
             return -1 # stay away from people with very few friends!
         if 400 < numFriends <= 600:

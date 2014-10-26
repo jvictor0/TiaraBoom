@@ -2,6 +2,7 @@ from bisect import bisect_left
 import logging
 import sys
 import inspect
+import traceback
 
 def Indentation():
     return ' ' * len(inspect.stack())
@@ -52,5 +53,5 @@ def exceptionTrace(exctype, value, tb):
     logger.error('I seem to have crashed with an exception')
     logger.error('Type: %s' % exctype)
     logger.error('Value: %s' % value)
-    logger.error('Traceback:\n%s' % tb)
+    logger.error('Traceback:\n%s' % traceback.format_tb(tb))
     
