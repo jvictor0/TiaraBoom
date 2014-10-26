@@ -84,7 +84,7 @@ class GlobalData:
         return []
 
     def FamilyRepresentative(self, word):
-        res = BinarySearch(self.englishFamilies,word)
+        res = BinarySearch(self.englishFamilies,word.lower())
         if res:
             if not isinstance(res, list):
                 return res
@@ -92,7 +92,7 @@ class GlobalData:
         return None
 
     def WordFamily(self, word):
-        res = BinarySearch(self.englishFamilies,word)
+        res = BinarySearch(self.englishFamilies,word.lower())
         if res:
             if not isinstance(res, list):
                 res = BinarySearch(self.englishFamilies, res)
@@ -103,13 +103,13 @@ class GlobalData:
         return [(w,s) for w in self.WordFamily(word) for s in self.DictLookup(w)]
 
     def Cooccuring(self, word):
-        res = BinarySearch(self.cooccuring,word)
+        res = BinarySearch(self.cooccuring, word.lower())
         if res:
             return res
         return []
 
     def Similar(self, word):
-        res = BinarySearch(self.similar,word)
+        res = BinarySearch(self.similar, word.lower())
         if res:
             return res
         return ""

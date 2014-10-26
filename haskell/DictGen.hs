@@ -112,20 +112,24 @@ insertIdeas mp de = let es = entries de
 ideas = do
   is <- fmap (fmap nub . foldl' insertIdeas Map.empty) readDict
   sw <- fmap lines $ readFile "stopwords"
-  return $ unionFind $ fmap (map fst)
+  return $ Map.fromList $ map (\(a,b) -> (map toLower a,b)) $ Map.toList 
+    $ unionFind 
+    $ fmap (map fst)
     $ Map.filterWithKey (\k _ -> k`notElem`sw) $ Map.filter (not . null) 
     $ fmap (\l -> let len = length l in filter (\(_,x) -> (len == 1) || x /= "Nl") l)
     $ fmap (filter ((`notElem`sw).(map toLower).fst)) is
   
 families = do
   is <- ideas
-  return $ Map.fromList $ concatMap (\(k,v) -> map (flip (,) k) v) $ Map.toList is
+  return $ Map.fromList $ concatMap (\(k,v) -> map (flip (,) k . map toLower) v) $ Map.toList is
   
 lookupOrEmpty x mp = case Map.lookup x mp of
   Nothing -> []
   (Just a) -> a
   
 type UnionFind a = Map.Map a a
+
+uf_insert a uf = snd $ uf_find a uf
 
 uf_find :: (Ord a) => a -> UnionFind a -> (a,UnionFind a)
 uf_find s uf = case Map.lookup s uf of
@@ -140,7 +144,7 @@ uf_union a b uf = let (c,uf') = uf_find a uf
                   in if c == c' then uf'' else Map.insert c c' uf''
                   
 uf_unions :: (Ord a) => [a] -> UnionFind a -> UnionFind a
-uf_unions as uf = let a = head as in foldl' (\uf b -> uf_union a b uf) uf $ tail as
+uf_unions as uf = let a = head as in foldl' (\uf b -> uf_union a b uf) (uf_insert a uf) $ tail as
 
 uf_subsets :: (Ord a) => UnionFind a -> Map.Map a [a]
 uf_subsets uf = foldl' (\mp a -> Map.insertWith (++) (fst $ uf_find a uf) [a] mp) Map.empty $ Map.keys uf
@@ -151,7 +155,8 @@ unionFind ideas = uf_subsets $ foldl' (flip uf_unions) Map.empty $ Map.elems ide
 ideasString = do
   is <- ideas
   let stris = map (\(w,l) -> (show w) ++ " : " ++ (show $ l)
-                             ++ (concatMap (\w' -> "," ++ (show $ w') ++ " : " ++ (show w)) $ nub $ filter (/= w) l))
+                             ++ (concatMap (\w' -> "," ++ (show $ map toLower w') ++ " : " ++ (show w)) 
+                                 $ nub $ filter ((/= w).(map toLower)) l))
               $ Map.toList is
   return $ "{" ++ (concat $ intersperse "," stris )++ "}" 
   
