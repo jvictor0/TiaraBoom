@@ -11,19 +11,21 @@ def HandleInput(g_data, inp):
     if inp == 'reply':
         res = g_data.SocialLogic().Reply()
         return "ok" if not res is None else "error"
-    if inp == 'act':
+    elif inp == 'act':
         res = g_data.SocialLogic().Follow()
         return "ok" if not res is None else "error"
+    elif inp == 'status':
+        return "%d cycles to act, %d cycles to respond" % (g_data.SocialLogic().untilNextAction,g_data.SocialLogic().untilNextResponse)
     inp = inp.split(' ')
     if inp[0] == 'follow' and len(inp) == 2 and inp[1][0] == '@':
         sn = inp[1][1:]
         res = g_data.ApiHandler().Follow(screen_name=sn)
         return "ok" if not res is None else "error"
-    if inp[0] == 'bother' and len(inp) == 2 and inp[1][0] == '@':
+    elif inp[0] == 'bother' and len(inp) == 2 and inp[1][0] == '@':
         sn = inp[1][1:]
         res = g_data.SocialLogic().Bother(sn)
         return "ok" if not res is None else "error"
-    if inp[0] == 'reply' and len(inp) == 2:
+    elif inp[0] == 'reply' and len(inp) == 2:
         try:
             tweet = g_data.ApiHandler().ShowStatus(int(inp[1]))
             if tweet == None:
@@ -33,7 +35,7 @@ def HandleInput(g_data, inp):
             return "syntax error"
         res = g_data.SocialLogic().ReplyTo(tweet)
         return "ok" if not res is None else "error"
-    if inp[0] == 'search_reply':
+    elif inp[0] == 'search_reply':
         term = ' '.join(inp[1:])
         tweets = g_data.ApiHandler().Search(term)
         if not tweets is None and len(tweets) > 0:

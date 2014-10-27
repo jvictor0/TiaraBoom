@@ -162,6 +162,7 @@ class SocialLogic:
                 
     def Act(self):
         self.untilNextAction -= 1
+        self.untilNextResponse -= 1
         if self.untilNextAction <= 0:
             self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
             self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
