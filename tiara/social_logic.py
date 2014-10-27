@@ -168,7 +168,7 @@ class SocialLogic:
             self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
             self.Follow()
         if self.untilNextResponse <= 0:
-            self.untilNextResponse = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_RESPONSE))
+            self.untilNextResponse = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_RESPOND))
             self.g_data.TraceInfo("Performing response! %d cycles until next action." % self.untilNextResponse)
             self.BotherRandom()
         self.Reply()

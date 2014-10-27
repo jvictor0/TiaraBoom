@@ -12,11 +12,12 @@ class Vocab:
         words = re.split(r"[^a-zA-Z\'\-]", tweet)
         for w in words:
             rep = self.g_data.FamilyRepresentative(w)
-            if not rep is None and rep not in self.used:  
-                for word, part in self.g_data.FamilyLookup(rep):
-                    ListInsert(self.dict, part, word)
+            if not rep is None and rep not in self.used:
                 if addSimilar:
                     self.Add(self.g_data.Similar(rep))
+                else:
+                    for word, part in self.g_data.FamilyLookup(rep):
+                        ListInsert(self.dict, part, word)
 
     def Register(self, word):
         rep = self.g_data.FamilyRepresentative(word)

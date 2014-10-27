@@ -77,6 +77,11 @@ class TweetsIterator:
         if allowUserTweets and self.ix <= len(self.userTweets):
             self.ix += 1
             return self.userTweets[self.ix-2]
+        elif allowUserTweets:
+            result = twitter.Status()
+            result.SetText(self.g_data.RandomEnglishWord())
+            result.SetUser(twitter.User())
+            return result
         return False
 
     def Reset(self):
