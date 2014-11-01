@@ -4,7 +4,7 @@ import random
 from util import *
 
 AVERAGE_MINUTES_TO_ACT = 120
-AVERAGE_MINUTES_TO_RESPOND = 60
+AVERAGE_MINUTES_TO_RESPOND = 120
 
 class SocialLogic:
     def __init__(self, g_data):
