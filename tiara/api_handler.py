@@ -9,6 +9,10 @@ class ApiHandler():
     def __init__(self, g_data):
         self.g_data = g_data
         self.cache = {}
+        self.api = twitter.Api(consumer_key=g_data.authentication["consumer_key"],
+                               consumer_secret=g_data.authentication["consumer_secret"], 
+                               access_token_key=g_data.authentication["access_token_key"], 
+                               access_token_secret=g_data.authentication["access_token_secret"]) 
             
     def CacheInsert(self, key, value, old_value=None):
         self.cache[key] = (value,0)
@@ -40,18 +44,18 @@ class ApiHandler():
             return None
 
     def ShowStatus(self, status_id):
-        return self.ApiCall("ShowStatus", status_id, lambda: api.GetStatus(status_id))
+        return self.ApiCall("ShowStatus", status_id, lambda: self.api.GetStatus(status_id))
 
     def Tweet(self, status, in_reply_to_status=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Tweet in Read-Only-Mode: \"%s\"" % status)
             return False
         irtsi = in_reply_to_status.GetId() if not in_reply_to_status is None else None
-        if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == "TiaraBoom1":
+        if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
             self.g_data.TraceWarn("Attempt to respond to self is a bad idea, posting general tweet")
             in_reply_to_status = None
         result = self.ApiCall("Tweet", status,
-                              lambda: api.PostUpdate(status, in_reply_to_status_id=irtsi),
+                              lambda: self.api.PostUpdate(status, in_reply_to_status_id=irtsi),
                               cache=False)
         
         if not result is None:
@@ -61,12 +65,12 @@ class ApiHandler():
                                      in_reply_to_status.GetId(),
                                      in_reply_to_status.GetInReplyToStatusId())
             reply_id = None if in_reply_to_status is None else in_reply_to_status.GetId()
-            self.g_data.LogTweet("TiaraBoom1", status, result.GetId(), reply_id)
+            self.g_data.LogTweet(self.g_data.myName, status, result.GetId(), reply_id)
         return result
         
     def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
-                            lambda:  api.GetUserTimeline(screen_name=screen_name,
+                            lambda:  self.api.GetUserTimeline(screen_name=screen_name,
                                                          user_id=user_id,
                                                          count=count,
                                                          include_rts=False,
@@ -76,12 +80,12 @@ class ApiHandler():
 
     def GetFollowerIDs(self, screen_name=None, user_id=None):
          return self.ApiCall("GetFollowerIDs", NotNone(screen_name, user_id),
-                             lambda: api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1),
+                             lambda: self.api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1),
                              cache=False)
 
     def GetFollowers(self, user_id=None, screen_name=None):
         def GFP(scn,uid):
-            next,prev,data = api.GetFollowersPaged(screen_name=scn,user_id=uid,cursor=-1)
+            next,prev,data = self.api.GetFollowersPaged(screen_name=scn,user_id=uid,cursor=-1)
             return [twitter.User.NewFromJsonDict(x) for x in data['users']]
 
         return self.ApiCall("GetFollowers", NotNone(screen_name, user_id), 
@@ -90,7 +94,7 @@ class ApiHandler():
 
     def RecentTweets(self, max_id, count=5):
         return self.ApiCall("RecentTweets","",
-                            lambda: api.GetSearch(term="to:TiaraBoom1",
+                            lambda: self.api.GetSearch(term="to:%s" % self.g_data.myName,
                                                   count=count,
                                                   result_type="recent",
                                                   include_entities=False,
@@ -99,10 +103,10 @@ class ApiHandler():
                             cache=False)
 
     def Search(self, term):
-        return self.ApiCall("Search",term,lambda : api.GetSearch(term=term))
+        return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term))
     
     def Follow(self, screen_name=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return False
-        return self.ApiCall("Follow",screen_name,lambda: api.CreateFriendship(screen_name=screen_name), cache=False)
+        return self.ApiCall("Follow",screen_name,lambda: self.api.CreateFriendship(screen_name=screen_name), cache=False)

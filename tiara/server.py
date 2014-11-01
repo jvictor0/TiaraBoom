@@ -46,13 +46,12 @@ def HandleInput(g_data, inp):
 
 if __name__ == '__main__':
 
+    g_data = g.GlobalData()
+    if g_data.read_only_mode:
+        g_data.TraceInfo("In Read Only Mode!")
+
     sys.excepthook = exceptionTrace
 
-    read_only_mode = "--read-only-mode" in sys.argv
-    g_data = g.GlobalData(read_only_mode)
-    if read_only_mode:
-        g_data.TraceInfo("In Read Only Mode!")
-    
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.setblocking(0)
@@ -67,10 +66,8 @@ if __name__ == '__main__':
 
     message_queues = {}
 
-    server_passowrd = ""
+    server_password = g_data.password
     abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-    with open(abs_prefix + '/server_password',"r") as f:
-        server_password = f.readline()
 
     assert server_password != ""
 

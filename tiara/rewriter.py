@@ -91,6 +91,7 @@ class TweetsIterator:
 
 class Rewriter:
     def __init__(self, tweets, sentence, inReply, g_data):
+        self.g_data = g_data
         self.progressEver = not inReply
         self.vocab = v.Vocab(g_data)
         self.tweets = tweets
@@ -102,7 +103,7 @@ class Rewriter:
     def AddVocab(self):
         tweet = self.tweets.Next(self.progressEver)
         if tweet:
-            self.vocab.Add(tweet.GetText(), addSimilar = tweet.GetUser().GetScreenName() == "TiaraBoom1")
+            self.vocab.Add(tweet.GetText(), addSimilar = tweet.GetUser().GetScreenName() == self.g_data.myName)
             return True
         return False
 

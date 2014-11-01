@@ -10,7 +10,7 @@ import random
 import social_logic
 
 class GlobalData:
-    def __init__(self, read_only_mode = False):
+    def __init__(self):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         with open(abs_prefix + '/english_families.json',"r") as f:
             self.englishFamilies = DictToSortedTuple(json.load(f))
@@ -20,9 +20,7 @@ class GlobalData:
             self.cooccuring = DictToSortedTuple(json.load(f))
         with open(abs_prefix + '/similar.json',"r") as f:
             self.similar = DictToSortedTuple(json.load(f))
-
-        self.read_only_mode = read_only_mode
-
+            
         log_format = '%(levelname)s %(asctime)s: %(message)s'
         logging.basicConfig(format=log_format)
 
@@ -44,6 +42,18 @@ class GlobalData:
         tweetHandler.setFormatter(logging.Formatter('%(asctime)s: %(message)s', "%Y-%m-%d %H:%M:%S"))
         self.tweetLogger.addHandler(tweetHandler)
 
+        with open(abs_prefix + '/config.json','r') as f:
+            conf = json.load(f)
+            self.password       = conf['password']
+            self.myName         = conf['twitter_name']
+            self.authentication = conf["authentication"]
+            self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
+
+            sl_name             = conf['social_logic']['name']
+            if sl_name == "TiaraBoom":
+                self.socialLogic = social_logic.SocialLogic(self)
+            else:
+                assert False
         
         self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
         self.TraceDebug("size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos)))
@@ -51,7 +61,6 @@ class GlobalData:
         self.TraceDebug("size of similar.json in memory is %d, len = %d" % (sys.getsizeof(self.similar),len(self.similar)))
 
         self.apiHandler = api_handler.ApiHandler(self)
-        self.socialLogic = social_logic.SocialLogic(self)
 
     def TraceDebug(self, msg):
         self.logger.debug(Indentation() + msg)

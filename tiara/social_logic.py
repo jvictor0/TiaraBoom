@@ -59,7 +59,7 @@ class SocialLogic:
         return random.choice(result)
 
     def StalkTwitter(self):
-        follower = self.RandomFollowerID("TiaraBoom1")
+        follower = self.RandomFollowerID(self.g_data.myName)
         if follower is None:
             return
         followers = self.g_data.ApiHandler().GetFollowers(user_id=follower)
@@ -107,7 +107,7 @@ class SocialLogic:
         return result
 
     def BotherRandom(self):
-        id = self.RandomFollowerID("TiaraBoom1")
+        id = self.RandomFollowerID(self.g_data.myName)
         self.Bother(user_id=id)
 
     def Bother(self, screen_name=None, user_id=None):
