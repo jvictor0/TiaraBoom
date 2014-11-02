@@ -1,5 +1,4 @@
 import twitter
-from twitterkeys import api
 import os
 from util import *
 
