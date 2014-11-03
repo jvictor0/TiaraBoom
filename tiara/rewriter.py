@@ -1,6 +1,7 @@
 import vocab as v
 import random
 import twitter
+from sentence_gen import Sentence
 
 def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
@@ -8,7 +9,7 @@ def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
     tweets = TweetsIterator(g_data, original=tweet, user=user)
     for i in xrange(attempts):
         tweets.Reset()
-        sentence = g_data.NextSentence(tweet.GetText() if not tweet is None else "")
+        sentence = Sentence()
         g_data.TraceInfo("Rewriting sentence \"%s\"" % " ".join(sentence))
         rw = Rewriter(tweets, sentence, inReply, g_data)
         result = rw.Rewrite()

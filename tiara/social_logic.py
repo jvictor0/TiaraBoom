@@ -1,3 +1,4 @@
+
 import os
 import rewriter as r
 import random
@@ -176,3 +177,78 @@ class SocialLogic:
             self.StalkTwitter()
         self.tix += 1
     
+
+AVERAGE_MINUTES_TO_FOLLOW_BACK = 60
+
+class FollowBackLogic:
+    def __init__(self, g_data, config):
+        self.g_data = g_data
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        self.friends = []
+#        with open(abs_prefix + "/friendbots","r") as f:
+#            for line in f:
+#                self.friends.append(line.strip().split())
+#        assert len(self.friends) == 15
+        self.hash_bucket = config["hash_bucket"]
+        self.pem  = abs_prefix + "/" + config["pem"]
+            
+        self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_FOLLOW_BACK))
+        self.g_data.TraceInfo("%d cycles until first action." % self.untilNextAction)
+        
+
+    def Act(self):
+        self.untilNextAction -= 1
+        if self.untilNextAction <= 0:
+            self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
+            self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
+        random.choice([self.FindFollowBacker])()
+
+    def Hashes(self, i):
+        #return list(set([i*13 % 15, i * 17 % 15, i * 19 % 15]))
+        return [self.hash_bucket]
+
+    def FindFollowBacker(self):
+        tweets = self.g_data.ApiHandler().Search("lang:en " + random.choice(["#follow",
+                                                                             "#followback",
+                                                                             "#followtrain",
+                                                                             "#anotherfollowtrain",
+                                                                             "#followertrick",
+                                                                             "#teamfollowback",
+                                                                             "#tfb"]))
+        tweet = random.choice(tweets)
+        print tweet.GetText()
+        self.Follow(tweet.GetUser())
+        for u in tweet.user_mentions:
+            if random.choice([True,False]):
+                self.Follow(u)
+        
+
+    def Follow(self, f):
+        uid = f.GetId()
+        for h in self.Hashes(uid):
+            if h == self.hash_bucket:
+                if self.g_data.ApiHandler().Follow(screen_name=f.GetScreenName()) is None:
+                    return False
+                return True
+            else:
+                try:
+                    QueryFriendBot("follow @%s" % f.GetSceenName(),
+                                   self.friends[h][1],
+                                   self.g_data.password,
+                                   pem=self.pem)
+                except Exception as e:
+                    self.g_data.TraceWarn(str(e))
+                    return False
+        return True
+
+    def FollowBack(self):
+        followers = self.g_data.ApiHandler().GetFollowers(screen_name=self.g_data.myName)
+        for f in followers[:4]:
+            if not self.Follow(f):
+                break
+
+    def RandomFriendID(self, name):
+        result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=name)
+        if result is None or result == []:
+            return None
+        return random.choice(result)

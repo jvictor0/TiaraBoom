@@ -48,7 +48,9 @@ if __name__ == "__main__":
         "twitter_name"     : sys.argv[1],
         "read_only_mode"   : False,
         "social_logic"     : {
-            "name" : "SocialBotsStartup"
+            "name" : "FollowBack",
+            "hash_bucket" : sys.argv[5],
+            "pem" : "quidprojo.pem"
             },
         "authentication"   : {
             "consumer_key"        : cons_key,

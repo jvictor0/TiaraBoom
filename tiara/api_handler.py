@@ -101,8 +101,8 @@ class ApiHandler():
                                                   lang="en"),
                             cache=False)
 
-    def Search(self, term):
-        return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term))
+    def Search(self, term, count=100, result_type="recent"):
+        return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term,count=count))
     
     def Follow(self, screen_name=None):
         if self.g_data.read_only_mode:

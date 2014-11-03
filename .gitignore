@@ -61,3 +61,5 @@ data/tiaraboom_log*
 data/tweet_log
 data/config.json
 \#*
+*.pem
+data/friendbots

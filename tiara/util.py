@@ -4,6 +4,8 @@ import sys
 import inspect
 import traceback
 
+import paramiko
+
 def Indentation():
     return ' ' * len(inspect.stack())
 
@@ -51,7 +53,21 @@ def exceptionTrace(exctype, value, tb):
     logger = logging.getLogger('TiaraBoom')
     
     logger.error('I seem to have crashed with an exception')
-    logger.error('Type: %s' % exctype)
-    logger.error('Value: %s' % value)
+    logger.error('Type: %s' % str(exctype))
+    logger.error('Value: %s' % str(value))
     logger.error('Traceback:\n%s' % traceback.format_tb(tb))
+    
+
+def QueryFriendBot(query, friendhost, password, pem=None, friendUsername="ubuntu"):
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+
+    client.connect(friendhost, 22, username=friendUsername, key_filename=pem)
+    chan = client.get_transport().open_channel('direct-tcpip',("localhost", 10001),("localhost",10002))
+    chan.send(password)
+    res = chan.recv(1024)
+    assert res == "welcome"
+    chan.send(query)
+    return chan.recv(1024)
+
     

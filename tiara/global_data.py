@@ -1,4 +1,3 @@
-from sentence_gen import Sentence
 from util import *
 import json
 import sys
@@ -52,6 +51,8 @@ class GlobalData:
             sl_name             = conf['social_logic']['name']
             if sl_name == "TiaraBoom":
                 self.socialLogic = social_logic.SocialLogic(self)
+            elif sl_name == "FollowBack":
+                self.socialLogic = social_logic.FollowBackLogic(self, conf["social_logic"])
             else:
                 assert False
         

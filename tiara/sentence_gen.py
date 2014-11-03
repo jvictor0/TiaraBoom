@@ -21,3 +21,4 @@ def ConstructSentence(phr):
 
 def Sentence():
     return ConstructSentence(_sentence())
+
