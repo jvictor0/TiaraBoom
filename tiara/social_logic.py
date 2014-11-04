@@ -221,7 +221,6 @@ class FollowBackLogic:
         
 
     def Act(self):
-        print "act"
         self.untilNextAction -= 1
         if self.untilNextAction <= 0:
             self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
@@ -244,7 +243,6 @@ class FollowBackLogic:
         if tweets is None or len(tweets) == 0:
             return
         tweet = random.choice(tweets)
-        print tweet.GetText()
         self.Follow(tweet.GetUser())
         for u in tweet.user_mentions:
             if random.choice([True,False]):
