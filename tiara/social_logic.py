@@ -7,6 +7,26 @@ from util import *
 AVERAGE_MINUTES_TO_ACT = 120
 AVERAGE_MINUTES_TO_RESPOND = 120
 
+class StatsLogger:
+    def __init__(self, g_data, tix):
+        self.tix = 0
+        self.mod = tix
+        self.g_data = g_data
+        self.logger = logging.getLogger('Status')
+        self.logger.setLevel(logging.DEBUG)
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        handler = logging.FileHandler(abs_prefix + "/status_log")
+        handler.setFormatter(logging.Formatter('%(asctime)s: %(message)s', "%Y-%m-%d %H:%M:%S"))
+        self.logger.addHandler(handler)
+
+
+
+    def Tick(self):
+        if self.tix % self.mod == 0:
+            me = self.g_data.ApiHandler().ShowUser(self.g_data.myName)
+            self.logger.info("%d %d" % (me.GetFriendsCount(), me.GetFollowersCount()))
+        self.tix = self.tix + 1
+
 class SocialLogic:
     def __init__(self, g_data):
         self.g_data = g_data
@@ -24,6 +44,7 @@ class SocialLogic:
 
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
+        self.statsLogger = StatsLogger(g_data,15)
 
     def SetMaxId(self, max_id):
         log_assert(self.max_id <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -176,6 +197,7 @@ class SocialLogic:
         if self.tix % 15 == 0:
             self.StalkTwitter()
         self.tix += 1
+        self.statsLogger.Tick()
     
 
 AVERAGE_MINUTES_TO_FOLLOW_BACK = 60
@@ -194,14 +216,18 @@ class FollowBackLogic:
             
         self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_FOLLOW_BACK))
         self.g_data.TraceInfo("%d cycles until first action." % self.untilNextAction)
+        self.statsLogger = StatsLogger(g_data,15)
+
         
 
     def Act(self):
+        print "act"
         self.untilNextAction -= 1
         if self.untilNextAction <= 0:
             self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
             self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
             random.choice([self.FollowBack,self.FindFollowBacker])()
+        self.statsLogger.Tick()
 
     def Hashes(self, i):
         #return list(set([i*13 % 15, i * 17 % 15, i * 19 % 15]))

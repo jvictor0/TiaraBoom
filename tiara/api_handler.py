@@ -45,6 +45,9 @@ class ApiHandler():
     def ShowStatus(self, status_id):
         return self.ApiCall("ShowStatus", status_id, lambda: self.api.GetStatus(status_id))
 
+    def ShowUser(self, screen_name):
+        return self.ApiCall("ShowUser", screen_name, lambda: self.api.GetUser(screen_name=screen_name))
+
     def Tweet(self, status, in_reply_to_status=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Tweet in Read-Only-Mode: \"%s\"" % status)

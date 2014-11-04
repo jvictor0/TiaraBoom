@@ -59,6 +59,7 @@ target/
 data/max_id
 data/tiaraboom_log*
 data/tweet_log
+data/status_log
 data/config.json
 \#*
 *.pem
