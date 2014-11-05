@@ -2,6 +2,7 @@ import os, time
 import rewriter as r
 import random
 from util import *
+import json
 
 class Ticker(object):
     def __init__(self, tix):
@@ -248,6 +249,37 @@ class FollowBacker(VerboseExpTicker):
                        lambda: self.g_data.SocialLogic().FindFollowBacker()])()
         
 
+class UserSnooper(Ticker):
+    def __init__(self, g_data, hash_bucket):
+        super(UserSnooper,self).__init__(16)
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        self.targets = []
+        self.g_data = g_data
+        with open(abs_prefix + "/targets","r") as f:
+            for line in f:
+                uid = int(line)
+                if uid % 15 == hash_bucket:
+                    self.targets.append(uid)
+        with open(abs_prefix + "/targets_data","r") as f:
+            for line in f:
+                uid = int(line.split()[0])
+                assert self.targets[-1] == uid
+                print "pop " + str(uid)
+                self.targets.pop()
+
+    def Tock(self):
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        with open(abs_prefix + "/targets_data","a") as f:
+            for i in xrange(min(90,len(self.targets))):
+                uid = self.targets.pop()
+                data = self.g_data.ApiHandler().ShowStatuses(user_id = uid)
+                if data is None:
+                    f.write("%d []\n" % uid)
+                else:
+                    f.write("%d %s\n" % (uid,json.dumps([s.AsDict() for s in data])))
+            
+        
+
 class FollowBackLogic:
     def __init__(self, g_data, config):
         self.g_data = g_data
@@ -262,12 +294,13 @@ class FollowBackLogic:
 
         self.followBacker = FollowBacker(g_data, AVERAGE_MINUTES_TO_FOLLOW_BACK)
         self.statsLogger  = StatsLogger (g_data, 15)
-
+        self.snooper      = UserSnooper (g_data, self.hash_bucket)
         
 
     def Act(self):
         self.statsLogger.Tick()
         self.followBacker.Tick()
+        self.snooper.Tick()
 
     def Hashes(self, i):
         #return list(set([i*13 % 15, i * 17 % 15, i * 19 % 15]))
@@ -278,7 +311,6 @@ class FollowBackLogic:
                                                                              "#followback",
                                                                              "#followtrain",
                                                                              "#anotherfollowtrain",
-                                                                             "#followertrick",
                                                                              "#teamfollowback",
                                                                              "#tfb"]))
         if tweets is None or len(tweets) == 0:

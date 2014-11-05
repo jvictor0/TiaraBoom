@@ -64,3 +64,5 @@ data/config.json
 \#*
 *.pem
 data/friendbots
+data/targets
+data/targets_data
