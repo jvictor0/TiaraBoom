@@ -289,7 +289,7 @@ class FollowBackLogic:
 #            for line in f:
 #                self.friends.append(line.strip().split())
 #        assert len(self.friends) == 15
-        self.hash_bucket = config["hash_bucket"]
+        self.hash_bucket = int(config["hash_bucket"])
         self.pem  = abs_prefix + "/" + config["pem"]
 
         self.followBacker = FollowBacker(g_data, AVERAGE_MINUTES_TO_FOLLOW_BACK)
@@ -312,7 +312,8 @@ class FollowBackLogic:
                                                                              "#followtrain",
                                                                              "#anotherfollowtrain",
                                                                              "#teamfollowback",
-                                                                             "#tfb"]))
+                                                                             "#tfb",
+                                                                             "#mgwv"]))
         if tweets is None or len(tweets) == 0:
             return
         tweet = random.choice(tweets)
