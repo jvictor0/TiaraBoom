@@ -55,7 +55,7 @@ def exceptionTrace(exctype, value, tb):
     logger.error('I seem to have crashed with an exception')
     logger.error('Type: %s' % str(exctype))
     logger.error('Value: %s' % str(value))
-    logger.error('Traceback:\n%s' % traceback.format_tb(tb))
+    logger.error('Traceback:\n%s' % "".join(traceback.format_tb(tb)))
     
 
 def QueryFriendBot(query, friendhost, password, pem=None, friendUsername="ubuntu"):

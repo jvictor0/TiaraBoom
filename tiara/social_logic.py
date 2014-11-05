@@ -1,16 +1,53 @@
-
-import os
+import os, time
 import rewriter as r
 import random
 from util import *
 
-AVERAGE_MINUTES_TO_ACT = 120
-AVERAGE_MINUTES_TO_RESPOND = 120
+class Ticker(object):
+    def __init__(self, tix):
+        self.time = 0
+        self.last_time = time.time()
+        self.limit = tix * 60
+        self.avg_limit = tix * 60
 
-class StatsLogger:
+    def Tick(self):
+        t = time.time()
+        self.time += (t - self.last_time)
+        self.last_time = t
+        while self.time > self.limit:
+            self.Tock()
+            self.time -= self.limit
+
+    def Tock(self):
+        pass
+
+class VerboseExpTicker(object):
     def __init__(self, g_data, tix):
-        self.tix = 0
-        self.mod = tix
+        self.time = 0
+        self.last_time = time.time()
+        self.avg_limit = tix * 60
+        self.g_data = g_data
+        self.limit = random.expovariate(1.0/self.avg_limit)
+        self.g_data.TraceInfo("Startup! %f minutes until first action." % (self.limit/60))
+
+    def Tick(self):
+        t = time.time()
+        self.time += (t - self.last_time)
+        self.last_time = t
+        while self.time > self.limit:
+            self.Tock()
+            self.time -= self.limit
+            self.limit = random.expovariate(1.0/self.avg_limit)
+            self.g_data.TraceInfo("Action Performed! %f minutes until first action." % (self.limit/60))
+
+
+    def Tock(self):
+        pass
+
+
+class StatsLogger(Ticker):
+    def __init__(self, g_data, tix):
+        super(StatsLogger,self).__init__(tix)
         self.g_data = g_data
         self.logger = logging.getLogger('Status')
         self.logger.setLevel(logging.DEBUG)
@@ -19,17 +56,16 @@ class StatsLogger:
         handler.setFormatter(logging.Formatter('%(asctime)s: %(message)s', "%Y-%m-%d %H:%M:%S"))
         self.logger.addHandler(handler)
 
-
-
-    def Tick(self):
-        if self.tix % self.mod == 0:
-            me = self.g_data.ApiHandler().ShowUser(self.g_data.myName)
+    def Tock(self):
+        me = self.g_data.ApiHandler().ShowUser(self.g_data.myName)
+        if me is not None:
             self.logger.info("%d %d" % (me.GetFriendsCount(), me.GetFollowersCount()))
-        self.tix = self.tix + 1
+
+AVERAGE_MINUTES_TO_ACT = 120
+AVERAGE_MINUTES_TO_RESPOND = 120
 
 class SocialLogic:
     def __init__(self, g_data):
-        self.g_data = g_data
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         with open(abs_prefix + '/max_id',"r") as f:
             self.max_id = int(f.readline())
@@ -202,6 +238,16 @@ class SocialLogic:
 
 AVERAGE_MINUTES_TO_FOLLOW_BACK = 60
 
+class FollowBacker(VerboseExpTicker):
+    def __init__(self, g_data, tix):
+        super(FollowBacker,self).__init__(g_data,tix)
+        self.g_data = g_data
+        
+    def Tock(self):
+        random.choice([lambda: self.g_data.SocialLogic().FollowBack(),
+                       lambda: self.g_data.SocialLogic().FindFollowBacker()])()
+        
+
 class FollowBackLogic:
     def __init__(self, g_data, config):
         self.g_data = g_data
@@ -213,20 +259,15 @@ class FollowBackLogic:
 #        assert len(self.friends) == 15
         self.hash_bucket = config["hash_bucket"]
         self.pem  = abs_prefix + "/" + config["pem"]
-            
-        self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_FOLLOW_BACK))
-        self.g_data.TraceInfo("%d cycles until first action." % self.untilNextAction)
-        self.statsLogger = StatsLogger(g_data,15)
+
+        self.followBacker = FollowBacker(g_data, AVERAGE_MINUTES_TO_FOLLOW_BACK)
+        self.statsLogger  = StatsLogger (g_data, 15)
 
         
 
     def Act(self):
-        self.untilNextAction -= 1
-        if self.untilNextAction <= 0:
-            self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
-            self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
-            random.choice([self.FollowBack,self.FindFollowBacker])()
         self.statsLogger.Tick()
+        self.followBacker.Tick()
 
     def Hashes(self, i):
         #return list(set([i*13 % 15, i * 17 % 15, i * 19 % 15]))
@@ -269,9 +310,15 @@ class FollowBackLogic:
 
     def FollowBack(self):
         followers = self.g_data.ApiHandler().GetFollowers(screen_name=self.g_data.myName)
-        for f in followers[:4]:
+        if followers is None:
+            followers = []
+        found = False
+        for f in followers[:min(len(followers),4)]:
             if not self.Follow(f):
                 break
+            found = True
+        if not found:
+            self.FindFollowBacker()
 
     def RandomFriendID(self, name):
         result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=name)
