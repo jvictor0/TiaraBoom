@@ -137,7 +137,10 @@ class Rewriter:
                 return False
 
     def Finalize(self):
-        for i in xrange(len(self.sentence)-1):
-            if self.sentence[i] == "a" and self.sentence[i+1][0] in ['a','e','i','o']:
-                self.sentence[i] = "an"
-        return " ".join(self.sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").replace(" ;",";").replace(" - ","-").strip()
+        return Finalize(self.sentence)
+
+def Finalize(sentence):
+    for i in xrange(len(sentence)-1):
+        if sentence[i] == "a" and sentence[i+1][0] in ['a','e','i','o']:
+            sentence[i] = "an"
+    return " ".join(sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").replace(" ;",";").replace(" - ","-").strip()

@@ -70,4 +70,26 @@ def QueryFriendBot(query, friendhost, password, pem=None, friendUsername="ubuntu
     chan.send(query)
     return chan.recv(1024)
 
-    
+def ToWordForm(g_data,word,form):
+    return [w for w, t in g_data.FamilyLookup(word) if t == form]
+
+def LKD(d,a,r=None):
+    return d[a] if a in d else r
+
+def LKDT(d,a):
+    return LKD(d,a,True)
+def LKDF(d,a):
+    return LKD(d,a,True)
+def LKD0(d,a):
+    return LKD(d,a,0)
+def LKDS(d,a):
+    return LKD(d,a,"")
+def LKDL(d,a):
+    return LKD(d,a,[])
+
+def joinit(delimiter, iterable):
+    it = iter(iterable)
+    yield next(it)
+    for x in it:
+        yield delimiter
+        yield x
