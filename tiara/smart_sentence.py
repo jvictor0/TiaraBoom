@@ -11,7 +11,7 @@ import sys
 import rewriter as r
 from sentence_gen import ConstructSentence
 
-allowed_tenses = [t for t in g._imperfect_tenses if not g._is_pos(t)]
+allowed_tenses = [t for t in g._imperfect_tenses if g._is_pos([t])]
 
 period_elt = { "type" : "punctuation", "element" : "." }
 comma_elt = { "type" : "punctuation", "element" : "," }
@@ -58,17 +58,17 @@ def Rewrite(g_data, clause, words):
             result.append(c)
     return g.phrase(result)
 
-def RewriteNounPhrase(noun):
-    return [RewriteNoun(t) for t in noun]
+def RewriteNounPhrase(g_data,noun):
+    return [RewriteNoun(g_data,t) for t in noun]
 
-def RewriteNoun(noun):
+def RewriteNoun(g_data,noun):
     if noun[0].isupper():
         return noun
     if noun.lower() in stopwords.words('english'):
         return noun
     if noun[-1] == "_":
         return noun[:-1]
-    res = RandomSynonym(noun,"n")
+    res = RandomSynonym(g_data,noun,"n")
     return res
 
 def CountWildcards(phrase):
@@ -87,12 +87,14 @@ def Finalize(sentence_tree):
         return r.Finalize(ConstructSentence(g.phrase([Finalize(e) for e in sentence_tree["elements"]])))
     if sentence_tree["type"] == "punctuation":
         return [sentence_tree["element"]]
+    if sentence_tree["type"] == "clause":
+        return sentence_tree["clause"]
     assert False, sentence_tree["type"]
 
 def PickVerb(g_data, subj, tense, trans, parts):
     verb_infinitive = random.choice(parts["verbs"])
     ego = ["I"] in subj or ["we"] in subj
-    plural = len(subj) > 1 or IsPlural(subj[0][-1])
+    plural = len(subj) > 1 or IsPlural(g_data, subj[0][-1])
     tvt = g.POS_TRANSITIVE_VERB if trans else g.POS_INTRANSITIVE_VERB
     if random.uniform(0,1) < 0.5 and "verb_adapters" in parts:
         verb_schema,the_tense = (g._adapted_verb_ego if ego else g._adapted_verb)(not plural, tense)(tvt)
@@ -112,7 +114,7 @@ def IndepClause(g_data, info, tense=allowed_tenses,used=[]):
         subj = [g.lit_phrase(t) for t in subj]
     else:
         subj = [g.lit_phrase(subj)]
-    subj = [RewriteNounPhrase(t) for t in subj]
+    subj = [RewriteNounPhrase(g_data,t) for t in subj]
     verb, the_tense = PickVerb(g_data, subj, tense, trans, parts)
 
     result = {
@@ -124,16 +126,16 @@ def IndepClause(g_data, info, tense=allowed_tenses,used=[]):
         }
     
     if trans:
-        result["object"] = RewriteNounPhrase(g.lit_phrase(random.choice(parts["objects"])))
+        result["object"] = RewriteNounPhrase(g_data,g.lit_phrase(random.choice(parts["objects"])))
 
     if "post_adjectives" in parts and random.uniform(0,1) < 0.3:
         result["post_adjective"] = g.lit_phrase(random.choice(parts["post_adjectives"]))
     
     return result
 
-def RandomSynonym(word,sense):
+def RandomSynonym(g_data,word,sense):
     res = random.choice(Synonyms(word,sense))
-    if sense == "n" and IsPlural(word):
+    if sense == "n" and IsPlural(g_data,word):
         return pluralize(res)
     return res
 
@@ -143,9 +145,8 @@ def Synonyms(word,sense):
         return [word]
     return [w.name() for ws in syns[0].lemmas() for w in [ws]*(1+ws.count()) if not "_" in ws.name()]
 
-def IsPlural(pluralForm):
-    singularForm = singularize(pluralForm)
-    return True if pluralForm is not singularForm else False
+def IsPlural(g_data, pluralForm):
+    return "(Kf)" in g_data.DictLookup(pluralForm)
 
 def WithTransformation(g_data, indep):
     assert indep["type"] == "indep_clause"
@@ -160,6 +161,76 @@ def WithTransformation(g_data, indep):
             indep["verb"], _= PickVerb(g_data, indep["subject"], [indep["tense"]], "object" in indep, indep["data"])
     return indep
 
+def BeingTargetTransformation(g_data, indep):
+    return BeingTargetThisTransformation(g_data, BeingTargetSubjectTransformation(g_data,indep))
+
+def BeingTargetSubjectTransformation(g_data, indep):
+    if indep["type"] != "indep_clause":
+        return indep
+    if len(LKD(LKD(indep["data"],"being_targets",{}),"subject",[])) == 0 or random.uniform(0,1) < 0.6:
+        return indep
+    tense = indep["tense"]
+    pro = Pronoun(g_data, indep["subject"], indep["data"])
+    plural = pro in ["we","they"]
+    ego    = pro in ["I","we"]
+    if g._is_past_any([tense]):
+        conj,vb1,vb2,vb3 = random.choice([("and","am","is","are"),
+                                          ("and now","am","is","are"),
+                                          ("until","was","was","were"),
+                                          ("and soon","will be","will be","will be")])
+    elif g._is_pres_any([tense]):
+        conj,vb1,vb2,vb3 = random.choice([("and","am getting","is getting","are getting"),
+                                          ("and now","am getting","is getting","are getting"),
+                                          ("until","get","gets","get"),
+                                          ("and soon","will be","will be","will be")])
+    elif g._is_futr_any([tense]):
+        conj,vb1,vb2,vb3 = random.choice([("until","get","gets","get"),
+                                          ("and soon","will be","will be","will be")])
+    else:
+        assert False, tense
+    vb = vb3 if plural else vb1 if ego else vb2
+    snd_clause = g.phrase([conj,pro,vb,g.lit_phrase(random.choice(indep["data"]["being_targets"]["subject"]))])
+    return { "type":"sentence", "elements":[indep,Clause(snd_clause)] }
+
+def BeingTargetThisTransformation(g_data, indep):
+    if indep["type"] != "indep_clause":
+        return indep
+    if len(LKD(LKD(indep["data"],"being_targets",{}),"this",[])) == 0 or random.uniform(0,1) < 0.6:
+        return indep
+    tense = indep["tense"]
+    pro = "it"
+    if g._is_past_any([tense]):
+        conj,vb = random.choice([("and","was"),
+                                 (".","was")])
+    elif g._is_pres_any([tense]):
+        conj,vb = random.choice([("and","is"),
+                                (".","is")])
+    elif g._is_futr_any([tense]):
+        conj,vb = random.choice([("and","will be")])
+    else:
+        assert False, tense
+    snd_clause = g.phrase([conj,pro,vb,g.lit_phrase(random.choice(indep["data"]["being_targets"]["this"]))])
+    return { "type":"sentence", "elements":[indep,Clause(snd_clause)] }
+
+
+def Pronoun(g_data, subj, parts):
+    plural = len(subj) > 1 or IsPlural(g_data, subj[0][-1])
+    ego = ["I"] in subj or ["we"] in subj
+    if ego and plural:
+        return "we"
+    if ego and not plural:
+        return "I"
+    if not ego and plural:
+        return "they"
+    else:
+        return LKD(LKD(parts,'pronouns',{}),subj[0][0],"it")
+
+def Clause(cl):
+    return {
+        "type" : "clause",
+        "clause" : cl
+        }
+
 def Sentence(indep):
     return {
         "type" : "sentence",
@@ -169,8 +240,11 @@ def Sentence(indep):
 def TestCharicature(char, reps=100):
     g_data = gd.GlobalData()
     for i in xrange(100):
-        print Finalize(Sentence(WithTransformation(g_data,IndepClause(g_data, char))))
-
+        print Finalize(Sentence(
+            BeingTargetTransformation(g_data,
+                                      WithTransformation(g_data,
+                                                         IndepClause(g_data, char)))))
+        
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         TestCharicature(c.housewife)

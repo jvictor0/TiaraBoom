@@ -8,7 +8,7 @@ def ConstructSentence(phr):
         tpunc = (w in [",",".","?","!",";","..."])
         if tpunc and first:
             continue
-        if first:
+        if first or result[-1] in [".","?","!"]:
             result.append(w[0].upper() + w[1:])
             first = False
             continue

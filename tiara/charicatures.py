@@ -8,15 +8,16 @@ housewife = {
         "drink_liquor" : {
             "trans"           : "trans",
             "subjects"        : ["I","Jimmy", ["Jimmy","I"]],
-            "objects"         : cross(["some","","a","a glass of"],
+            "objects"         : cross(["some","","a glass of"],
                                       ["wine","penot","beer","YellowTail","Smirnoff","champaign_"]),
             "verbs"           : ["drink","have"],
             "verb_adapters"   : ["loves","enjoys","always #enjoys","seldom #gets to enjoy"],
             "post_adjectives" : ["in bed","at home","at dad's house"],
-            "being_targs"     : {
+            "being_targets"   : {
                 "this"    : ["fun","yummy","great","the best"],
                 "subject" : ["drunk","sleepy"]
-                }
+                },
+            "pronouns"         : { "Jimmy" : "he" }
             },
         "watch_sports" : {
             "trans"           : "trans",

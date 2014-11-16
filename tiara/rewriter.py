@@ -116,6 +116,8 @@ class Rewriter:
         word = self.vocab[self.sentence[ix]]
         if not word is None:
             self.sentence[ix] = word
+            if ix == 0 or self.sentence[ix-1] in [".","?","!"]:
+                self.sentence[ix] = word[0].upper() + word[1:]
             self.vocab.Register(word)
             self.progressEver = True
             return True

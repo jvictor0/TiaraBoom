@@ -1118,58 +1118,58 @@ def _print_and_fail(x):
 def _verb_pl_func(tense):
     return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_pl,4),
                                  (_is_past(tense),_verb_simple_past,4),
-                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_futr(tense),_verb_simple_future(tense),3),
                                  (_is_pres_cont(tense),_verb_present_continuous_pl,3),
                                  (_is_past_cont(tense),_verb_past_continuous_pl,3),
-                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous(tense),3),
                                  (_is_pres_perf(tense),_verb_present_perfect_pl,2),
                                  (_is_past_perf(tense),_verb_past_perfect,2),
-                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect(tense),2),
                                  (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_pl,1),
                                  (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
-                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous(tense),1)])
 
 def _verb_sing_func(tense):
     return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_sing,4),
                                  (_is_past(tense),_verb_simple_past,4),
-                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_futr(tense),_verb_simple_future(tense),3),
                                  (_is_pres_cont(tense),_verb_present_continuous_sing,3),
                                  (_is_past_cont(tense),_verb_past_continuous_sing,3),
-                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous(tense),3),
                                  (_is_pres_perf(tense),_verb_present_perfect_sing,2),
                                  (_is_past_perf(tense),_verb_past_perfect,2),
-                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect(tense),2),
                                  (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_sing,1),
                                  (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
-                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous(tense),1)])
 
 def _verb_ego_func(tense):
     return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_ego,4),
                                  (_is_past(tense),_verb_simple_past,4),
-                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_futr(tense),_verb_simple_future(tense),3),
                                  (_is_pres_cont(tense),_verb_present_continuous_ego,3),
                                  (_is_past_cont(tense),_verb_past_continuous_sing,3),
-                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous(tense),3),
                                  (_is_pres_perf(tense),_verb_present_perfect_ego,2),
                                  (_is_past_perf(tense),_verb_past_perfect,2),
-                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect(tense),2),
                                  (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_ego,1),
                                  (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
-                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous(tense),1)])
 
 def _verb_we_func(tense):
     return RandomFilteredChoice([(_is_pres(tense),_verb_simple_present_ego,4),
                                  (_is_past(tense),_verb_simple_past,4),
-                                 (_is_futr(tense),_verb_simple_future,3),
+                                 (_is_futr(tense),_verb_simple_future(tense),3),
                                  (_is_pres_cont(tense),_verb_present_continuous_pl,3),
                                  (_is_past_cont(tense),_verb_past_continuous_pl,3),
-                                 (_is_futr_cont(tense),_verb_future_continuous,3),
+                                 (_is_futr_cont(tense),_verb_future_continuous(tense),3),
                                  (_is_pres_perf(tense),_verb_present_perfect_ego,2),
                                  (_is_past_perf(tense),_verb_past_perfect,2),
-                                 (_is_futr_perf(tense),_verb_future_perfect,2),
+                                 (_is_futr_perf(tense),_verb_future_perfect(tense),2),
                                  (_is_pres_perf_cont(tense),_verb_present_perfect_continuous_ego,1),
                                  (_is_past_perf_cont(tense),_verb_past_perfect_continuous,1),
-                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous,1)])
+                                 (_is_futr_perf_cont(tense),_verb_future_perfect_continuous(tense),1)])
 
 def _adapted_verb_sing_func(tense, fallback = _verb_sing_func):
     return RandomFilteredChoice([(_is_pres(tense),_adapted_verb_simple_present_sing,4),
@@ -1193,7 +1193,7 @@ def _adapted_verb_we_func(tense):
 def _cross(l1, l2):
     assert len(l1) > 0, l2
     assert len(l2) > 0, l1
-    return [a + "_" + b for a in l1 for b in l2]
+    return [a + ("_" if b != "" else "") + b for a in l1 for b in l2]
 
 def _polarize(s):
     assert s != [] and s != [""]
@@ -1238,8 +1238,9 @@ def _get_time(t):
     return res
 
 def _is_pos(t):
-    assert t[-3:] in ["pos","neg"]
-    return t[-3:] == "pos"
+    return "pos" in [s[-3:] for s in t]
+def _is_neg(t):
+    return "neg" in [s[-3:] for s in t]
 
 def _is_base(tense):
     return _is_pres(tense) or _is_past(tense) or _is_futr(tense)
@@ -1300,9 +1301,9 @@ def _verb_ego(plural, tense):
 def _adapted_verb_ego(plural, tense):
     return _adapted_verb_ego_func(tense) if plural else _adapted_verb_we_func(tense)
 
-def _random_inflect():
-    return RandomChoice([(lambda : (phrase([_random_modal(), _not]),"_neg"),2),
-                         (lambda : (_random_modal(),"_pos"),5)])()
+def _random_inflect(t):
+    return RandomFilteredChoice([(_is_neg(t),lambda : (phrase([_random_modal(), _not]),"_neg"),2),
+                                 (_is_pos(t),lambda : (_random_modal(),"_pos"),5)])()
 
 def _random_modal():
     return RandomChoice([(_will,5),
@@ -1335,9 +1336,9 @@ def _verb_simple_past(trans):
 def _adapted_verb_simple_past(trans):
     return phrase([rand_word(trans, VERB_CONJUGATED, CONJ_PAST), _to, rand_word(trans, VERB_INFINITIVE)]), "past_pos"
 
-def _verb_simple_future(trans):
-    inf, mod = _random_inflect()
-    return phrase([inf, rand_word(trans, VERB_INFINITIVE)]), "futr" + mod
+def _verb_simple_future(t):
+    inf, mod = _random_inflect(t)
+    return lambda trans: (phrase([inf, rand_word(trans, VERB_INFINITIVE)]), "futr" + mod)
 
 def _verb_present_continuous_sing(trans):
     return phrase([_is, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_cont_pos"
@@ -1366,9 +1367,9 @@ def _adapted_verb_past_continuous_sing(trans):
 def _adapted_verb_past_continuous_pl(trans):
     return phrase([rand_word(trans, VERB_CONJUGATED, CONJ_PAST), rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "past_cont_pos"
 
-def _verb_future_continuous(trans):
-    inf, mod = _random_inflect()
-    return phrase([inf, _be, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "futr_cont" + mod
+def _verb_future_continuous(t):
+    inf, mod = _random_inflect(t)
+    return lambda trans: (phrase([inf, _be, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "futr_cont" + mod)
 
 def _verb_present_perfect_sing(trans):
     return phrase([_has, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "pres_perf_pos"
@@ -1382,9 +1383,9 @@ def _verb_present_perfect_ego(trans):
 def _verb_past_perfect(trans):
     return phrase([_had, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "past_perf_pos"
 
-def _verb_future_perfect(trans):
-    inf, mod = _random_inflect()
-    return phrase([inf, _have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "futr_perf" + mod
+def _verb_future_perfect(t):
+    inf, mod = _random_inflect(t)
+    return lambda trans: (phrase([inf, _have, rand_word(trans, VERB_CONJUGATED, CONJ_PAST_PART)]), "futr_perf" + mod)
 
 def _verb_present_perfect_continuous_sing(trans):
     return phrase([_has, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "pres_perf_cont_pos"
@@ -1398,9 +1399,9 @@ def _verb_present_perfect_continuous_ego(trans):
 def _verb_past_perfect_continuous(trans):
     return phrase([_had, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "past_perf_cont_pos"
 
-def _verb_future_perfect_continuous(trans):
-    inf, mod = _random_inflect()
-    return phrase([inf, _have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "futr_perf_cont" + mod
+def _verb_future_perfect_continuous(t):
+    inf, mod = _random_inflect(t)
+    return lambda trans: (phrase([inf, _have, _been, rand_word(trans, VERB_CONJUGATED, CONJ_PRESENT_PART)]), "futr_perf_cont" + mod)
 
 def _insult_body():
     return RandomChoice([(lambda : phrase([_you_are(), _being_target(you)]),4),
