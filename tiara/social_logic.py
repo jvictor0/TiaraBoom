@@ -292,14 +292,12 @@ class FollowBackLogic:
         self.hash_bucket = int(config["hash_bucket"])
         self.pem  = abs_prefix + "/" + config["pem"]
 
-        self.followBacker = FollowBacker(g_data, AVERAGE_MINUTES_TO_FOLLOW_BACK)
         self.statsLogger  = StatsLogger (g_data, 15)
         self.snooper      = UserSnooper (g_data, self.hash_bucket)
         
 
     def Act(self):
         self.statsLogger.Tick()
-        self.followBacker.Tick()
         self.snooper.Tick()
 
     def Hashes(self, i):
