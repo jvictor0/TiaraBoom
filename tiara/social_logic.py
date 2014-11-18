@@ -70,7 +70,8 @@ class SocialLogic:
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         with open(abs_prefix + '/max_id',"r") as f:
             self.max_id = int(f.readline())
-            
+        self.g_data = g_data
+
         self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
         self.g_data.TraceInfo("%d cycles until first action." % self.untilNextAction)
         

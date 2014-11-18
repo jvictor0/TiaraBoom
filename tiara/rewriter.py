@@ -66,7 +66,7 @@ class TweetsIterator:
                 return nextTweet
             else:
                 self.reply_id = None
-                g_data.TraceWarn("Unable to get reply, resorting to getting all user tweets")
+                self.g_data.TraceWarn("Unable to get reply, resorting to getting all user tweets")
         if allowUserTweets and self.userTweets is None:
             assert self.ix == 1
             self.userTweets = self.g_data.ApiHandler().ShowStatuses(screen_name = self.user_id)
