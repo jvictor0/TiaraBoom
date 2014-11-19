@@ -1238,8 +1238,12 @@ def _get_time(t):
     return res
 
 def _is_pos(t):
+    if t is None:
+        return True
     return "pos" in [s[-3:] for s in t]
 def _is_neg(t):
+    if t is None:
+        return True
     return "neg" in [s[-3:] for s in t]
 
 def _is_base(tense):
