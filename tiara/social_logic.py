@@ -3,6 +3,7 @@ import rewriter as r
 import random
 from util import *
 import json
+import persisted as p
 
 class Ticker(object):
     def __init__(self, tix):
@@ -68,8 +69,15 @@ AVERAGE_MINUTES_TO_RESPOND = 120
 class SocialLogic:
     def __init__(self, g_data):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + '/max_id',"r") as f:
-            self.max_id = int(f.readline())
+        self.max_id = p.PersistedObject("max_id", 0)
+        # I best set max_id from the legacy just in case
+        #
+        if self.max_id.Get() == 0:
+            try:
+                with open(abs_prefix + "/max_id","r") as f:
+                    self.max_id.Set(int(f.readline()))
+            except IOError as e:
+                assert e[0] == 2 and e[1] == 'No such file or directory'
         self.g_data = g_data
 
         self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
@@ -85,15 +93,12 @@ class SocialLogic:
         self.statsLogger = StatsLogger(g_data,15)
 
     def SetMaxId(self, max_id):
-        log_assert(self.max_id <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
+        log_assert(self.max_id.Get() <= max_id.Get(), "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
         self.g_data.TraceInfo("Setting max_id to %d" % max_id)
-        self.max_id = max_id
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + '/max_id',"w") as f:
-            print >>f, str(max_id)
+        self.max_id.Set(max_id)
                  
     def Reply(self):
-        tweets = self.g_data.ApiHandler().RecentTweets(self.max_id, count=5)
+        tweets = self.g_data.ApiHandler().RecentTweets(self.max_id.Get(), count=5)
         if tweets is None:
             # warning already in log, no need to warn again
             return None
