@@ -24,13 +24,14 @@ class Ticker(object):
         pass
 
 class VerboseExpTicker(object):
-    def __init__(self, g_data, tix):
+    def __init__(self, g_data, tix, name='action'):
         self.time = 0
         self.last_time = time.time()
         self.avg_limit = tix * 60
         self.g_data = g_data
+        self.name = name
         self.limit = random.expovariate(1.0/self.avg_limit)
-        self.g_data.TraceInfo("Startup! %f minutes until first action." % (self.limit/60))
+        self.g_data.TraceInfo("Startup! %f minutes until first %s." % (self.limit/60, name))
 
     def Tick(self):
         t = time.time()
@@ -40,12 +41,19 @@ class VerboseExpTicker(object):
             self.Tock()
             self.time -= self.limit
             self.limit = random.expovariate(1.0/self.avg_limit)
-            self.g_data.TraceInfo("Action Performed! %f minutes until first action." % (self.limit/60))
+            self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
 
 
     def Tock(self):
         pass
 
+class LambdaTicker(VerboseExpTicker):
+    def __init__(self, g_data, tix, fun, name='action'):
+        super(LambdaTicker,self).__init__(g_data, tix, name),
+        self.fun = fun
+
+    def Tock(self):
+        self.fun()
 
 class StatsLogger(Ticker):
     def __init__(self, g_data, tix):

@@ -24,6 +24,9 @@ class PersistedDict(PersistedObject):
     def __init__(self, fn):
         super(PersistedDict, self).__init__(fn, {})
 
+    def Contains(self, key):
+        return key in self.object
+
     def Lookup(self, key):
         return self.object[key]
 
@@ -31,4 +34,14 @@ class PersistedDict(PersistedObject):
         self.object[key] = new_val
         self.Update()
 
-    
+class PersistedSet(PersistedObject):
+    def __init__(self, fn):
+        super(PersistedSet, self).__init__(fn, set([]))
+
+    def Contains(self, key):
+        return key in self.object
+
+    def Insert(self, key):
+        self.object.add(key)
+        self.Update()
+

@@ -240,7 +240,10 @@ def Sentence(indep):
 def TestCharicature(char, reps=100):
     g_data = gd.GlobalData()
     for i in xrange(100):
-        print Finalize(Sentence(
+        print RunCharicature(g_data, char)
+
+def RunCharicature(g_data, char):
+    Finalize(Sentence(
             BeingTargetTransformation(g_data,
                                       WithTransformation(g_data,
                                                          IndepClause(g_data, char)))))
