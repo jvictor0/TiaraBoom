@@ -7,6 +7,7 @@ import logging.handlers
 import api_handler
 import random
 import social_logic
+import socialbot
 
 class GlobalData:
     def __init__(self):
@@ -53,6 +54,8 @@ class GlobalData:
                 self.socialLogic = social_logic.SocialLogic(self)
             elif sl_name == "FollowBack":
                 self.socialLogic = social_logic.FollowBackLogic(self, conf["social_logic"])
+            elif sl_name == "SocialBot":
+                self.socialLogic = socialbot.SocialBotLogic(self)
             else:
                 assert False
         
