@@ -243,7 +243,7 @@ def TestCharicature(char, reps=100):
         print RunCharicature(g_data, char)
 
 def RunCharicature(g_data, char):
-    Finalize(Sentence(
+    return Finalize(Sentence(
             BeingTargetTransformation(g_data,
                                       WithTransformation(g_data,
                                                          IndepClause(g_data, char)))))

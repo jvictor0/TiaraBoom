@@ -29,9 +29,36 @@ housewife = {
         },
     }
 
+conservative = {
+    "interests" : {
+        "america" : {
+            "trans"             : "trans",
+            "subjects"          : ["I","my grandpappy",["my grandpappy","I"]],
+            "objects"           : ["fireworks","cans of beer"],
+            "verbs"             : ["#shoot","#launch"],
+            "post_adjectives"   : ["daily","nightly","when I damn well please"]
+        },
+        "obama" : {
+            "subjects"          : ["King Obama","Emperor Obama"],
+            "trans"             : "trans",
+            "verbs"             : ["destroy","#rip apart"],
+            "post_adjectives"   : ["like it's his job","because he hates america"],
+            "objects"           : ["the american way of life","the economy"]
+        },
+        "media" : {
+            "trans"             : "intrans",
+            "subjects"          : ["the media","the mainstream media","everyone other than Fox News"],
+            "verbs"             : ["lies"],
+            "being_targets"     : {
+                "this"      : ["treacherous","kniving"],
+                "subject"   : ["always defending #KingObama","good for nothing"]
+            }
+        }
+    }
+}
 
 socialbots = {
-    "VanTheWinterer" : housewife,
+    "VanTheWinterer" : conservative,
     "ImDrErnst" : housewife,
     "MarzipanIAm" : housewife,
     "Rianna__Taylor" : housewife,
