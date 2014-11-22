@@ -34,12 +34,13 @@ class SocialBotLogic:
         if followers is None:
             return None
         count = 0
-        for f in followers if self.targets.Contains(f):
-            if self.Follow(f):
-                count = count + 1
-                if count > 5:
-                    g_data.TraceWarn("POSSIBLE BACKLOG OF TARGETED FOLLOWBACKERS!")
-                    return True
+        for f in followers:
+            if self.targets.Contains(f):
+                if self.Follow(f):
+                    count = count + 1
+                    if count > 5:
+                        g_data.TraceWarn("POSSIBLE BACKLOG OF TARGETED FOLLOWBACKERS!")
+                        return True
         return True
     
     def SetMaxId(self, max_id):
@@ -65,11 +66,12 @@ class SocialBotLogic:
     def StalkReachable(self):
         best_score = -1
         best = -1
-        for i in self.reachable.Get() if not self.following.Contains(i):
-            score = self.Score(i)
-            if score > best_score:
-                best = i
-                best_score = score
+        for i in self.reachable.Get():
+            if not self.following.Contains(i):
+                score = self.Score(i)
+                if score > best_score:
+                    best = i
+                    best_score = score
         if best != -1:
             return self.Follow(best)
         g_data.TraceWarn("No followable reachables")
