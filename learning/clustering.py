@@ -59,13 +59,13 @@ def ProcessText(text):
 
 def ToHumanReadable():
     d = {}
-    ProcessFile(d, "targets")
+    ProcessFile(d, "learnings/save.targets")
     DumpFile(d)
 
 def ToTFIDable(d = {}):
     if len(d) == 0:
-        ProcessFile(d, "learning/targets")
-    with open("learning/documents","w") as f:
+        ProcessFile(d, "learning/save.targets")
+    with open("learning/save.documents","w") as f:
         l = 0
         for i,text in d.iteritems():
             if l % 1000 == 0:
@@ -144,7 +144,7 @@ def Interests(hashtag, top = None, htu = None, freq = None):
 
 def Cluster(d = {}):
     if len(d) == 0:
-        ProcessFile(d, "targets")
+        ProcessFile(d, "learning/save.targets")
     return cluster_texts([' '.join([t[0][:-1] for t in text]) for text in d.values()][:1000], 15)
 
 def StopWords():
