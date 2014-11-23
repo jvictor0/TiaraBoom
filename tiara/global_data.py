@@ -47,6 +47,7 @@ class GlobalData:
             self.password       = conf['password']
             self.myName         = conf['twitter_name']
             self.authentication = conf["authentication"]
+            self.apiHandler = api_handler.ApiHandler(self)
             self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
 
             sl_name             = conf['social_logic']['name']
@@ -64,7 +65,6 @@ class GlobalData:
         self.TraceDebug("size of coocurring.json in memory is %d, len = %d" % (sys.getsizeof(self.cooccuring),len(self.cooccuring)))
         self.TraceDebug("size of similar.json in memory is %d, len = %d" % (sys.getsizeof(self.similar),len(self.similar)))
 
-        self.apiHandler = api_handler.ApiHandler(self)
 
     def TraceDebug(self, msg):
         self.logger.debug(Indentation() + msg)

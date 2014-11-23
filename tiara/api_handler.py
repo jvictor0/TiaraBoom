@@ -126,11 +126,10 @@ class ApiHandler():
         if screen_name is not None:
             parameters['screen_name'] = screen_name
         parameters['count'] = 5000
-        result = []
         parameters['cursor'] = cursor
         json = self.api._RequestUrl(url, 'GET', data=parameters)
         data = self.api._ParseAndCheckTwitter(json.content)
-        result += [x for x in data['ids']]
+        result = [x for x in data['ids']]
         if 'next_cursor' not in data or data['next_cursor'] == 0 or data['next_cursor'] == data['previous_cursor']:
             next_cursor = 0
         else:

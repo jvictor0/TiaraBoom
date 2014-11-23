@@ -57,8 +57,8 @@ class LambdaTicker(VerboseExpTicker):
         self.fun()
 
 class LambdaStraightTicker(Ticker):
-    def __init__(self, g_data, tix, fun):
-        super(LambdaTicker,self).__init__(g_data, tix),
+    def __init__(self, tix, fun):
+        super(LambdaStraightTicker,self).__init__(tix),
         self.fun = fun
 
     def Tock(self):
