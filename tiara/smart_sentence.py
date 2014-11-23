@@ -153,7 +153,7 @@ def Synonyms(word,sense):
     return [w.name() for ws in syns[0].lemmas() for w in [ws]*(1+ws.count()) if not "_" in ws.name()]
 
 def IsPlural(g_data, pluralForm):
-    return "(Kf)" in g_data.DictLookup(pluralForm)
+    return "(Kf)" in g_data.DictLookup(pluralForm.lower()) + g_data.DictLookup(pluralForm[0].upper() + pluralForm[1:])
 
 def WithTransformation(g_data, indep):
     assert indep["type"] == "indep_clause"
