@@ -136,12 +136,73 @@ christian = {
     }
 }
 
+teen = {
+    "interests" : {
+        "dating" : {
+            "trans"             : "trans",
+            "subjects"          : ["dating","the opposite_ sex_"],
+            "verbs"             : ["intrigue","motivate"],
+            "objects"           : ["teens","me"],
+            "post_adjectives"   : ["very deeply","when no one else is around"],
+            "being_targets"   : {
+                "this"    : ["all I care about","so confusing"],
+                "subject" : ["too real"]
+                },
+        },
+        "one_direction" : {
+            "trans"             : "trans",
+            "subjects"          : ["1D","Harry","Zayne"],
+            "verbs"             : ["make"],
+            "objects"           : ["me feel alive","me so happy"],
+        },
+        "school" : {
+            "trans"             : "intrans",
+            "subjects"          : ["high_ school_","homework_"],
+            "verbs"             : ["sucks"],
+            "being_targets"   : {
+                "this"    : ["for nerds","so confusing"],
+                "subject" : ["the death of me"]
+                },
+            "post_adjectives"   : ["big time","hardcore"]
+        }
+    }
+}
+
+doctor = {
+    "interests" : {
+        "health" : {
+            "trans"             : "trans",
+            "subjects"          : ["regular exercise","fresh vegetables"],
+            "verbs"             : ["promote","#help with"],
+            "objects"           : ["longevity","wellness"],
+            "post_adjectives"   : ["for most patients","in the majority of clinical trials"]
+        },
+        "disease" : {
+            "trans"             : "trans",
+            "subjects"          : ["disease","viruses"],
+            "verbs"             : ["threaten"],
+            "objects"           : ["public health","herd immunity"],
+            "being_targets"   : {
+                "this"    : ["unavoidable"],
+                "subject" : ["scary"]
+                },
+        },
+        "medecine" : {
+            "trans"             : "trans",
+            "subjects"          : ["medecine","vaccines","vitamins"],
+            "verbs"             : ["treats","cures"],
+            "objects"           : ["disease","malnutrition"],
+            "post_adjectives"   : ["scientifically","reliably"]
+        }
+    }
+}
+
 socialbots = {
-    "VanTheWinterer" : general,
-    "ImDrErnst" : general,
-    "MarzipanIAm" : general,
-    "Rianna__Taylor" : general,
-    "AntonioBacusAmI" : general,
+    "VanTheWinterer" : housewife,
+    "ImDrErnst" : doctor,
+    "MarzipanIAm" : doctor,
+    "Rianna__Taylor" : teen,
+    "AntonioBacusAmI" : teen,
     "Alexa_Smith9584" : general,
     "LeeeroyOOOOman" : general,
     "KarlKreegz20" : liberal,
