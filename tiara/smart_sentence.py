@@ -95,6 +95,7 @@ def PickVerb(g_data, subj, tense, trans, parts):
     verb_infinitive = random.choice(parts["verbs"])
     ego = ["I"] in subj or ["we"] in subj
     plural = len(subj) > 1 or IsPlural(g_data, subj[0][-1])
+    print (subj,plural)
     tvt = g.POS_TRANSITIVE_VERB if trans else g.POS_INTRANSITIVE_VERB
     if random.uniform(0,1) < 0.5 and "verb_adapters" in parts:
         verb_schema,the_tense = (g._adapted_verb_ego if ego else g._adapted_verb)(not plural, tense)(tvt)
@@ -141,6 +142,8 @@ def RandomSynonym(g_data,word,sense):
     res = random.choice(Synonyms(word,sense))
     if sense == "n" and plural:
         return pluralize(res)
+    if word.islower():
+        res = res.lower()
     return res
 
 def Synonyms(word,sense):
