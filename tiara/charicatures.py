@@ -75,20 +75,81 @@ liberal = {
     }
 }
 
+general = {
+    "interests" : {
+        "weather" : {
+            "trans"             : "intrans",
+            "subjects"          : ["the weather","the temperature"],
+            "verbs"             : ["#get to me"],
+            "being_target"      : {
+                "this"          : ["unusual","all over the place"],
+                "subject"       : ["better","too moist"]
+                },
+            "post_adjectives"   : ["sometimes"]
+        },
+        "news" : {
+            "trans"             : "trans",
+            "subjects"          : ["politicians","current events"],
+            "verbs"              : ["depress","rarely #inspire"],
+            "objects"            : ["me_"],
+            "being_target"      : {
+                "this"          : ["profoundly","all over the place"],
+                "subject"       : ["better","too moist"]
+                }
+        },
+        "blah" : {
+            "trans"             : "trans",
+            "subjects"          : ["I"],
+            "verbs"             : ["hate","#deal with"],
+            "objects"           : ["traffic","crowds","zoos"],
+            "post_adjectives"   : ["like a boss","grudgingly"]
+        }
+    }
+}
+
+christian = {
+    "interests" : {
+        "god" : {
+            "trans"             : "trans",
+            "subjects"          : ["I","we christians"],
+            "verbs"             : ["#believe in","follow"],
+            "objects"           : ["God","Jesus","the righteous path"],
+            "post_adjectives"   : ["religiously","always"]
+        },
+        "news" : {
+            "trans"             : "trans",
+            "subjects"          : ["politicians","current events"],
+            "verbs"              : ["depress","rarely #inspire"],
+            "objects"            : ["me_"],
+            "being_target"      : {
+                "this"          : ["profoundly","all over the place"],
+                "subject"       : ["better","too moist"]
+                }
+        },
+        "values" : {
+            "trans"             : "trans",
+            "subjects"          : ["I","my family","my church community",["my family","I"]],
+            "verbs"             : ["value","practice"],
+            "objects"           : ["abstinence","righteousness","Godliness"],
+            "post_adjectives"   : ["when no one is watching","even when it's not convenient"]
+        }
+    }
+}
+
 socialbots = {
-    "VanTheWinterer" : conservative,
-    "ImDrErnst" : liberal,
-    "MarzipanIAm" : housewife,
-    "Rianna__Taylor" : housewife,
-    "AntonioBacusAmI" : housewife,
-    "Alexa_Smith9584" : housewife,
-    "LeeeroyOOOOman" : housewife,
-    "KarlKreegz20" : housewife,
-    "QueenNatLat" : housewife,
-    "Anold__Doyle" : housewife,
-    "geneverasalomon" : housewife,
-    "AppleBottomGrg" : housewife,
-    "MariaMunozOhMy" : housewife,
-    "SammyHerzt" : housewife,
-    "LydiaGoldman253" : housewife,
+    "VanTheWinterer" : general,
+    "ImDrErnst" : general,
+    "MarzipanIAm" : general,
+    "Rianna__Taylor" : general,
+    "AntonioBacusAmI" : general,
+    "Alexa_Smith9584" : general,
+    "LeeeroyOOOOman" : general,
+    "KarlKreegz20" : liberal,
+    "QueenNatLat" : liberal,
+    "Anold__Doyle" : conservative,
+    "geneverasalomon" : conservative,
+    "AppleBottomGrg" : christian,
+    "MariaMunozOhMy" : christian,
+    "SammyHerzt" : general,
+    "LydiaGoldman253" : general,
     }
