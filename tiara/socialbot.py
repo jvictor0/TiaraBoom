@@ -2,6 +2,7 @@ import persisted as p
 import social_logic as sl
 import smart_sentence as ss
 import charicatures as ch
+import random
 
 class SocialBotLogic:
     def __init__(self, g_data):
@@ -10,6 +11,7 @@ class SocialBotLogic:
         self.reachable = p.PersistedSet("reachable")
         self.following = p.PersistedSet("following")
         self.targets   = p.PersistedDict("targets")
+        assert len(self.targets.Get()) != 0
 
         self.statsLogger = sl.StatsLogger(g_data,15)
         self.followbacker = sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback")
@@ -39,7 +41,7 @@ class SocialBotLogic:
                 if self.Follow(f):
                     count = count + 1
                     if count > 5:
-                        g_data.TraceWarn("POSSIBLE BACKLOG OF TARGETED FOLLOWBACKERS!")
+                        self.g_data.TraceWarn("POSSIBLE BACKLOG OF TARGETED FOLLOWBACKERS!")
                         return True
         return True
     
@@ -67,7 +69,7 @@ class SocialBotLogic:
         best_score = -1
         best = -1
         reachables = list(self.reachable.Get())
-        shuffle(reachables)
+        random.shuffle(reachables)
         for i in reachables:
             if not self.following.Contains(i):
                 score = self.ScoreUser(i)
@@ -76,9 +78,9 @@ class SocialBotLogic:
                     best_score = score
         if best != -1:
             return self.Follow(best)
-        g_data.TraceWarn("No followable reachables")
+        self.g_data.TraceWarn("No followable reachables")
         targets = list(self.targets.Get().keys())
-        shuffle(targets)
+        random.shuffle(targets)
         for i in targets:
             if not self.following.Contains(i):
                 score = self.ScoreUser(i)
@@ -87,7 +89,7 @@ class SocialBotLogic:
                     best_score = score
         if best != -1:
             return self.Follow(best)
-        g_data.TraceWarn("No followable targets")
+        self.g_data.TraceWarn("No followable targets")
         return None
 
 

@@ -42,6 +42,7 @@ class VerboseExpTicker(object):
             self.time -= self.limit
             self.limit = random.expovariate(1.0/self.avg_limit)
             self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
+            return
 
 
     def Tock(self):

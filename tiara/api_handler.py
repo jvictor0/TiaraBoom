@@ -107,8 +107,8 @@ class ApiHandler():
     def Search(self, term, count=100, result_type="recent"):
         return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term,count=count), cache = False)
     
-    def Follow(self, screen_name=None):
+    def Follow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return False
-        return self.ApiCall("Follow",screen_name,lambda: self.api.CreateFriendship(screen_name=screen_name), cache=False)
+        return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id), cache=False)
