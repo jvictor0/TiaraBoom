@@ -198,7 +198,7 @@ doctor = {
 }
 
 socialbots = {
-    "VanTheWinterer" : housewife,
+    "VanTheWinterer" : general,
     "ImDrErnst" : doctor,
     "MarzipanIAm" : doctor,
     "Rianna__Taylor" : teen,
