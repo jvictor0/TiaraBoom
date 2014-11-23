@@ -36,7 +36,7 @@ class SocialBotLogic:
 
     def ProcessToReachQueue(self):
         self.g_data.TraceInfo("Processing queue, len = %d" % len(self.toReachQueue.Get()))
-        for i in xrange(3):
+        for i in xrange(10):
             if len(self.toReachQueue.Get()) == 0:
                 return True
             uid, page = self.toReachQueue.Get()[0]
