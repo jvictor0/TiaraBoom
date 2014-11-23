@@ -60,26 +60,31 @@ class SocialBotLogic:
     def ReplyTo(self, tweet):
         return None # this is like, the most important thing!
 
-    def Score(self, i):
+    def ScoreUser(self, i):
         return self.targets.Lookup(i)["score"][self.g_data.myName]
 
     def StalkReachable(self):
         best_score = -1
         best = -1
-        for i in self.reachable.Get():
+        reachables = list(self.reachable.Get())
+        shuffle(reachables)
+        for i in reachables:
             if not self.following.Contains(i):
-                score = self.Score(i)
+                score = self.ScoreUser(i)
                 if score > best_score:
                     best = i
                     best_score = score
         if best != -1:
             return self.Follow(best)
         g_data.TraceWarn("No followable reachables")
-        for i in self.targets().Get().keys():
-            score = self.Score(i)
-            if score > best_score:
-                best = i
-                best_score = score
+        targets = list(self.targets.Get().keys())
+        shuffle(targets)
+        for i in targets:
+            if not self.following.Contains(i):
+                score = self.ScoreUser(i)
+                if score > best_score:
+                    best = i
+                    best_score = score
         if best != -1:
             return self.Follow(best)
         g_data.TraceWarn("No followable targets")

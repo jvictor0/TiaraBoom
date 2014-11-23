@@ -3,6 +3,7 @@ import string
 import collections
 from scipy.spatial.distance import cosine
 import math
+import copy
 
 import cPickle
 
@@ -88,7 +89,7 @@ def ToHashtags(d = {}):
 
 def LoadHashtags():
     with open("learning/save.hashtags","r") as f:
-        result = [t.split(' ')[1:].strip() for t in f]
+        result = [t.strip().split(' ')[1:] for t in f]
     return result
 
 def LoadTFIDable():
@@ -226,7 +227,7 @@ def HashtagPoints(i):
 def EmptyScore(scoring_dict):
     return { k : 0.0 for k in scoring_dict.keys() }
 
-def HashtagScoreUser(hashtags, scoreing_dict, score):
+def HashtagScoreUser(hashtags, scoring_dict, score):
     d = {}
     for t in hashtags:
         if t not in d:
@@ -242,27 +243,117 @@ def SignalBoostUser(hashtags, scoring_dict, score):
 
 def ShardBoostUser(user_id, scoring_dict, score):
     for k,sd in scoring_dict.iteritems():
-        if sd['_shard'] == user_id % sd['_mod']:
+        if sd['_shard'] == int(user_id) % sd['_mod']:
             score[k] += sd['_shard_boost']
 
-def NormalPDF(mu=, sigma, x):
+def NormalPDF(mu, sigma, x):
     return norm.pdf((float(x) - mu)/sigma)
 
 def StaticUserScore(jsons, score):
-    points_for_more_tweets = 2.5
-    points_for_friends = 2.5
-    points_for_followers = 2.5
+    points_for_more_tweets = 5.0
+    points_for_friends = 5.0
+    points_for_followers = 5.0
     for k in score.keys():
         score[k] += points_for_more_tweets * HashtagPoints(float(len(jsons))/5)
-        score[k] += NormalPDF(800, 250, float(jsons[0]['user']['followers_count'])) * points_for_followers
-        score[k] += NormalPDF(800, 250, float(jsons[0]['user']['friends_count'])) * points_for_friends
+        score[k] += NormalPDF(800, 250, float(LKD0(jsons[0]['user'],'followers_count'))) * points_for_followers
+        score[k] += NormalPDF(800, 250, float(LKD0(jsons[0]['user'],'friends_count'))) * points_for_friends
 
 def MakeScoringDict():
-    
+    baseConservative = {
+        "tcot" : 0.5,
+        "ccot" : 1.0,
+        "lcot" : 1.0,
+        "obama": 0.25,
+        "obamacare" : 0.75,
+        "teaparty" : 2.0,
+        "nra" : 1.5,
+        "_mod" : 5,
+        "_shard_boost" : 5,
+        "_signal_boost" : 0
+        }
+    baseAutism = {
+        "vaccines" : 1.0,
+        "autism"   : 0.75,
+        "vacinesnova" : 0.5,
+        "hearthiswell" : 0.5,
+        "cdcwhistleblower" : 1.0,
+        "cdcfraud" : 1.5,
+        "ebola" : 0.5,
+        "climatechange" : 0.5,
+        "health" : 0.25,
+        "_mod" : 6,
+        "_shard_boost" : 6,
+        "_signal_boost" : 0.0
+        }
+    baseFallback = {
+        "business" : 0.25,
+        "life" : 0.25,
+        "ff" :  0.25,
+        "love" : 0.25,
+        "quote" : 0.25,
+        "_mod" : 4,
+        "_shard_boost" : 4,
+        "_signal_boost" : 10.0
+        }
+    scoring_dict = {
+        "VanTheWinterer" : copy.copy(baseAutism), #story
+        "ImDrErnst" : copy.copy(baseAutism), #doc
+        "MarzipanIAm" : copy.copy(baseAutism), #doc
+        "Rianna__Taylor" : copy.copy(baseFallback), #teen
+        "AntonioBacusAmI" : copy.copy(baseFallback), #teen
+        "Alexa_Smith9584" : copy.copy(baseAutism), #parent
+        "LeeeroyOOOOman" : copy.copy(baseAutism), #parent
+        "KarlKreegz20" : dict(baseFallback.items() + baseConservative.items()), #liberal
+        "QueenNatLat" : dict(baseFallback.items() + baseConservative.items()), #liberal
+        "Anold__Doyle" : copy.copy(baseConservative), #conservative
+        "geneverasalomon" : copy.copy(baseConservative), #conservative
+        "AppleBottomGrg" : copy.copy(baseConservative), #christian
+        "MariaMunozOhMy" : copy.copy(baseConservative), #christian
+        "SammyHerzt" : copy.copy(baseConservative), #muslim
+        "LydiaGoldman253" : copy.copy(baseAutism), #story
+        }
+    scoring_dict["VanTheWinterer"]["_shard"] = 0
+    scoring_dict["ImDrErnst"]["_shard"] = 1 
+    scoring_dict["MarzipanIAm"]["_shard"] = 2
+    scoring_dict["Rianna__Taylor"]["_shard"] = 0
+    scoring_dict["AntonioBacusAmI"]["_shard"] = 1
+    scoring_dict["Alexa_Smith9584"]["_shard"] = 3
+    scoring_dict["LeeeroyOOOOman"]["_shard"] = 4
+    scoring_dict["KarlKreegz20"]["_mod"] = 4
+    scoring_dict["QueenNatLat"]["_mod"] = 4
+    scoring_dict["KarlKreegz20"]["_shard"] = 2
+    scoring_dict["QueenNatLat"]["_shard"] = 3
+    scoring_dict["Anold__Doyle"]["_shard"] = 0
+    scoring_dict["geneverasalomon"]["_shard"] = 1
+    scoring_dict["AppleBottomGrg"]["_shard"] = 2
+    scoring_dict["MariaMunozOhMy"]["_shard"] = 3
+    scoring_dict["SammyHerzt"]["_shard"] = 4
+    scoring_dict["LydiaGoldman253"]["_shard"] = 5
 
+    scoring_dict["KarlKreegz20"]["_signal_boost"] = 40.0
+    scoring_dict["QueenNatLat"]["_signal_boost"] = 40.0
+
+    #muslim and christians more affinitive towards christian hashtags
+    scoring_dict["AppleBottomGrg"]["ccot"] += 2
+    scoring_dict["MariaMunozOhMy"]["ccot"] += 2
+    scoring_dict["SammyHerzt"]["ccot"] += 2
+    scoring_dict["AppleBottomGrg"]["pjnet"] = 1
+    scoring_dict["MariaMunozOhMy"]["pjnet"] = 1
+    scoring_dict["SammyHerzt"]["pjnet"] = 1
+
+    scoring_dict["SammyHerzt"]["ferguson"] = 2
+    scoring_dict["SammyHerzt"]["jttbm"] = 1
+    scoring_dict["SammyHerzt"]["jtdtbm"] = 1
+    scoring_dict["SammyHerzt"]["isis"] = 2
+    scoring_dict["SammyHerzt"]["islam"] = 2
+
+    return scoring_dict
+    
 def ScoreUsers():
     scores = {}
-    with open('save.targets','r') as f:
+    scoring_dict = MakeScoringDict()
+    hashtags = HashtagDict()
+    with open('learning/save.targets','r') as f:
         for j,line in enumerate(f):
             if j % 1000 == 0:
                 print j
@@ -275,9 +366,12 @@ def ScoreUsers():
                 else:
                     print jsn[0]['user']['lang']
                 continue
-            scores[int(i)] = EmptyScore(scoring_dict):
+            if int(i) not in hashtags:
+                print "notag"
+                continue
+            scores[int(i)] = EmptyScore(scoring_dict)
             StaticUserScore(jsn, scores[int(i)])
-            HashtagScoreUser(hashtags[int(i)], scoreing_dict, scores[int(i)])
+            HashtagScoreUser(hashtags[int(i)], scoring_dict, scores[int(i)])
             SignalBoostUser(hashtags[int(i)], scoring_dict, scores[int(i)])
             ShardBoostUser(i, scoring_dict, scores[int(i)])
     return scores
