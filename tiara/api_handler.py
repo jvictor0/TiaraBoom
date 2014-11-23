@@ -82,7 +82,12 @@ class ApiHandler():
 
     def GetFollowerIDs(self, screen_name=None, user_id=None):
          return self.ApiCall("GetFollowerIDs", NotNone(screen_name, user_id),
-                             lambda: self.api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1),
+                             lambda: self.api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1,count=5000),
+                             cache=False)
+
+    def GetFollowerIDsPaged(self, screen_name=None, user_id=None, cursor=-1):
+         return self.ApiCall("GetFollowerIDsPaged", (NotNone(screen_name, user_id),cursor),
+                             lambda: self.GetFollowerIDsPagedInternal(user_id,screen_name,cursor),
                              cache=False)
 
     def GetFollowers(self, user_id=None, screen_name=None):
@@ -112,3 +117,23 @@ class ApiHandler():
             self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return False
         return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id), cache=False)
+
+    def GetFollowerIDsPagedInternal(self, user_id, screen_name, cursor):
+        url = '%s/followers/ids.json' % self.api.base_url
+        parameters = {}
+        if user_id is not None:
+            parameters['user_id'] = user_id
+        if screen_name is not None:
+            parameters['screen_name'] = screen_name
+        parameters['count'] = 5000
+        result = []
+        parameters['cursor'] = cursor
+        json = self.api._RequestUrl(url, 'GET', data=parameters)
+        data = self.api._ParseAndCheckTwitter(json.content)
+        result += [x for x in data['ids']]
+        if 'next_cursor' not in data or data['next_cursor'] == 0 or data['next_cursor'] == data['previous_cursor']:
+            next_cursor = 0
+        else:
+            next_cursor = data['next_cursor']
+        sec = self.api.GetSleepTime('/followers/ids')
+        return result, next_cursor

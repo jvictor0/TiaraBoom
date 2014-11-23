@@ -3,19 +3,28 @@ import social_logic as sl
 import smart_sentence as ss
 import charicatures as ch
 import random
+import Queue
 
 class SocialBotLogic:
     def __init__(self, g_data):
         self.g_data = g_data
         self.max_id = p.PersistedObject("max_id", 0)
-        self.reachable = p.PersistedSet("reachable")
-        self.following = p.PersistedSet("following")
-        self.targets   = p.PersistedDict("targets")
+        self.reachable    = p.PersistedSet("reachable")
+        self.following    = p.PersistedSet("following")
+        self.targets      = p.PersistedDict("targets")
+        self.toReachQueue = p.PersistedObject("toReachQueue")
+        if self.ToReachQueue.Get() == None:
+            self.toReachQueue.Set(Queue.Queue())
+            for f in self.following.Get():
+                self.toReachQueue.Get().put((i,-1))
+            self.toReachQueue.Update()
         assert len(self.targets.Get()) != 0
 
         self.statsLogger = sl.StatsLogger(g_data,15)
         self.followbacker = sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback")
         self.stalker = sl.LambdaTicker(g_data, 120, lambda: self.StalkReachable(), "stalk")
+        self.toReacher = sl.LambdaStraightTicker(g_data, 20, lambda: self.ProcessToReachQueue())
+
         
     def Follow(self, user_id):
         if self.following.Contains(user_id):
@@ -23,12 +32,25 @@ class SocialBotLogic:
         if not self.g_data.ApiHandler().Follow(user_id=user_id):
             return None
         self.following.Insert(user_id)
-        followers = self.g_data.ApiHandler().GetFollowerIDs(user_id = user_id)
-        if followers is None:
-            return None
-        for f in followers:
-            if self.targets.Contains(f):
-                self.reachable.Insert(f)
+        self.toReachQueue.Get().put((i,-1))
+        self.toReachQueue.Update()
+        return True
+
+    def ProcessToReachQueue():
+        for i in xrange(10):
+            if self.ToReachQueue.Get().empty():
+                return True
+            uid, page = self.toReachQueue.Get().get_nowait()
+            followers,next_page = self.g_data.ApiHandler().GetFollowerIDsPaged(user_id = user_id, cursor = page)
+            if followers is None:
+                self.g_data.TraceWarn("throwing away page %d,%d" % (uid,page))
+                continue
+            if page != 0:
+                self.toReachQueue.Get().put(uid,page)
+                self.toReachQueue.Update()
+            for f in followers:
+                if self.targets.Contains(f):
+                    self.reachable.Insert(f)
         return True
 
     def FollowBack(self):
@@ -98,6 +120,7 @@ class SocialBotLogic:
         return self.g_data.ApiHandler.Tweet(tweet)
             
     def Act(self):
+        self.toReacher.Tick()
         self.statsLogger.Tick()
         self.followbacker.Tick()
         self.stalker.Tick()
