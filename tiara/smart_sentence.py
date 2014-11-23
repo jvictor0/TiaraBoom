@@ -140,10 +140,10 @@ def RandomSynonym(g_data,word,sense):
         word = singularize(word)
         plural = True
     res = random.choice(Synonyms(word,sense))
-    if sense == "n" and plural:
-        return pluralize(res)
     if word.islower():
         res = res.lower()
+    if sense == "n" and plural:
+        return pluralize(res)
     return res
 
 def Synonyms(word,sense):
