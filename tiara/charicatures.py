@@ -57,9 +57,27 @@ conservative = {
     }
 }
 
+liberal = {
+    "interests" : {
+        "rich_people" : {
+            "trans"             : "trans",
+            "subjects"          : ["the 1%","banks","republicans"],
+            "verbs"             : ["destroy","threaten"],
+            "objects"           : ["the middle_ class_","the american dream","american values"],
+            "post_adjectives"   : ["tremendously","constantly"]
+        },
+        "subaru" : {
+            "trans"             : "trans",
+            "subjects"          : ["I","our family"],
+            "verbs"             : ["love","practically #live in"],
+            "objects"           : ["our Subaru"]
+        }
+    }
+}
+
 socialbots = {
     "VanTheWinterer" : conservative,
-    "ImDrErnst" : housewife,
+    "ImDrErnst" : liberal,
     "MarzipanIAm" : housewife,
     "Rianna__Taylor" : housewife,
     "AntonioBacusAmI" : housewife,
