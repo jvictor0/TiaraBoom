@@ -23,6 +23,7 @@ class SocialBotLogic:
         self.followbacker = sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback")
         self.stalker = sl.LambdaTicker(g_data, 120, lambda: self.StalkReachable(), "stalk")
         self.toReacher = sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue())
+        self.tweeter = sl.LambdaTicker(60*6, lambda : self.Tweet(), "tweet")
         
     def Follow(self, user_id):
         if user_id in self.following:
@@ -123,3 +124,4 @@ class SocialBotLogic:
         self.statsLogger.Tick()
         self.followbacker.Tick()
         self.stalker.Tick()
+        self.tweeter.Tick()

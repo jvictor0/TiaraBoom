@@ -14,6 +14,9 @@ def HandleInput(g_data, inp):
     elif inp == 'act':
         res = g_data.SocialLogic().Follow()
         return "ok" if not res is None else "error"
+    elif inp == 'tweet':
+        res = g_data.SocialLogic().Tweet()
+        return "ok" if not res is None else "error"
     elif inp == 'status':
         return "%d cycles to act, %d cycles to respond" % (g_data.SocialLogic().untilNextAction,g_data.SocialLogic().untilNextResponse)
     inp = inp.split(' ')
