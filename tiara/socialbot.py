@@ -11,13 +11,13 @@ class SocialBotLogic:
         self.reachable    = p.PersistedSet("reachable")
         self.following    = p.PersistedSet("following")
         self.targets      = p.PersistedDict("targets")
-        self.toReachQueue = p.PersistedObject("toReachQueue")
-        if self.toReachQueue.Get() == None:
-            self.toReachQueue.Set([])
+
+        self.toReachQueue = p.PersistedList("toReachQueue")
+        if not self.toReachQueue.initializedFromCache:
             for f in self.following.Get():
                 self.toReachQueue.Get().append((f,-1))
-            self.toReachQueue.Update()
-        assert len(self.targets.Get()) != 0
+
+        assert len(self.targets) != 0
 
         self.statsLogger = sl.StatsLogger(g_data,15)
         self.followbacker = sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback")
@@ -25,33 +25,30 @@ class SocialBotLogic:
         self.toReacher = sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue())
         
     def Follow(self, user_id):
-        if self.following.Contains(user_id):
+        if user_id in self.following:
             return False
         if not self.g_data.ApiHandler().Follow(user_id=user_id):
             return None
         self.following.Insert(user_id)
-        self.toReachQueue.Get().append((user_id,-1))
-        self.toReachQueue.Update()
+        self.toReachQueue.Append((user_id,-1))
         return True
 
     def ProcessToReachQueue(self):
-        self.g_data.TraceInfo("Processing queue, len = %d" % len(self.toReachQueue.Get()))
+        self.g_data.TraceInfo("Processing queue, len = %d" % len(self.toReachQueue))
         for i in xrange(10):
-            if len(self.toReachQueue.Get()) == 0:
+            if len(self.toReachQueue) == 0:
                 return True
-            uid, page = self.toReachQueue.Get()[0]
-            self.toReachQueue.Get().pop(0)
-            self.toReachQueue.Update()
+            uid, page = self.toReachQueue.Front()
+            self.toReachQueue.PopFront()
             result = self.g_data.ApiHandler().GetFollowerIDsPaged(user_id = uid, cursor = page)
             if result is None:
                 self.g_data.TraceWarn("throwing away page %d,%d" % (uid,page))
                 continue
             followers,next_page = result 
             if page != 0:
-                self.toReachQueue.Get().append((uid,next_page))
-                self.toReachQueue.Update()
+                self.toReachQueue.Append((uid,next_page))
             for f in followers:
-                if self.targets.Contains(f):
+                if f in self.targets:
                     self.reachable.Insert(f)
         return True
 
@@ -61,7 +58,7 @@ class SocialBotLogic:
             return None
         count = 0
         for f in followers:
-            if self.targets.Contains(f):
+            if f in self.targets:
                 if self.Follow(f):
                     count = count + 1
                     if count > 5:
@@ -95,7 +92,7 @@ class SocialBotLogic:
         reachables = list(self.reachable.Get())
         random.shuffle(reachables)
         for i in reachables:
-            if not self.following.Contains(i):
+            if not i in self.following:
                 score = self.ScoreUser(i)
                 if score > best_score:
                     best = i
@@ -106,7 +103,7 @@ class SocialBotLogic:
         targets = list(self.targets.Get().keys())
         random.shuffle(targets)
         for i in targets:
-            if not self.following.Contains(i):
+            if not i in self.following:
                 score = self.ScoreUser(i)
                 if score > best_score:
                     best = i
