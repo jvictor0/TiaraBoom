@@ -134,8 +134,12 @@ def IndepClause(g_data, info, tense=allowed_tenses,used=[]):
     return result
 
 def RandomSynonym(g_data,word,sense):
-    res = random.choice(Synonyms(word,sense))
+    plural = False
     if sense == "n" and IsPlural(g_data,word):
+        word = singularize(word)
+        plural = True
+    res = random.choice(Synonyms(word,sense))
+    if sense == "n" and plural:
         return pluralize(res)
     return res
 
