@@ -18,7 +18,7 @@ def cm_lit_phrase(str):
     return phrase([_comma, lit_phrase(str)])
 
 def lit_phrase(str):
-    return phrase(str.replace(","," ,").replace("."," .").replace("?"," ?").replace("!"." !").replace(";"," ;").split(' '))
+    return phrase(str.replace(","," ,").replace("."," .").replace("?"," ?").replace("!"," !").replace(";"," ;").split(' '))
 
 def RandomChoice(choices):
     total = sum(w for c, w in choices)
