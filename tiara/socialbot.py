@@ -1,7 +1,6 @@
 import persisted as p
 import social_logic as sl
-import smart_sentence as ss
-import charicatures as ch
+import baked_tweets as bt
 import random
 
 class SocialBotLogic:
@@ -11,6 +10,7 @@ class SocialBotLogic:
         self.reachable    = p.PersistedSet("reachable")
         self.following    = p.PersistedSet("following")
         self.targets      = p.PersistedDict("targets")
+        self.tweeted      = p.PersistedSet("tweeted")
 
         self.toReachQueue = p.PersistedList("toReachQueue")
         if not self.toReachQueue.initializedFromCache:
@@ -23,7 +23,7 @@ class SocialBotLogic:
         self.followbacker = sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback")
         self.stalker = sl.LambdaTicker(g_data, 120, lambda: self.StalkReachable(), "stalk")
         self.toReacher = sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue())
-        self.tweeter = sl.LambdaTicker(g_data, 60*6, lambda : self.Tweet(), "tweet")
+        self.tweeter = sl.LambdaTicker(g_data, 60*24, lambda : self.Tweet(), "tweet")
         
     def Follow(self, user_id):
         if user_id in self.following:
@@ -46,7 +46,7 @@ class SocialBotLogic:
                 self.g_data.TraceWarn("throwing away page %d,%d" % (uid,page))
                 continue
             followers,next_page = result 
-            if page != 0:
+            if next_page != 0:
                 self.toReachQueue.Append((uid,next_page))
             for f in followers:
                 if f in self.targets:
@@ -116,7 +116,12 @@ class SocialBotLogic:
 
 
     def Tweet(self):
-        tweet = ss.RunCharicature(self.g_data, ch.socialbots[self.g_data.myName])
+        possible_tweets = [t for t in bt.socialbots[self.g_data.myName] if t not in self.tweeted]
+        if len(possible_tweets) == 0:
+            self.g_data.TraceWarn("OUT OF TWEETS!")
+            return None
+        tweet = random.choice(possible_tweets)
+        self.tweeted.Insert(tweet)
         return self.g_data.ApiHandler().Tweet(tweet)
             
     def Act(self):

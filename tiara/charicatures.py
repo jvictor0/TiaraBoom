@@ -1,3 +1,5 @@
+from util import *
+
 def cross(as_, bs_, sep=' '):
     return [(a + sep + b).strip() for a in as_ for b in bs_]
 
@@ -24,7 +26,7 @@ housewife = {
             "subjects"        : ["I","Jimmy","the kids",["Jimmy","I"],["the kids","Jimmy"],["the kids","I"]],
             "objects"         : ["HBO","Game of Thrones","Mad Men","the game","football"],
             "verbs"           : ["watch"],
-            "post_adjectives" : ["in bed","at home","at dad's house","on tv"]
+            "secondary_clauses" : ["in bed","at home","at dad's house","on tv"]
             }
         },
     }

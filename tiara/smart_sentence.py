@@ -91,11 +91,20 @@ def Finalize(sentence_tree):
         return sentence_tree["clause"]
     assert False, sentence_tree["type"]
 
+def Verb(g_data, verb_infinitive, ego, singular, tense = allowed_tenses):
+    verb_schema,the_tense = (g._verb_ego if ego else g._verb)(singular, tense)(g.POS_TRANSITIVE_VERB)
+    return Rewrite(g_data, g.phrase(verb_schema),[verb_infinitive]), the_tense
+
+def AdaptedVerb(g_data, verb_infinitive, verb_adapter, ego, singular, tense = allowed_tenses):
+    verb_schema,the_tense = (g._adapted_verb_ego if ego else g._adapted_verb)(singular, tense)(g.POS_TRANSITIVE_VERB)
+    verb_words = [verb_infinitive] if CountWildcards(verb_schema) == 1 else [verb_adapter,verb_infinitive]
+    return Rewrite(g_data, g.phrase(verb_schema),verb_words), the_tense
+
+
 def PickVerb(g_data, subj, tense, trans, parts):
     verb_infinitive = random.choice(parts["verbs"])
     ego = ["I"] in subj or ["we"] in subj
     plural = len(subj) > 1 or IsPlural(g_data, subj[0][-1])
-    print (subj,plural)
     tvt = g.POS_TRANSITIVE_VERB if trans else g.POS_INTRANSITIVE_VERB
     if random.uniform(0,1) < 0.5 and "verb_adapters" in parts:
         verb_schema,the_tense = (g._adapted_verb_ego if ego else g._adapted_verb)(not plural, tense)(tvt)
@@ -211,7 +220,7 @@ def BeingTargetThisTransformation(g_data, indep):
                                  (".","was")])
     elif g._is_pres_any([tense]):
         conj,vb = random.choice([("and","is"),
-                                (".","is")])
+                                 (".","is")])
     elif g._is_futr_any([tense]):
         conj,vb = random.choice([("and","will be")])
     else:

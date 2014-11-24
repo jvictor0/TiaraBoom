@@ -18,7 +18,7 @@ def cm_lit_phrase(str):
     return phrase([_comma, lit_phrase(str)])
 
 def lit_phrase(str):
-    return phrase(str.split(' '))
+    return phrase(str.replace(","," ,").replace("."," .").replace("?"," ?").replace("!"." !").replace(";"," ;").split(' '))
 
 def RandomChoice(choices):
     total = sum(w for c, w in choices)
@@ -406,8 +406,8 @@ def _present_question_word(pronoun):
                          (lambda : lit_phrase("where did"),1),
                          (lambda : lit_phrase("why did"),1),
                          (lambda : lit_phrase("how did"),1),
-                         (lambda : lit_phrase("didn t"),1),
-                         (lambda : lit_phrase("why didn t"),1),
+                         (lambda : lit_phrase("didn't"),1),
+                         (lambda : lit_phrase("why didn't"),1),
                          (lambda : lit_phrase("why can't"),1),
                          (lambda : lit_phrase("can't"),1),
                          (lambda : lit_phrase("can"),1),
@@ -422,7 +422,7 @@ def _present_question_word(pronoun):
 
 def _simple_question_word(pronoun):
     return RandomChoice([(lambda : lit_phrase("did"),1),
-                         (lambda : lit_phrase("didn t"),1),
+                         (lambda : lit_phrase("didn't"),1),
                          (lambda : lit_phrase("can't"),1),
                          (lambda : lit_phrase("can"),1),
                          (lambda : _do_verb(pronoun),2)])()

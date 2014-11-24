@@ -93,3 +93,8 @@ def joinit(delimiter, iterable):
     for x in it:
         yield delimiter
         yield x
+
+
+def Const(x):
+    return lambda g_data, args: x
+ConstTrue = Const(True)
