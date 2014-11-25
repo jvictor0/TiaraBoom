@@ -1,6 +1,7 @@
 import persisted as p
 import social_logic as sl
 import baked_tweets as bt
+import frontlines as fl
 import random
 
 class SocialBotLogic:
@@ -11,6 +12,7 @@ class SocialBotLogic:
         self.following    = p.PersistedSet("following")
         self.targets      = p.PersistedDict("targets")
         self.tweeted      = p.PersistedSet("tweeted")
+        self.attacked     = p.PersistedSet("attacked")
 
         self.toReachQueue = p.PersistedList("toReachQueue")
         if not self.toReachQueue.initializedFromCache:
@@ -123,6 +125,24 @@ class SocialBotLogic:
         tweet = random.choice(possible_tweets)
         self.tweeted.Insert(tweet)
         return self.g_data.ApiHandler().Tweet(tweet)
+
+    def Attack(self):
+        self.g_data.TraceInfo("ATTACK! choosing frontline")
+        timeline = self.g_data.ApiHandler().GetHomeTimeline()
+        if tiimeline is None:
+            return None
+        timeline = [t for t in timeline if t.GetUser().GetId() in self.targets and t.GetUser().GetFollowersCount() < 1500]
+        timeline = [t for t in timeline if t.GetId() not in self.attacked]
+        response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
+        if not target is None:
+            self.attacked.Insert(target.GetId())
+            result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
+            if not result is None:
+                return True
+            self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
+            return None
+        self.g_data.TraceWarn("Failed to find someone to ATTACK!  Length of timeline = %d" % len(timeline))
+        return None
             
     def Act(self):
         self.toReacher.Tick()

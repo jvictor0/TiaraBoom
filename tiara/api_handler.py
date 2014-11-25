@@ -69,6 +69,11 @@ class ApiHandler():
             reply_id = None if in_reply_to_status is None else in_reply_to_status.GetId()
             self.g_data.LogTweet(self.g_data.myName, status, result.GetId(), reply_id)
         return result
+
+    def GetHomeTimeline(self):
+        return self.ApiCall("GetHomeTimeline", "",
+                            lambda: self.api.GetHomeTimeline(exclude_replies=True),
+                            cache = False)
         
     def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
@@ -136,3 +141,4 @@ class ApiHandler():
             next_cursor = data['next_cursor']
         sec = self.api.GetSleepTime('/followers/ids')
         return result, next_cursor
+

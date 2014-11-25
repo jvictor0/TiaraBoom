@@ -12,7 +12,10 @@ def HandleInput(g_data, inp):
         res = g_data.SocialLogic().Reply()
         return "ok" if not res is None else "error"
     elif inp == 'act':
-        res = g_data.SocialLogic().Follow()
+        res = g_data.SocialLogic().Act()
+        return "ok" if not res is None else "error"
+    elif inp == 'attack':
+        res = g_data.SocialLogic().Attack()
         return "ok" if not res is None else "error"
     elif inp == 'tweet':
         res = g_data.SocialLogic().Tweet()

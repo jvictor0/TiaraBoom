@@ -268,7 +268,7 @@ def MakeScoringDict():
         "teaparty" : 2.0,
         "nra" : 1.5,
         "_mod" : 5,
-        "_shard_boost" : 5,
+        "_shard_boost" : 10,
         "_signal_boost" : 0
         }
     baseAutism = {
@@ -282,7 +282,7 @@ def MakeScoringDict():
         "climatechange" : 0.5,
         "health" : 0.25,
         "_mod" : 6,
-        "_shard_boost" : 6,
+        "_shard_boost" : 12,
         "_signal_boost" : 0.0
         }
     baseFallback = {
@@ -292,7 +292,7 @@ def MakeScoringDict():
         "love" : 0.25,
         "quote" : 0.25,
         "_mod" : 4,
-        "_shard_boost" : 4,
+        "_shard_boost" : 8,
         "_signal_boost" : 10.0
         }
     scoring_dict = {
@@ -369,6 +369,8 @@ def ScoreUsers():
             if int(i) not in hashtags:
                 print "notag"
                 continue
+            if LKD0(jsn[0]['user'],'followers_count') > 2500:
+                continue
             scores[int(i)] = EmptyScore(scoring_dict)
             StaticUserScore(jsn, scores[int(i)])
             HashtagScoreUser(hashtags[int(i)], scoring_dict, scores[int(i)])
@@ -376,7 +378,36 @@ def ScoreUsers():
             ShardBoostUser(i, scoring_dict, scores[int(i)])
     return scores
 
+def AllTweetsWithHashtag(tag):
+    tweets = []
+    with open('learning/save.targets','r') as f:
+        for j,line in enumerate(f):
+            if j % 1000 == 0:
+                print j
+            i,jsn = line.split(' ', 1)
+            jsn = json.loads(jsn)
+            if len(jsn) ==  0 or jsn[0]['user']['lang'][:2] != 'en':
+                if len(jsn) == 0:
+                    print "len 0"
+                else:
+                    print jsn[0]['user']['lang']
+                continue
+            for k in jsn:
+                if 'hashtags' in k and tag in [t.lower() for t in k['hashtags']]:
+                    print k["text"]
+                    tweets.append(k)
+    cPickle.dump(tweets,open("save.hashtags_" + tag,"wb"))
 
-                
-if __name__ == '__main__':
-    pass
+
+def LoadAllTweetsWithHashtag(tag):
+    return cPickle.load(open("save.hashtags_" + tag,"rb"))
+
+import pattern.en as pen
+
+def PrintParsed(sentence):
+    print sentence
+    sens = pen.parsetree(sentence,lemmata=True,relations=True)
+    for sen in sens:
+        for chunk in sen.chunks:
+            print chunk.type, [(w.string, w.type) for w in chunk.words]
+    print '\n'
