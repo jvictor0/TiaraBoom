@@ -47,7 +47,6 @@ class FL_NaiveSimple(Frontline):
         for p,ws in self.words:
             found = True
             for w in ws:
-                print w
                 if not w in text:
                     found = False
             if not found:

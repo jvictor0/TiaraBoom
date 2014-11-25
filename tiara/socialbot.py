@@ -20,7 +20,7 @@ class SocialBotLogic:
             for f in self.following.Get():
                 self.toReachQueue.Get().append((f,-1))
 
-        self.hash_bucket = args["hash_bucket"]
+        self.hash_bucket = int(args["hash_bucket"])
         assert len(self.targets) != 0
 
         self.tickers = []
@@ -94,11 +94,11 @@ class SocialBotLogic:
 
     def ScoreUser(self, i):
         if i % 15 != self.hash_bucket:
-            return 0
+            return -1
         if i in self.targets:
             return 1 #until we fix the overcrowding problem!
             return self.targets.Lookup(i)["score"][self.g_data.myName]
-        return 0
+        return -1
 
     def StalkReachable(self):
         best_score = -1
@@ -156,7 +156,7 @@ class SocialBotLogic:
             return None
         self.g_data.TraceWarn("ATTACK: Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
         users = list(self.following.Get())
-        users = [u for u in users if self.ScoreUser(u.GetId()) > 0]
+        users = [u for u in users if self.ScoreUser(u) > 0]
         random.shuffle(users)        
         users = users[:min(len(users),30)]
         for user in users:
