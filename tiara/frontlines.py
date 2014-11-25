@@ -114,7 +114,18 @@ socialbots_frontlines = [
                        "You the the CDC is stupid enough to misplace a huge chunk of data but smart enough to create a widespread conspiracy... riiight.",
                        "If you believe this conspiracy theory, I've got a bridge in brooklyn and I think we can do business.",
                        "You, sir, are a dumbfuck."
-                    ])
+                    ]),
+    FL_NaiveSimple(["tcot","pjnet"],
+                   ["Darren","Wilson","DarrenWilson"],
+                   [
+                       "#BlackLivesMatter.  Darren is a murder, and this isn't justice.",
+                       "People are upset.  Can you blame them.  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
+                       "This man is avoiding justice.  Hiding behind a badge doesn't make murder ok!",
+                       "This isn't about cops or Darren Wilson or even Mike Brown.  Its about #whitesupremacy!  #blacklivesmatter #handsupdontshoot",
+                       "Darren Wilson should be in handcuffs.  Dispicable!",
+                       "Do you know why the police are militarizing.  Because they know people are going to be pissed!  Because they should be!",
+                       "This isn't justice.  But I've heard #karmasabitch, so theirs hope"
+                   ]),
     ]
     
 socialbot_types = {
