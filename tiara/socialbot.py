@@ -91,7 +91,9 @@ class SocialBotLogic:
         return None # this is like, the most important thing!
 
     def ScoreUser(self, i):
-        return self.targets.Lookup(i)["score"][self.g_data.myName]
+        if i in self.targets:
+            return self.targets.Lookup(i)["score"][self.g_data.myName]
+        return 0
 
     def StalkReachable(self):
         best_score = -1
