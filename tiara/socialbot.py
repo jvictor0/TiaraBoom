@@ -25,7 +25,7 @@ class SocialBotLogic:
 
         self.tickers.append(sl.StatsLogger(g_data,15))
         self.tickers.append(sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback"))
-        self.tickers.append(sl.LambdaTicker(g_data, 120, lambda: self.StalkReachable(), "stalk"))
+        self.tickers.append(sl.LambdaTicker(g_data, 60, lambda: self.StalkReachable(), "stalk"))
         self.tickers.append(sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue()))
         self.tickers.append(sl.LambdaTicker(g_data, 60*24, lambda : self.Tweet(), "tweet"))
         self.tickers.append(sl.LambdaTicker(g_data, 60, lambda : self.Attack(), "attack"))
