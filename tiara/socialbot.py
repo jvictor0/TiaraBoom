@@ -5,7 +5,7 @@ import frontlines as fl
 import random
 
 class SocialBotLogic:
-    def __init__(self, g_data):
+    def __init__(self, g_data, args):
         self.g_data = g_data
         self.max_id = p.PersistedObject("max_id", 0)
         self.reachable    = p.PersistedSet("reachable")
@@ -19,6 +19,7 @@ class SocialBotLogic:
             for f in self.following.Get():
                 self.toReachQueue.Get().append((f,-1))
 
+        self.hash_bucket = args["hash_bucket"]
         assert len(self.targets) != 0
 
         self.tickers = []
@@ -91,6 +92,8 @@ class SocialBotLogic:
         return None # this is like, the most important thing!
 
     def ScoreUser(self, i):
+        if i % 15 != self.hash_bucket:
+            return 0
         if i in self.targets:
             return self.targets.Lookup(i)["score"][self.g_data.myName]
         return 0

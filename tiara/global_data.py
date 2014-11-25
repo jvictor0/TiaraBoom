@@ -56,7 +56,7 @@ class GlobalData:
             elif sl_name == "FollowBack":
                 self.socialLogic = social_logic.FollowBackLogic(self, conf["social_logic"])
             elif sl_name == "SocialBot":
-                self.socialLogic = socialbot.SocialBotLogic(self)
+                self.socialLogic = socialbot.SocialBotLogic(self, conf["social_logic"])
             else:
                 assert False
         
