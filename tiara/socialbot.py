@@ -143,9 +143,9 @@ class SocialBotLogic:
             return None
         timeline = [t for t in timeline if t.GetUser().GetId() in self.targets and t.GetUser().GetFollowersCount() < 1500]
         timeline = [t for t in timeline if not t.GetId() in self.attacked]
-        self.g_data.TraceInfo("ATTACKING")
         response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
         if not target is None:
+            self.g_data.TraceInfo("ATTACKING")
             self.attacked.Insert(target.GetId())
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
             if not result is None:
@@ -158,9 +158,9 @@ class SocialBotLogic:
         users = users[:min(len(users),30)]
         for user in users:
             tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
-            self.g_data.TraceInfo("ATTACKING")
             response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
             if not target is None:
+                self.g_data.TraceInfo("ATTACKING")
                 self.attacked.Insert(target.GetId())
                 result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
                 if not result is None:
