@@ -21,12 +21,16 @@ class SocialBotLogic:
 
         assert len(self.targets) != 0
 
-        self.statsLogger = sl.StatsLogger(g_data,15)
-        self.followbacker = sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback")
-        self.stalker = sl.LambdaTicker(g_data, 120, lambda: self.StalkReachable(), "stalk")
-        self.toReacher = sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue())
-        self.tweeter = sl.LambdaTicker(g_data, 60*24, lambda : self.Tweet(), "tweet")
-        
+        self.tickers = []
+
+        self.tickers.append(sl.StatsLogger(g_data,15))
+        self.tickers.append(sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback"))
+        self.tickers.append(sl.LambdaTicker(g_data, 120, lambda: self.StalkReachable(), "stalk"))
+        self.tickers.append(sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue()))
+        self.tickers.append(sl.LambdaTicker(g_data, 60*24, lambda : self.Tweet(), "tweet"))
+        self.tickers.append(sl.LambdaTicker(g_data, 60, lambda : self.Attack(), "attack"))
+
+                
     def Follow(self, user_id):
         if user_id in self.following:
             return False
@@ -141,12 +145,20 @@ class SocialBotLogic:
                 return True
             self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
             return None
-        self.g_data.TraceWarn("Failed to find someone to ATTACK!  Length of timeline = %d" % len(timeline))
+        self.g_data.TraceWarn("Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
+        user = random.choice(list(self.following.Get()))
+        tweets = self.g_data.ApiHandler.ShowStatuses(user_id=user)
+        response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
+        if not target is None:
+            self.attacked.Insert(target.GetId())
+            result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
+            if not result is None:
+                return True
+            self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
+            return None
+        self.g_data.TraceWarn("Couldnt find a tweet from user %d" % user)
         return None
             
     def Act(self):
-        self.toReacher.Tick()
-        self.statsLogger.Tick()
-        self.followbacker.Tick()
-        self.stalker.Tick()
-        self.tweeter.Tick()
+        for t in self.tickers:
+            t.Tick()

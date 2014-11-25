@@ -276,7 +276,7 @@ def MakeScoringDict():
         "autism"   : 0.75,
         "vacinesnova" : 0.5,
         "hearthiswell" : 0.5,
-        "cdcwhistleblower" : 1.0,
+        "cdcwhistleblower" : 2.0,
         "cdcfraud" : 1.5,
         "ebola" : 0.5,
         "climatechange" : 0.5,
