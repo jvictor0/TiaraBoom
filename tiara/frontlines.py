@@ -27,21 +27,32 @@ class FL_Example(Frontline):
 
 
 class FL_NaiveSimple(Frontline):
-    def __init__(self, required, words, responses):
+    def __init__(self, words, responses):
         self.responses = responses
-        self.required = required
         self.words = words
+        self.any_required = False
+        for i in xrange(len(self.words)):
+            if not isinstance(self.words[i][1], list):
+                self.words[i] = (self.words[i][0],[self.words[i][1]])
+                if self.words[i][0] <= 0:
+                    self.any_required = True
 
     def Triage(self, g_data, tweet):
-        if len(self.required) > 0:
-            for h in self.required:
-                if isinstance(h,list):
-                    for hi in h:
-                        return 1.0 - 0.5**len([i for i in self.words if i in tweet["text"].lower()])
-                elif h in tweet["text"].lower():
-                    return 1.0 - 0.5**len([i for i in self.words if i in tweet["text"].lower()])
-            return -1.0
-        return 1.0 - 0.5**len([i for i in self.words if i in tweet["text"].lower()])
+        text = tweet['text'].lower()
+        result = 0.0
+        found_required = not self.any_required
+        for p,ws in self.words:
+            found = True
+            for w in ws:
+                print w
+                if not w in text:
+                    found = False
+            if not found:
+                continue
+            result += abs(p)
+            if p <= 0:
+                found_required = True
+        return result if found_required else -1
 
     def Respond(self, g_data, tweet):
         return random.choice(self.responses)
@@ -79,50 +90,87 @@ def RunFrontlines(g_data, tweet, frontlines):
     return None
 
 socialbots_frontlines = [
-     FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]],
-                    ["children","child","son","daughter","mom","mother"],
+     FL_NaiveSimple([(-0.25,"vax"),
+                     (-0.25,"cdcwhistleblower"),
+                     (-0.25,"hearthiswell"),
+                     (-0.25,["autism","vaccine"]),
+                     (-0.25,["injury","vaccine"]),
+                     (0.25,"children"),
+                     (0.25,"child"),
+                     (0.25,"son"),
+                     (0.25,"daughter"),
+                     (0.25,"mom"),
+                     (0.25,"mother")],
                     [
                         "What makes you so sure the children's problems are a result of vaccines?",
                         "The causes of autism are not well understood.  You certainly can't know how a child got autism...",
                         "Because nothing says love of children like letting them die of measles.",
                         "Influenza has killed over a thousand American children in the last 10 years.  Vaccines have killed zero."
+                        ]),
+    FL_NaiveSimple([(-0.25,"vax"),
+                    (-0.25,"cdcwhistleblower"),
+                    (-0.25,"hearthiswell"),
+                    (-0.25,["autism","vaccine"]),
+                    (-0.25,["injury","vaccine"]),
+                    (0.25,"ethics"),
+                    (0.25,"morals")],
+                    [
+                        "The CDC does have ethics: They don't want to freak everyone out over science which is almost certainly wrong!",
+                        "There have been numerous studies showing no link at all!  It would be immoral to scare people over it.",
+                        "Immoral is tricking and misquoting Dr. Thompson.  This isn't a malicious data ommision, its just science."
                     ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]], #this is clearly a bad argument, but no matter
-                   ["ethics","morals"],
-                   [
-                       "The CDC does have ethics: They don't want to freak everyone out over science which is almost certainly wrong!",
-                       "There have been numerous studies showing no link at all!  It would be immoral to scare people over it.",
-                       "Immoral is tricking and misquoting Dr. Thompson.  This isn't a malicious data ommision, its just science."
-                   ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]],
-                   ["omit","omission"],
+    FL_NaiveSimple([(-0.25,"vax"),
+                    (-0.25,"cdcwhistleblower"),
+                    (-0.25,"hearthiswell"),
+                    (-0.25,["autism","vaccine"]),
+                    (-0.25,["injury","vaccine"]),
+                    (0.25,"omit"),
+                    (0.25,"omission")],
                    [
                        "Omitting a small sample of data hardly constitutes proving vaccines cause autism.",
                        "Vaccines still don't cause autism; according to years and years of research.",
                        "Some reasearchers having messed up their sciences absolutely does not mean vaccines cause autism.  They don't!",
                        "The ommited data was not apples-to-apples with between control and experimental.  It doesn't make scientific sense to include!"
                    ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell","vaxtruth",["autism","vaccine"],["injury","vaccine"]],
-                   ["truth","lies","lie","lies"],
+    FL_NaiveSimple([(-0.25,"vax"),
+                    (-0.25,"cdcwhistleblower"),
+                    (-0.25,"hearthiswell"),
+                    (-0.25,["autism","vaccine"]),
+                    (-0.25,["injury","vaccine"]),
+                    (0.25,"truth"),
+                    (0.25,"lies"),
+                    (0.25,"lie"),
+                    (0.25,"lies")],
                    [
                        "How are you so sure about that?",
                        "You just know everything, don't you...",
                        "What truth?  What lies?",
                        "You antivax people make me sick!  Every bit of science says vaccines are not only safe, but essential!  #hearTHISwell"
                    ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]],
-                   ["cover","covered","coverup","blackout"],
+    FL_NaiveSimple([(-0.25,"vax"),
+                    (-0.25,"cdcwhistleblower"),
+                    (-0.25,"hearthiswell"),
+                    (-0.25,["autism","vaccine"]),
+                    (-0.25,["injury","vaccine"]),
+                    (0.25,"omit"),
+                    (0.25,"omission"),
+                    (0.25,"cover"),
+                    (0.25,"covered"),
+                    (0.25,"coverup"),
+                    (0.25,"blackout")],
                    [
                        "I think the media just isn't reporting on it because its... you know... utter bullshit",
                        "You the the CDC is stupid enough to misplace a huge chunk of data but smart enough to create a widespread conspiracy... riiight.",
                        "If you believe this conspiracy theory, I've got a bridge in brooklyn and I think we can do business.",
                        "You, sir, are a dumbfuck."
                     ]),
-    FL_NaiveSimple(["tcot","pjnet"],
-                   ["Darren","Wilson","DarrenWilson","ferguson","mikebrown","mike brown"],
+    FL_NaiveSimple([(0.25,["darren","wilson"]),
+                    (0.25,"darrenwilson"),
+                    (0.25,"ferguson"),
+                    (0.25,["mike","brown"])],
                    [
                        "#BlackLivesMatter.  Darren is a murder, and this isn't justice.",
-                       "People are upset.  Can you blame them.  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
+                       "People are upset.  Can you blame them?  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
                        "This man is avoiding justice.  Hiding behind a badge doesn't make murder ok!",
                        "This isn't about cops or Darren Wilson or even Mike Brown.  Its about #whitesupremacy!  #blacklivesmatter #handsupdontshoot",
                        "Darren Wilson should be in handcuffs.  Dispicable!",
