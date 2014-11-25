@@ -225,7 +225,7 @@ def HashtagPoints(i):
     return 3.0 - 1.0/2**(i-2)
 
 def EmptyScore(scoring_dict):
-    return { k : 0.0 for k in scoring_dict.keys() }
+    return {"score" : { k : 0.0 for k in scoring_dict.keys() }}
 
 def HashtagScoreUser(hashtags, scoring_dict, score):
     d = {}
@@ -372,11 +372,11 @@ def ScoreUsers():
             if LKD0(jsn[0]['user'],'followers_count') > 2500:
                 continue
             scores[int(i)] = EmptyScore(scoring_dict)
-            StaticUserScore(jsn, scores[int(i)])
-            HashtagScoreUser(hashtags[int(i)], scoring_dict, scores[int(i)])
-            SignalBoostUser(hashtags[int(i)], scoring_dict, scores[int(i)])
-            ShardBoostUser(i, scoring_dict, scores[int(i)])
-    return scores
+            StaticUserScore(jsn, scores[int(i)]["score"])
+            HashtagScoreUser(hashtags[int(i)], scoring_dict, scores[int(i)]["score"])
+            SignalBoostUser(hashtags[int(i)], scoring_dict, scores[int(i)]["score"])
+            ShardBoostUser(i, scoring_dict, scores[int(i)]["score"])
+    cPickle.dump(scores,open("persisted/save.targets","wb"))
 
 def AllTweetsWithHashtag(tag):
     tweets = []
@@ -411,3 +411,6 @@ def PrintParsed(sentence):
         for chunk in sen.chunks:
             print chunk.type, [(w.string, w.type) for w in chunk.words]
     print '\n'
+
+if __name__ == "__main__":
+    ScoreUsers()

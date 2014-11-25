@@ -148,17 +148,20 @@ class SocialBotLogic:
             self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
             return None
         self.g_data.TraceWarn("Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
-        user = random.choice(list(self.following.Get()))
-        tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
-        response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
-        if not target is None:
-            self.attacked.Insert(target.GetId())
-            result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
-            if not result is None:
-                return True
-            self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
-            return None
-        self.g_data.TraceWarn("Couldnt find a tweet from user %d" % user)
+        users = list(self.following.Get())
+        random.shuffle(users)
+        users = users[:min(len(users),30)]
+        for user in users:
+            tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
+            response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
+            if not target is None:
+                self.attacked.Insert(target.GetId())
+                result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
+                if not result is None:
+                    return True
+                self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
+                return None
+        self.g_data.TraceWarn("Couldnt find a tweet from %d users" % len(users))
         return None
             
     def Act(self):
