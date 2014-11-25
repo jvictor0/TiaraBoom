@@ -27,10 +27,11 @@ class FL_Example(Frontline):
 
 
 class FL_NaiveSimple(Frontline):
-    def __init__(self, words, responses):
+    def __init__(self, words, responses, types=["conservative","liberal","general","teen","advocate","muslim","christian","doctor","parent"]):
         self.responses = responses
         self.words = words
         self.any_required = False
+        self.types = types
         for i in xrange(len(self.words)):
             if not isinstance(self.words[i][1], list):
                 self.words[i] = (self.words[i][0],[self.words[i][1]])
@@ -38,6 +39,8 @@ class FL_NaiveSimple(Frontline):
                     self.any_required = True
 
     def Triage(self, g_data, tweet):
+        if not socialbot_types[g_data.myName] in self.types:
+            return -1.0
         text = tweet['text'].lower()
         result = 0.0
         found_required = not self.any_required
@@ -177,6 +180,19 @@ socialbots_frontlines = [
                        "Do you know why the police are militarizing.  Because they know people are going to be pissed!  Because they should be!",
                        "This isn't justice.  But I've heard #karmasabitch, so theirs hope.  #blacklivesmatter"
                    ]),
+    FL_NaiveSimple([(-0.001,"tcot")],
+                   [
+                       "Oh shut up all ready!",
+                       "Right is wrong! #rightiswrong",
+                       "Seriously?  You tcot people are all the same!",
+                       "What garbage..",
+                       "Absolute poppycock!",
+                       "Who do you even think you are!",
+                       "You really believe that crap?",
+                       "Its like you don't even thing about people who are different than you...",
+                   ],
+                   types = ["liberal"]),
+
     ]
     
 socialbot_types = {
