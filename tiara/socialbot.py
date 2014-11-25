@@ -144,6 +144,7 @@ class SocialBotLogic:
             return None
         timeline = [t for t in timeline if t.GetUser().GetId() in self.targets and t.GetUser().GetFollowersCount() < 1500]
         timeline = [t for t in timeline if not t.GetId() in self.attacked]
+        timeline = [t for t in timeline if self.ScoreUser(t.GetUser().GetId()) > 0]
         response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
         if not target is None:
             self.g_data.TraceInfo("ATTACKING")
@@ -155,7 +156,8 @@ class SocialBotLogic:
             return None
         self.g_data.TraceWarn("ATTACK: Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
         users = list(self.following.Get())
-        random.shuffle(users)
+        users = [u for u in users if self.ScoreUser(u.GetId()) > 0]
+        random.shuffle(users)        
         users = users[:min(len(users),30)]
         for user in users:
             tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
