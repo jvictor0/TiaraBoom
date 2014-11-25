@@ -119,7 +119,7 @@ socialbots_frontlines = [
                        "You, sir, are a dumbfuck."
                     ]),
     FL_NaiveSimple(["tcot","pjnet"],
-                   ["Darren","Wilson","DarrenWilson"."ferguson","mikebrown","mike brown"],
+                   ["Darren","Wilson","DarrenWilson","ferguson","mikebrown","mike brown"],
                    [
                        "#BlackLivesMatter.  Darren is a murder, and this isn't justice.",
                        "People are upset.  Can you blame them.  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
