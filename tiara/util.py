@@ -94,6 +94,8 @@ def joinit(delimiter, iterable):
         yield delimiter
         yield x
 
+def FormatResponse(tweet,response):
+    return '@' + tweet.GetUser().GetScreenName() + ": " + response
 
 def Const(x):
     return lambda g_data, args: x

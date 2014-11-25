@@ -81,6 +81,7 @@ def TargetAndRespond(g_data, tweets, frontlines):
             best_tweet = tweet
             best_fl = fl
     if best_triage > -1.0:
+        assert not best_tweet is None
         return best_fl.Respond(g_data,best_tweet), best_tweet
     return None, None
         

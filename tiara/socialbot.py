@@ -2,6 +2,7 @@ import persisted as p
 import social_logic as sl
 import baked_tweets as bt
 import frontlines as fl
+from util import *
 import random
 
 class SocialBotLogic:
@@ -147,7 +148,7 @@ class SocialBotLogic:
         if not target is None:
             self.g_data.TraceInfo("ATTACKING")
             self.attacked.Insert(target.GetId())
-            result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
+            result = self.g_data.ApiHandler().Tweet(FormatResponse(target, response), in_reply_to_status=target)
             if not result is None:
                 return True
             self.g_data.TraceWarn("ATTACK: Failed to reply to tweet %d" % tweet.GetId())
@@ -162,7 +163,7 @@ class SocialBotLogic:
             if not target is None:
                 self.g_data.TraceInfo("ATTACKING")
                 self.attacked.Insert(target.GetId())
-                result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
+                result = self.g_data.ApiHandler().Tweet(FormatResponse(target, response), in_reply_to_status=target)
                 if not result is None:
                     return True
                 self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
