@@ -158,7 +158,7 @@ class SocialBotLogic:
         users = users[:min(len(users),30)]
         for user in users:
             tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
-            response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
+            response, target = fl.TargetAndRespond(self.g_data, tweets, fl.socialbots_frontlines)
             if not target is None:
                 self.g_data.TraceInfo("ATTACKING")
                 self.attacked.Insert(target.GetId())

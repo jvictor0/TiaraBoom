@@ -41,7 +41,7 @@ class FL_NaiveSimple(Frontline):
     def Triage(self, g_data, tweet):
         if not socialbot_types[g_data.myName] in self.types:
             return -1.0
-        text = tweet['text'].lower()
+        text = tweet.GetText().lower()
         result = 0.0
         found_required = not self.any_required
         for p,ws in self.words:
@@ -85,7 +85,7 @@ def TargetAndRespond(g_data, tweets, frontlines):
     return None, None
         
 def RunFrontlines(g_data, tweet, frontlines):
-    print tweet['text']
+    print tweet.GetText()
     tr, fl = PickFrontline(g_data, tweet, frontlines)
     print "triage = %f" % tr
     if not fl is None:
