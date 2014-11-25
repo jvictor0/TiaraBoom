@@ -147,7 +147,7 @@ class SocialBotLogic:
             return None
         self.g_data.TraceWarn("Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
         user = random.choice(list(self.following.Get()))
-        tweets = self.g_data.ApiHandler.ShowStatuses(user_id=user)
+        tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
         response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
         if not target is None:
             self.attacked.Insert(target.GetId())
