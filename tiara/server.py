@@ -27,6 +27,10 @@ def HandleInput(g_data, inp):
         sn = inp[1][1:]
         res = g_data.ApiHandler().Follow(screen_name=sn)
         return "ok" if not res is None else "error"
+    if inp[0] == 'follow' and len(inp) == 2 and inp[1][0] != '@':
+        sn = int(inp[1])
+        res = g_data.SocialLogic().Follow(sn)
+        return "ok" if not res is None else "error"
     elif inp[0] == 'bother' and len(inp) == 2 and inp[1][0] == '@':
         sn = inp[1][1:]
         res = g_data.SocialLogic().Bother(sn)

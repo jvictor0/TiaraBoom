@@ -129,10 +129,10 @@ class SocialBotLogic:
     def Attack(self):
         self.g_data.TraceInfo("ATTACK! choosing frontline")
         timeline = self.g_data.ApiHandler().GetHomeTimeline()
-        if tiimeline is None:
+        if timeline is None:
             return None
         timeline = [t for t in timeline if t.GetUser().GetId() in self.targets and t.GetUser().GetFollowersCount() < 1500]
-        timeline = [t for t in timeline if t.GetId() not in self.attacked]
+        timeline = [t for t in timeline if not t.GetId() in self.attacked]
         response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
         if not target is None:
             self.attacked.Insert(target.GetId())
