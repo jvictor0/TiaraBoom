@@ -72,3 +72,28 @@ class PersistedList(PersistedObject):
 
     def Back(self):
         return self.At(-1)
+
+class RotatingBuffer:
+    def __init__(self, size):
+        self.size = size
+        self.buffer = [None for i in xrange(size)]
+        self.ix = 0
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __contains__(self, obj):
+        return obj in self.buffer
+
+    def Insert(self, obj):
+        self.buffer[self.ix] = obj
+        self.ix += 1
+        self.ix = self.ix % len(self.buffer)
+
+class PersistedRotatingBuffer(PersistedObject):
+    def __init__(self, fn, size):
+        super(PersistedRotatingBuffer, self).__init__(fn, RotatingBuffer(size))
+
+    def Insert(self, obj):
+        self.object.Insert(obj)
+        self.Update()

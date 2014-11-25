@@ -14,7 +14,7 @@ class SocialBotLogic:
         self.targets      = p.PersistedDict("targets")
         self.tweeted      = p.PersistedSet("tweeted")
         self.attacked     = p.PersistedSet("attacked")
-
+        self.recentlyAttacked = p.PersistedRotatingBuffer("recentlyAttacked",10)
         self.toReachQueue = p.PersistedList("toReachQueue")
         if not self.toReachQueue.initializedFromCache:
             for f in self.following.Get():
@@ -95,6 +95,8 @@ class SocialBotLogic:
     def ScoreUser(self, i):
         if i % 15 != self.hash_bucket:
             return -1
+        if i in self.recentlyAttacked:
+            return -1
         if i in self.targets:
             return 1 #until we fix the overcrowding problem!
             return self.targets.Lookup(i)["score"][self.g_data.myName]
@@ -149,6 +151,7 @@ class SocialBotLogic:
         if not target is None:
             self.g_data.TraceInfo("ATTACKING")
             self.attacked.Insert(target.GetId())
+            self.recentlyAttacked.Insert(target.GetUser().GetId())
             result = self.g_data.ApiHandler().Tweet(FormatResponse(target, response), in_reply_to_status=target)
             if not result is None:
                 return True
@@ -165,6 +168,7 @@ class SocialBotLogic:
             if not target is None:
                 self.g_data.TraceInfo("ATTACKING")
                 self.attacked.Insert(target.GetId())
+                self.recentlyAttacked.Insert(target.GetUser().GetId())
                 result = self.g_data.ApiHandler().Tweet(FormatResponse(target, response), in_reply_to_status=target)
                 if not result is None:
                     return True
