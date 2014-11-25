@@ -28,7 +28,7 @@ class SocialBotLogic:
         self.tickers.append(sl.LambdaTicker(g_data, 60, lambda: self.FollowBack(), "followback"))
         self.tickers.append(sl.LambdaTicker(g_data, 60, lambda: self.StalkReachable(), "stalk"))
         self.tickers.append(sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue()))
-        self.tickers.append(sl.LambdaTicker(g_data, 60*24, lambda : self.Tweet(), "tweet"))
+        self.tickers.append(sl.LambdaTicker(g_data, 60*12, lambda : self.Tweet(), "tweet"))
         self.tickers.append(sl.LambdaTicker(g_data, 60, lambda : self.Attack(), "attack"))
 
                 
@@ -95,6 +95,7 @@ class SocialBotLogic:
         if i % 15 != self.hash_bucket:
             return 0
         if i in self.targets:
+            return 1 #until we fix the overcrowding problem!
             return self.targets.Lookup(i)["score"][self.g_data.myName]
         return 0
 
@@ -142,20 +143,22 @@ class SocialBotLogic:
             return None
         timeline = [t for t in timeline if t.GetUser().GetId() in self.targets and t.GetUser().GetFollowersCount() < 1500]
         timeline = [t for t in timeline if not t.GetId() in self.attacked]
+        self.g_data.TranceInfo("ATTACKING")
         response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
         if not target is None:
             self.attacked.Insert(target.GetId())
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=target)
             if not result is None:
                 return True
-            self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
+            self.g_data.TraceWarn("ATTACK: Failed to reply to tweet %d" % tweet.GetId())
             return None
-        self.g_data.TraceWarn("Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
+        self.g_data.TraceWarn("ATTACK: Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
         users = list(self.following.Get())
         random.shuffle(users)
         users = users[:min(len(users),30)]
         for user in users:
             tweets = self.g_data.ApiHandler().ShowStatuses(user_id=user)
+            self.g_data.TranceInfo("ATTACKING")
             response, target = fl.TargetAndRespond(self.g_data, timeline, fl.socialbots_frontlines)
             if not target is None:
                 self.attacked.Insert(target.GetId())
@@ -164,7 +167,7 @@ class SocialBotLogic:
                     return True
                 self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
                 return None
-        self.g_data.TraceWarn("Couldnt find a tweet from %d users" % len(users))
+        self.g_data.TraceWarn("ATTACK: Couldnt find a tweet from %d users" % len(users))
         return None
             
     def Act(self):

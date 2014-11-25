@@ -27,15 +27,18 @@ class FL_Example(Frontline):
 
 
 class FL_NaiveSimple(Frontline):
-    def __init__(self, hashtags, words, responses):
+    def __init__(self, required, words, responses):
         self.responses = responses
-        self.hashtags = hashtags
+        self.required = required
         self.words = words
 
     def Triage(self, g_data, tweet):
-        if len(self.hashtags) > 0:
-            for h in self.hashtags:
-                if h in [ht.lower() for ht in tweet["hashtags"]]:
+        if len(self.required) > 0:
+            for h in self.required:
+                if isinstance(h,list):
+                    for hi in h:
+                        return 1.0 - 0.5**len([i for i in self.words if i in tweet["text"].lower()])
+                elif h in tweet["text"].lower():
                     return 1.0 - 0.5**len([i for i in self.words if i in tweet["text"].lower()])
             return -1.0
         return 1.0 - 0.5**len([i for i in self.words if i in tweet["text"].lower()])
@@ -76,7 +79,7 @@ def RunFrontlines(g_data, tweet, frontlines):
     return None
 
 socialbots_frontlines = [
-     FL_NaiveSimple(["cdcwhistleblower","hearthiswell"],
+     FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]],
                     ["children","child","son","daughter","mom","mother"],
                     [
                         "What makes you so sure the children's problems are a result of vaccines?",
@@ -84,14 +87,14 @@ socialbots_frontlines = [
                         "Because nothing says love of children like letting them die of measles.",
                         "Influenza has killed over a thousand American children in the last 10 years.  Vaccines have killed zero."
                     ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell"], #this is clearly a bad argument, but no matter
+    FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]], #this is clearly a bad argument, but no matter
                    ["ethics","morals"],
                    [
                        "The CDC does have ethics: They don't want to freak everyone out over science which is almost certainly wrong!",
                        "There have been numerous studies showing no link at all!  It would be immoral to scare people over it.",
                        "Immoral is tricking and misquoting Dr. Thompson.  This isn't a malicious data ommision, its just science."
                    ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell"],
+    FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]],
                    ["omit","omission"],
                    [
                        "Omitting a small sample of data hardly constitutes proving vaccines cause autism.",
@@ -99,7 +102,7 @@ socialbots_frontlines = [
                        "Some reasearchers having messed up their sciences absolutely does not mean vaccines cause autism.  They don't!",
                        "The ommited data was not apples-to-apples with between control and experimental.  It doesn't make scientific sense to include!"
                    ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell","vaxtruth"],
+    FL_NaiveSimple(["cdcwhistleblower","hearthiswell","vaxtruth",["autism","vaccine"],["injury","vaccine"]],
                    ["truth","lies","lie","lies"],
                    [
                        "How are you so sure about that?",
@@ -107,7 +110,7 @@ socialbots_frontlines = [
                        "What truth?  What lies?",
                        "You antivax people make me sick!  Every bit of science says vaccines are not only safe, but essential!  #hearTHISwell"
                    ]),
-    FL_NaiveSimple(["cdcwhistleblower","hearthiswell"],
+    FL_NaiveSimple(["cdcwhistleblower","hearthiswell",["autism","vaccine"],["injury","vaccine"]],
                    ["cover","covered","coverup","blackout"],
                    [
                        "I think the media just isn't reporting on it because its... you know... utter bullshit",
@@ -116,7 +119,7 @@ socialbots_frontlines = [
                        "You, sir, are a dumbfuck."
                     ]),
     FL_NaiveSimple(["tcot","pjnet"],
-                   ["Darren","Wilson","DarrenWilson"],
+                   ["Darren","Wilson","DarrenWilson"."ferguson","mikebrown","mike brown"],
                    [
                        "#BlackLivesMatter.  Darren is a murder, and this isn't justice.",
                        "People are upset.  Can you blame them.  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
@@ -124,7 +127,7 @@ socialbots_frontlines = [
                        "This isn't about cops or Darren Wilson or even Mike Brown.  Its about #whitesupremacy!  #blacklivesmatter #handsupdontshoot",
                        "Darren Wilson should be in handcuffs.  Dispicable!",
                        "Do you know why the police are militarizing.  Because they know people are going to be pissed!  Because they should be!",
-                       "This isn't justice.  But I've heard #karmasabitch, so theirs hope"
+                       "This isn't justice.  But I've heard #karmasabitch, so theirs hope.  #blacklivesmatter"
                    ]),
     ]
     

@@ -1,6 +1,6 @@
 conservative = [
-    "I set off fireworks with my grandpappy whenever I damn well please",
-    "I love shooting off firework",
+    "I set off fireworks with my grandpappy whenever I damn well please.",
+    "I love shooting off fireworks.",
     "My grandpappy shoot cans of beer at least once a week",
     "Launching fireworks again tonight",
     "King Obama is destroying the american way of life like its his job",
@@ -12,7 +12,8 @@ conservative = [
     "The media always defends #kingobama with their lies",
     "The mainstream media loves #kingobama and they lie together",
     "Everyone other than fox news and #pjnet lies and defends #kingobama. #tcot",
-    "The mainstream media is good for nothing!"
+    "The mainstream media is good for nothing!",
+    "Its time to retire the left."
     ]
 
 liberal = [
@@ -28,7 +29,8 @@ liberal = [
     "For my daughter's 18th birthday, I think I'll get here a used Subaru Outback.  In pale red.",
     "Penny's running a little weird again...",
     "I can't believe Republicans are still trying to blame Obama for the mess he inherited from #bush",
-    "I still can't believe the #midtermelections"
+    "I still can't believe the #midtermelections",
+    "Leave Obama alone.  All his troubles come from the do-nothing congress!"
     ]
 
 general = [
@@ -45,7 +47,12 @@ general = [
     "Zoo again... zomg",
     "Traffic is terrible.",
     "Made my way through traffic like a boss.",
-    "I deal with crowds grudgingly"
+    "I deal with crowds grudgingly",
+    "Going out partying tonight!",
+    "My kids want to go to the freaking zoo.  I hate the zoo...",
+    "Neighbor wants to invite us for dinner.  So boring.",
+    "Burned my snack!  Hate ovens...",
+    "Finally saw Gravity.  Pretty good, Sandra rocked.",
     ]
 
 christian = [
@@ -59,6 +66,12 @@ christian = [
     "My children pratice abstinence even when no one is watching",
     "I value  Godliness even when it's not convinient",
     "I value my family and god above all!",
+    "Making snacks for church group.",
+    "What should I bring to the next Bible study?",
+    "All the troubles in the world could be solved.  People need Jesus!",
+    "What a beautiful day outside.  #blessed",
+    "Lincon was a pretty great movie, finally saw it!",
+    "Dinner with church group tonight.  #blessed #rager"
     ]
 
 teen = [
@@ -93,8 +106,11 @@ doctor = [
     "Vitamins treat malnutrition reliably.",
     "Can a glass of red wine a day really help prevent cancer?  I'm willing to test that hypothesis!",
     "Could it be that autism causes vaccines?  Don't misinterperet the #cdcwhistleblower!",
-    "Medicine treats dissease.  Scientifically!"
-    "Medicine prevent viruses reliably. #science"
+    "Medicine treats dissease.  Scientifically!",
+    "Medicine prevent viruses reliably. #science",
+    "This Holiday Season: get the flu shot or risk getting the flu.",
+    "Black friday shopping list: make sure it includes a flu shot!",
+    "WebMD is a scary thing.  Talk to a real doctor folks, theres no substitute."
     ]
 
 
