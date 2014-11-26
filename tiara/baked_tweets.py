@@ -1,3 +1,6 @@
+# DONT FORGET THE COMMAS!  WILL CAUSE CONCATINATION OF TWEETS!
+
+
 conservative = [
     "I set off fireworks with my grandpappy whenever I damn well please.",
     "I love shooting off fireworks.",
@@ -13,7 +16,8 @@ conservative = [
     "The mainstream media loves #kingobama and they lie together",
     "Everyone other than fox news and #pjnet lies and defends #kingobama. #tcot",
     "The mainstream media is good for nothing!",
-    "Its time to retire the left."
+    "Its time to retire the left.",
+    "Why do I say \'conservative\' values?  Are there any other kind? #tcot?"
     ]
 
 liberal = [
@@ -30,7 +34,11 @@ liberal = [
     "Penny's running a little weird again...",
     "I can't believe Republicans are still trying to blame Obama for the mess he inherited from #bush",
     "I still can't believe the #midtermelections",
-    "Leave Obama alone.  All his troubles come from the do-nothing congress!"
+    "Leave Obama alone.  All his troubles come from the do-nothing congress!",
+    "Finally saw the Intouchables.  It was okish...",
+    "News Room reruns omg omg!",
+    "So ready for Hillary! #readyforhillary",
+    "Is it 2016 yet?"
     ]
 
 general = [
@@ -71,7 +79,9 @@ christian = [
     "All the troubles in the world could be solved.  People need Jesus!",
     "What a beautiful day outside.  #blessed",
     "Lincon was a pretty great movie, finally saw it!",
-    "Dinner with church group tonight.  #blessed #rager"
+    "Dinner with church group tonight.  #blessed #rager",
+    "Making a delicious chicken dinner.  Mash potatoes and gravy.  Oh my!",
+    "Still #blessed"
     ]
 
 teen = [
@@ -93,6 +103,11 @@ teen = [
     "Will somebody please help me with my history assignment.",
     "Never should have taken APUSH.",
     "High school sucks mega big time hardcore zomg #fml",
+    "Hate school....",
+    "Goin out with the guuuurlzzz",
+    "Need money for 1D tickets #omg1d.",
+    "Can't believe all these fake #5SOS fans.  Bored of #1D, on to the next hot thing?  Not I!",
+    
     ]
 
 doctor = [
@@ -110,7 +125,10 @@ doctor = [
     "Medicine prevent viruses reliably. #science",
     "This Holiday Season: get the flu shot or risk getting the flu.",
     "Black friday shopping list: make sure it includes a flu shot!",
-    "WebMD is a scary thing.  Talk to a real doctor folks, theres no substitute."
+    "WebMD is a scary thing.  Talk to a real doctor folks, theres no substitute.",
+    "Not to worry, folks.  Ebola remains 100% not a threat in the USA, and that is not likely to change.",
+    "Smoking increases risk of lung cancer.  Tell your kids it doesn't make them look cool enough to keep doing it.",
+    "Should have been a phramacist..."
     ]
 
 

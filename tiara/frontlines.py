@@ -109,7 +109,7 @@ socialbots_frontlines = [
                         "The causes of autism are not well understood.  You certainly can't know how a child got autism...",
                         "Because nothing says love of children like letting them die of measles.",
                         "Influenza has killed over a thousand American children in the last 10 years.  Vaccines have killed zero."
-                        ]),
+                    ]),
     FL_NaiveSimple([(-0.25,"vax"),
                     (-0.25,"cdcwhistleblower"),
                     (-0.25,"hearthiswell"),
@@ -148,7 +148,9 @@ socialbots_frontlines = [
                        "How are you so sure about that?",
                        "You just know everything, don't you...",
                        "What truth?  What lies?",
-                       "You antivax people make me sick!  Every bit of science says vaccines are not only safe, but essential!  #hearTHISwell"
+                       "You antivax people make me sick!  Every bit of science says vaccines are not only safe, but essential!  #hearTHISwell",
+                       "Tell me what you think the real truth is?",
+                       "Do you mind explaining to me you're 'truth' and how you know it?"
                    ]),
     FL_NaiveSimple([(-0.25,"vax"),
                     (-0.25,"cdcwhistleblower"),
@@ -165,7 +167,9 @@ socialbots_frontlines = [
                        "I think the media just isn't reporting on it because its... you know... utter bullshit",
                        "You the the CDC is stupid enough to misplace a huge chunk of data but smart enough to create a widespread conspiracy... riiight.",
                        "If you believe this conspiracy theory, I've got a bridge in brooklyn and I think we can do business.",
-                       "You, sir, are a dumbfuck."
+                       "You, sir, are a dumbfuck.",
+                       "No US government agency is competent enough to even consider a conspiracy.  They'd mess it up.",
+                       "There is no such thing as a government conspiracy theory.  No such thing as a governemnt coverup with media help.",
                     ]),
     FL_NaiveSimple([(0.25,["darren","wilson"]),
                     (0.25,"darrenwilson"),
@@ -192,7 +196,36 @@ socialbots_frontlines = [
                        "Its like you don't even thing about people who are different than you...",
                    ],
                    types = ["liberal"]),
-
+    FL_NaiveSimple([(0.5, ["riot","furguson"]),
+                    (-0.2,["darren","wilson"]),
+                    (-0.2,"darrenwilson"),
+                    (-0.2,"ferguson"),
+                    (-0.2,["mike","brown"])],
+                   [
+                       "Why do you think people are rioting?  Theres no other way for their voices to be heard...",
+                       "No justice, no peace. Dems da rules #blacklivesmatter",
+                       "People are rioting because they've tried everything else.",
+                       "A black riot for justice is thuggery, a white riot over sports or pumpkins is just kids being kids?",
+                       "You should riot too."
+                   ]),
+    FL_NaiveSimple([(-1.0,["islam","jihad"]),
+                    (-1.0,["tcot",'realislam']),
+                    (-1.0,["ccot",'realislam']),
+                    (-1.0,"stopislam"),
+                    (-1.0,["tcot",'thisisislam']),
+                    (-1.0,["ccot",'thisisislam'])],
+                   [
+                       "How many Muslims do you know, sir?",
+                       "I take it you've met many a Muslim. Is that how you know all this?",
+                       "You know nearly a quarter of the world follows Islam.  We should probably be nice to them.",
+                       "Hey!  Be nice to our Muslim brothers and sisters!",
+                       "RUDE!",
+                       "Did you learn that from your Muslim friends?",
+                       "You are a massive hater.",
+                       "Don't be a hater.",
+                       "You've probably never met a Muslim.  #thisisnotislam",
+                       "All 1.6 million Muslims are jihadists?  Is that what you think?"
+                   ])
     ]
     
 socialbot_types = {
