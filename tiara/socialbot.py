@@ -30,7 +30,7 @@ class SocialBotLogic:
         self.tickers.append(sl.LambdaTicker(g_data, 60, lambda: self.StalkReachable(), "stalk"))
         self.tickers.append(sl.LambdaStraightTicker(20, lambda: self.ProcessToReachQueue()))
         self.tickers.append(sl.LambdaTicker(g_data, 60*12, lambda : self.Tweet(), "tweet"))
-        self.tickers.append(sl.LambdaTicker(g_data, 60, lambda : self.Attack(), "attack"))
+        self.tickers.append(sl.LambdaTicker(g_data, 60*24, lambda : self.Attack(), "attack"))
 
                 
     def Follow(self, user_id):
@@ -155,7 +155,7 @@ class SocialBotLogic:
             result = self.g_data.ApiHandler().Tweet(FormatResponse(target, response), in_reply_to_status=target)
             if not result is None:
                 return True
-            self.g_data.TraceWarn("ATTACK: Failed to reply to tweet %d" % tweet.GetId())
+            self.g_data.TraceWarn("ATTACK: Failed to reply to tweet %d" % target.GetId())
             return None
         self.g_data.TraceWarn("ATTACK: Failed to find someone to ATTACK!  Length of timeline = %d.  Shall find another." % len(timeline))
         users = list(self.following.Get())
@@ -172,7 +172,7 @@ class SocialBotLogic:
                 result = self.g_data.ApiHandler().Tweet(FormatResponse(target, response), in_reply_to_status=target)
                 if not result is None:
                     return True
-                self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
+                self.g_data.TraceWarn("Failed to reply to tweet %d" % target.GetId())
                 return None
         self.g_data.TraceWarn("ATTACK: Couldnt find a tweet from %d users" % len(users))
         return None
