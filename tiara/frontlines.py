@@ -97,6 +97,19 @@ def RunFrontlines(g_data, tweet, frontlines):
         return fl.Respond(g_data, tweet)
     return None
 
+
+
+conservative_hashtags = ["tcot","ccot","lcot","tpot","teaparty","pjnet"]
+
+def AndOverOr(value, andands, orands):
+    orands = g.phrase(orands)
+    return [(value,[a]+orands) for a in andands]
+
+def Conservative(value, tag):
+    return AndOverOr(value, conservative_hashtags, tag)
+
+
+
 socialbots_frontlines = [
      FL_NaiveSimple([(-0.25,"vax"),
                      (-0.25,"cdcwhistleblower"),
@@ -237,10 +250,10 @@ socialbots_frontlines = [
                        "A black riot for justice is thuggery, a white riot over sports or pumpkins is just kids being kids?",
                        "You should riot too.",
                    ]),
-    FL_NaiveSimple([(-1.0,["islam","jihad"])
-                    (-1.0,"stopislam")]
-                   + Conservative(-1.0,"realislam"),
-                   + Conservative(-1.0,"thisisislam"),
+    FL_NaiveSimple([(-1.0,["islam","jihad"]),
+                    (-1.0,"stopislam")] +
+                    Conservative(-1.0,"realislam") + 
+                    Conservative(-1.0,"thisisislam"),
                    [
                        "How many Muslims do you know, sir?",
                        "I take it you've met many a Muslim. Is that how you know all this?",
@@ -267,7 +280,7 @@ socialbots_frontlines = [
                        "Ten million Americans newly with health insurance?  Sounds like a win to me!",
                    ],
                    types=["liberal","general","advocate","muslim","doctor","parent"]),
-    FL_NaiveSimple([(-1.0,["obamacare","ponzi")],
+    FL_NaiveSimple([(-1.0,["obamacare","ponzi"])],
                     [
                         "I feel like you don't know what a ponzi scheme is...",
                         "Obamacare aside, a ponzi scheme is when you pay old investors from new investors but never make money.",
@@ -277,15 +290,6 @@ socialbots_frontlines = [
                     ])
 
     ]
-
-conservative_hashtags = ["tcot","ccot","lcot","tpot","teaparty","pjnet"]
-
-def AndOverOr(value, andands, orands):
-    orands = g.phrase(orands)
-    return [(value,a+orands) for a in andands]
-
-def Conservative(value, tag):
-    return AndOverOr(value, conservative_hashtags, tag)
 
     
 socialbot_types = {
