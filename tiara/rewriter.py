@@ -5,6 +5,8 @@ from sentence_gen import Sentence
 
 def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mode=False):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
+    if not user is None and user.GetProtected():
+        return None
     inReply = user is None
     tweets = TweetsIterator(g_data, original=tweet, user=user)
     for i in xrange(attempts):
