@@ -111,7 +111,7 @@ def Conservative(value, tag):
 
 
 socialbots_frontlines = [
-     FL_NaiveSimple([(-0.25,"vax"),
+     FL_NaiveSimple([(-0.25,["injury","vax"]),(-0.25,["vax","autism"]),
                      (-0.25,"cdcwhistleblower"),
                      (-0.25,"hearthiswell"),
                      (-0.25,["autism","vaccine"]),
@@ -131,7 +131,7 @@ socialbots_frontlines = [
                         "As far as I know, theres no scientific evidence that injuries blamed on vax were actually caused by vax.  But vax save lives!",
                         "Not vaccinating a child puts them (and society) at serious risk!  People die of measles!  #preventpreventabledisease"
                     ]),
-    FL_NaiveSimple([(-0.25,"vax"),
+    FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
                     (-0.25,"hearthiswell"),
                     (-0.25,["autism","vaccine"]),
@@ -146,7 +146,7 @@ socialbots_frontlines = [
                        "Its like people don't understand that children DIE of diseased which could be prevented by vaccination.  #morals #ethics",
                        "Don't tell me about morals or ethics... It isn't just you that'll get whooping cough.  #diseasesspread"
                     ]),
-    FL_NaiveSimple([(-0.25,"vax"),
+    FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
                     (-0.25,"hearthiswell"),
                     (-0.25,["autism","vaccine"]),
@@ -163,7 +163,7 @@ socialbots_frontlines = [
                        "Don't misinterpret the #cdcwhistleblower.  This is a technical mistake; vaccines remain safe. #getvaccinated",
                        
                    ]),
-    FL_NaiveSimple([(-0.25,"vax"),
+    FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
                     (-0.25,"hearthiswell"),
                     (-0.25,["autism","vaccine"]),
@@ -181,7 +181,7 @@ socialbots_frontlines = [
                        "Tell me what you think the real truth is?",
                        "Do you mind explaining to me you're 'truth' and how you know it?"
                    ]),
-    FL_NaiveSimple([(-0.25,"vax"),
+    FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
                     (-0.25,"hearthiswell"),
                     (-0.25,["autism","vaccine"]),
