@@ -30,10 +30,12 @@ class FL_Example(Frontline):
 class FL_NaiveSimple(Frontline):
     def __init__(self, words, responses, types=["conservative","liberal","general","teen","advocate","muslim","christian","doctor","parent"]):
         self.responses = responses
+        global frontline_tags
         self.words = words
         self.any_required = False
         self.types = types
-        for r in responses:
+        for r,tag in responses:
+            assert tag in frontline_tags , tag
             assert len(r) <= 125 , (len(r),r)
         for i in xrange(len(self.words)):
             if not isinstance(self.words[i][1], list):
@@ -86,8 +88,9 @@ def TargetAndRespond(g_data, tweets, frontlines):
             best_fl = fl
     if best_triage > -1.0:
         assert not best_tweet is None
-        return best_fl.Respond(g_data,best_tweet), best_tweet
-    return None, None
+        response, tag = best_fl.Respond(g_data,best_tweet),
+        return response, tag, best_tweet
+    return None, None, None
         
 def RunFrontlines(g_data, tweet, frontlines):
     print tweet.GetText()
@@ -108,7 +111,8 @@ def AndOverOr(value, andands, orands):
 def Conservative(value, tag):
     return AndOverOr(value, conservative_hashtags, tag)
 
-
+frontline_tags = ["dontknowcause","novaxisworse","noalarmist","notscience","conspiracy","antidarren","fergusonupset",
+                  "tcotlove","tcotshutup","loveobamacare","hateobamacare","knowmuslims","nicemuslims","obamaponzi","insult","tellmemore"]
 
 socialbots_frontlines = [
      FL_NaiveSimple([(-0.25,["injury","vax"]),(-0.25,["vax","autism"]),
@@ -123,13 +127,20 @@ socialbots_frontlines = [
                      (0.25,"mom"),
                      (0.25,"mother")],
                     [
-                        "What makes you so sure the children's problems are a result of vaccines?",
-                        "The causes of autism are not well understood.  You certainly can't know how a child got autism...",
-                        "Because nothing says love of children like letting them die of measles.",
-                        "American children die of the flu every year.  90% of them are unvaccinated.  Don't be dumb! #getvaccinated",
-                        "Influenza has killed over a thousand American children in the last 10 years.  Vaccines have killed zero.",
-                        "As far as I know, theres no scientific evidence that injuries blamed on vax were actually caused by vax.  But vax save lives!",
-                        "Not vaccinating a child puts them (and society) at serious risk!  People die of measles!  #preventpreventabledisease"
+                        ("What makes you so sure the children's problems are a result of vaccines?",
+                         "dontknowcause"),
+                        ("The causes of autism are not well understood.  You certainly can't know how a child got autism...",
+                         "dontknowcause"),
+                        ("Because nothing says love of children like letting them die of measles.",
+                         "novaxisworse"),
+                        ("American children die of the flu every year.  90% of them are unvaccinated.  Don't be dumb! #getvaccinated",
+                         "novaxisworse"),
+                        ("Influenza has killed over a thousand American children in the last 10 years.  Vaccines have killed zero.",
+                         "novaxisworse"),
+                        ("As far as I know, theres no scientific evidence that injuries blamed on vax were actually caused by vax.  But vax save lives!",
+                         "dontknowcause"),
+                        ("Not vaccinating a child puts them (and society) at serious risk!  People die of measles!  #preventpreventabledisease",
+                         "novaxisworse")
                     ]),
     FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
@@ -139,12 +150,18 @@ socialbots_frontlines = [
                     (0.25,"ethics"),
                     (0.25,"morals")],
                     [
-                       "The CDC does have ethics: They don't want to freak everyone out over science which is almost certainly wrong!",
-                       "There have been numerous studies showing no link at all!  It would be immoral to scare people over it.",
-                       "Immoral is tricking and misquoting Dr. Thompson.  This isn't a malicious data ommision, its just science.",
-                       "Nothing could be more immoral than choosing not to vaccinate a child.  Why let them get sick of preventable diseases?",
-                       "Its like people don't understand that children DIE of diseased which could be prevented by vaccination.  #morals #ethics",
-                       "Don't tell me about morals or ethics... It isn't just you that'll get whooping cough.  #diseasesspread"
+                       ("The CDC does have ethics: They don't want to freak everyone out over science which is almost certainly wrong!",
+                        "noalarmist"),
+                       ("There have been numerous studies showing no link at all!  It would be immoral to scare people over it.",
+                        "noalarmist"),
+                       ("Immoral is tricking and misquoting Dr. Thompson.  This isn't a malicious data ommision, its just science.",
+                        "notscience"),
+                       ("Nothing could be more immoral than choosing not to vaccinate a child.  Why let them get sick of preventable diseases?",
+                        "novaxisworse"),
+                       ("Its like people don't understand that children DIE of diseased which could be prevented by vaccination.  #morals #ethics",
+                        "novaxisworse"),
+                       ("Don't tell me about morals or ethics... It isn't just you that'll get whooping cough.  #diseasesspread",
+                        "novaxisworse")
                     ]),
     FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
@@ -154,15 +171,22 @@ socialbots_frontlines = [
                     (0.25,"omit"),
                     (0.25,"omission")],
                    [
-                       "Omitting a small sample of data hardly constitutes proving vaccines cause autism.",
-                       "Vaccines still don't cause autism; according to years and years of research.",
-                       "Some reasearchers having messed up their sciences absolutely does not mean vaccines cause autism.  They don't!",
-                       "The ommited data was not apples-to-apples between control and experimental.  It makes no scientific sense to include!",
-                       "You think ommited datapoints means we should immidiately reject 30 years of science?",
-                       "Remember: people being bad at their job does not imply their conclusion is wrong.  All the science says vax is safe.",
-                       "Don't misinterpret the #cdcwhistleblower.  This is a technical mistake; vaccines remain safe. #getvaccinated",
+                       ("Omitting a small sample of data hardly constitutes proving vaccines cause autism.",
+                        "notscience"),
+                       ("Vaccines still don't cause autism; according to years and years of research.",
+                        "notscience"),
+                       ("Some reasearchers having messed up their sciences absolutely does not mean vaccines cause autism.  They don't!",
+                        "notscience"),
+                       ("The ommited data was not apples-to-apples between control and experimental.  It makes no scientific sense to include!",
+                        "notscience"),
+                       ("You think ommited datapoints means we should immidiately reject 30 years of science?",
+                        "notscience"),
                        
-                   ]),
+                       ("Remember: people being bad at their job does not imply their conclusion is wrong.  All the science says vax is safe.",
+                        "notscience"),
+                       ("Don't misinterpret the #cdcwhistleblower.  This is a technical mistake; vaccines remain safe. #getvaccinated",
+                        "notscience")
+                    ]),
     FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
                     (-0.25,"hearthiswell"),
@@ -174,12 +198,18 @@ socialbots_frontlines = [
                     (0.25,"lies"),
                     (0.25,"fraud")],
                    [
-                       "How are you so sure about that?",
-                       "You just know everything, don't you...",
-                       "What truth?  What lies?",
-                       "You antivax people make me sick!  Every bit of science says vaccines are not only safe, but essential!  #hearTHISwell",
-                       "Tell me what you think the real truth is?",
-                       "Do you mind explaining to me you're 'truth' and how you know it?"
+                       ("How are you so sure about that?",
+                        "dontknowcause"),
+                       ("You just know everything, don't you...",
+                        "dontknowcause"),
+                       ("What truth?  What lies?",
+                        "conspiracy"),
+                       ("You antivax people make me sick!  Every bit of science says vaccines are not only safe, but essential!  #hearTHISwell",
+                        "novaxisworse"),
+                       ("Tell me what you think the real truth is?",
+                        "dontknowcause"),
+                       ("Do you mind explaining to me you're 'truth' and how you know it?",
+                        "conspiracy")
                    ]),
     FL_NaiveSimple([(-0.25,["vax","injury"]),(-0.25,["vax","autism"]),
                     (-0.25,"cdcwhistleblower"),
@@ -191,102 +221,157 @@ socialbots_frontlines = [
                     (0.25,"coverup"),
                     (0.25,"blackout")],
                    [
-                       "I think the media just isn't reporting on it because its... you know... utter bullshit",
-                       "You think the CDC is stupid enough to misplace a huge chunk of data but smart enough to create a widespread conspiracy?",
-                       "If you believe this conspiracy theory, I've got a bridge in brooklyn and I think we can do business.",
-                       "You, sir, are a dumbfuck.",
-                       "No US government agency is competent enough to even consider a conspiracy.  They'd mess it up.",
-                       "There is no such thing as a govt conspiracy theory.  No such thing as a govt coverup with media help.",
-                       "Dr. Thompson is definately not smart enough to organize a #mediablackout.  Theres no conspiracy; vaccines remain safe!",
+                       ("I think the media just isn't reporting on it because its... you know... utter bullshit",
+                        "conspiracy"),
+                       ("You think the CDC is stupid enough to misplace a huge chunk of data but smart enough to create a widespread conspiracy?",
+                        "conspiracy"),
+                       ("If you believe this conspiracy theory, I've got a bridge in brooklyn and I think we can do business.",
+                        "conspiracy"),
+                       ("No US government agency is competent enough to even consider a conspiracy.  They'd mess it up.",
+                        "conspiracy"),
+                       ("There is no such thing as a govt conspiracy theory.  No such thing as a govt coverup with media help.",
+                        "conspiracy"),
+                       ("Dr. Thompson is definately not smart enough to organize a #mediablackout.  Theres no conspiracy; vaccines remain safe!",
+                        "conspiracy")
                        
                     ]),
-    FL_NaiveSimple([(0.25,["darren","wilson"]),
-                    (0.25,"darrenwilson"),
-                    (0.25,"ferguson"),
-                    (0.25,["mike","brown"])],
+    FL_NaiveSimple([(0.025,["darren","wilson"]),
+                    (0.025,"darrenwilson"),
+                    (0.025,"ferguson"),
+                    (0.025,["mike","brown"])],
                    [
-                       "#BlackLivesMatter.  Darren is a murder, and this isn't justice.",
-                       "People are upset.  Can you blame them?  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
-                       "This man is avoiding justice.  Hiding behind a badge doesn't make murder ok!",
-                       "This isn't about cops or Darren Wilson or even Mike Brown.  Its about #whitesupremacy!  #blacklivesmatter #handsupdontshoot",
-                       "Darren Wilson should be in handcuffs.  Dispicable!",
-                       "Do you know why the police are militarizing.  Because they know people are going to be pissed!  Because they should be!",
-                       "This isn't justice.  But I've heard #karmasabitch, so theirs hope.  #blacklivesmatter"
+                       ("#BlackLivesMatter.  Darren is a murder, and this isn't justice.",
+                        "antidarren"),
+                       ("People are upset.  Can you blame them?  An innocent man is shot, and the shooter walks away?  #ferguson #blacklivesmatter",
+                        "fergusonupset"),
+                       ("This man is avoiding justice.  Hiding behind a badge doesn't make murder ok!",
+                        "antidarren"),
+                       ("This isn't about cops or Darren Wilson or even Mike Brown.  Its about #whitesupremacy!  #blacklivesmatter #handsupdontshoot",
+                        "fergusonupset"),
+                       ("Darren Wilson should be in handcuffs.  Dispicable!",
+                        "antidarren"),
+                       ("Do you know why the police are militarizing.  Because they know people are going to be pissed!  Because they should be!",
+                        "fergusonupset"),
+                       ("This isn't justice.  But I've heard #karmasabitch, so theirs hope.  #blacklivesmatter",
+                        "antidarren")
                    ]),
-    FL_NaiveSimple([(-0.001,t) for t in conservative_hashtags],
-                   [
-                       "Oh shut up all ready!",
-                       "Right is wrong! #rightiswrong",
-                       "Seriously?  You tcot/ccot people are all the same!",
-                       "What garbage..",
-                       "Absolute poppycock!",
-                       "Who do you even think you are!",
-                       "You really believe that crap?",
-                       "Its like you don't even thing about people who are different than you...",
-                       "You are a rude blow-hard and need to #stop",
-                       "Why do you tweet this trash?",
-                       "And where did you get that idea?  #learnthefacts"
-                   ],
-                   types = ["liberal"]),
-    FL_NaiveSimple([(-0.001,t) for t in conservative_hashtags],
-                   [
-                       "Amen brother.  #tcot",
-                       "Tell me more!",
-                       "My god yes!  How can I learn more about this import issue?  #tcot",
-                       "You better believe it!  #justthefacts",
-                       "Go ooooon.....",
-                       "You've got my full attention.  #tellmemore"
-                   ],
-                   types = ["conservative","christian"]),
-    FL_NaiveSimple([(0.5, ["riot","furguson"]),
+    FL_NaiveSimple([(0.5, ["riot","ferguson"]),
                     (-0.2,["darren","wilson"]),
                     (-0.2,"darrenwilson"),
                     (-0.2,"ferguson"),
                     (-0.2,["mike","brown"])],
                    [
-                       "Why do you think people are rioting?  Theres no other way for their voices to be heard...",
-                       "No justice, no peace. Dems da rules #blacklivesmatter",
-                       "People are rioting because they've tried everything else.",
-                       "A black riot for justice is thuggery, a white riot over sports or pumpkins is just kids being kids?",
-                       "You should riot too.",
+                       ("Why do you think people are rioting?  Theres no other way for their voices to be heard...",
+                        "fergusonupset"),
+                       ("No justice, no peace. Dems da rules #blacklivesmatter",
+                        "fergusonupset"),
+                       ("People are rioting because they've tried everything else.",
+                        "fergusonupset"),
+                       ("A black riot for justice is thuggery, a white riot over sports or pumpkins is just kids being kids?",
+                        "fergusonupset"),
+                       ("You should riot too.",
+                        "fergusonupset")
                    ]),
+    FL_NaiveSimple([(-0.001,t) for t in conservative_hashtags],
+                   [
+                       ("Oh shut up all ready!",
+                        "tcotshutup"),
+                       ("Right is wrong! #rightiswrong",
+                        "tcotshutup"),
+                       ("Seriously?  You tcot/ccot people are all the same!",
+                        "tcotshutup"),
+                       ("What garbage..",
+                        "tcotshutup"),
+                       ("Absolute poppycock!",
+                        "tcotshutup"),
+                       ("Who do you even think you are!",
+                        "tcotshutup"),
+                       ("You really believe that crap?",
+                        "tcotshutup"),
+                       ("Its like you don't even thing about people who are different than you...",
+                        "tcotshutup"),
+                       ("You are a rude blow-hard and need to #stop!  #stahp",
+                        "tcotshutup"),
+                       ("Why do you tweet this trash?",
+                        "tcotshutup"),
+                       ("And where did you get that idea?  #learnthefacts",
+                        "tcotshutup"),
+                   ],
+                   types = ["liberal"]),
+    FL_NaiveSimple([(-0.001,t) for t in conservative_hashtags],
+                   [
+                       ("Amen brother.  #tcot",
+                        "tcotlove"),
+                       ("Tell me more!",
+                        "tcotlove"),
+                       ("My god yes!  How can I learn more about this import issue?  #tcot",
+                        "tcotlove"),
+                       ("You better believe it!  #justthefacts",
+                        "tcotlove"),
+                       ("Go ooooon.....",
+                        "tcotlove"),
+                       ("You've got my full attention.  #tellmemore",
+                        "tcotlove"),
+                   ],
+                   types = ["conservative","christian"]),
     FL_NaiveSimple([(-1.0,["islam","jihad"]),
                     (-1.0,"stopislam")] +
                     Conservative(-1.0,"realislam") + 
                     Conservative(-1.0,"thisisislam"),
                    [
-                       "How many Muslims do you know, sir?",
-                       "I take it you've met many a Muslim. Is that how you know all this?",
-                       "You know nearly a quarter of the world follows Islam.  We should probably be nice to them.",
-                       "Hey!  Be nice to our Muslim brothers and sisters!",
-                       "RUDE!",
-                       "Did you learn that from your Muslim friends?",
-                       "You are a massive hater.",
-                       "Don't be a hater.",
-                       "You've probably never met a Muslim.  #thisisnotislam",
-                       "All 1.6 million Muslims are jihadists?  Is that what you think?"
+                       ("How many Muslims do you know, sir?",
+                        "knowmuslims"),
+                       ("I take it you've met many a Muslim. Is that how you know all this?",
+                        "knowmuslims"),
+                       ("You know nearly a quarter of the world follows Islam.  We should probably be nice to them.",
+                        "knowmuslims"),
+                       ("Hey!  Be nice to our Muslim brothers and sisters!",
+                        "nicemuslims"),
+                       ("RUDE!",
+                        "nicemuslims"),
+                       ("Did you learn that from your Muslim friends?",
+                        "knowmuslims"),
+                       ("You are a massive hater.",
+                        "nicemuslims"),
+                       ("Don't be a hater.",
+                        "nicemuslims"),
+                       ("You've probably never met a Muslim.  #thisisnotislam",
+                        "knowmuslims"),
+                       ("All 1.6 million Muslims are jihadists?  Is that what you think?",
+                        "knowmuslims"),
                    ]),
-    FL_NaiveSimple(Conservative(-.75,"obamacare"),
+    FL_NaiveSimple([(-.075,"obamacare")],
                    [
-                       "Why do they call it #obamacare anyways?  Obama doesn't care! #tcot",
-                       "How on earth are we going to stop this thing becore our country falls appart?",
-                       "More like #obamascare!",
+                       ("Why do they call it #obamacare anyways?  Obama doesn't care! #tcot",
+                        "hateobamacare"),
+                       ("How on earth are we going to stop this thing becore our country falls appart?",
+                        "hateobamacare"),
+                       ("More like #obamascare!",
+                        "hateobamacare")
                    ],
                    types=["conservative","christian"]),
-    FL_NaiveSimple(Conservative(-.75,"obamacare"),
+    FL_NaiveSimple(Conservative(-.075,"obamacare"),
                    [
-                       "Obamacare is great!  Affordable care for all!",
-                       "Why do you want people to be sick?",
-                       "Ten million Americans newly with health insurance?  Sounds like a win to me!",
+                       ("Obamacare is great!  Affordable care for all!",
+                        "loveobamacare"),
+                       ("Why do you want people to be sick?",
+                        "loveobamacare"),
+                       ("Ten million Americans newly with health insurance?  Sounds like a win to me!",
+                        "loveobamacare"),
                    ],
                    types=["liberal","general","advocate","muslim","doctor","parent"]),
     FL_NaiveSimple([(-1.0,["obamacare","ponzi"])],
                     [
-                        "I feel like you don't know what a ponzi scheme is...",
-                        "Obamacare aside, a ponzi scheme is when you pay old investors from new investors but never make money.",
-                        "This word you keep using, ponzi scheme, I think it means what you think it means...",
-                        "Listen: healthcare isn't a get-rich-quick-scheme.  It doesn't pay out.  Its not a ponzi scheme!",
-                        "#Obamacare isn't a ponzi scheme.  Social security is much more similar to a ponzi scheme. This is completely different",
+                       ("I feel like you don't know what a ponzi scheme is...",
+                        "obamaponzi"),
+                       ("Obamacare aside, a ponzi scheme is when you pay old investors from new investors but never make money.",
+                        "obamaponzi"),
+                       ("This word you keep using, ponzi scheme, I think it means what you think it means...",
+                        "obamaponzi"),
+                       ("Listen: healthcare isn't a get-rich-quick-scheme.  It doesn't pay out.  Its not a ponzi scheme!",
+                        "obamaponzi"),
+                       ("#Obamacare isn't a ponzi scheme.  Social security is much more analogous to a ponzi scheme. This is completely different",
+                        "obamaponzi")
                     ])
 
     ]

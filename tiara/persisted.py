@@ -40,6 +40,10 @@ class PersistedDict(PersistedObject):
         self.object[key] = new_val
         self.Update()
 
+    def UpgradeFromSet(self, default=None):
+        if isinstance(self.object, set):
+            self.Set({ a : default for a in self.object})
+
 class PersistedSet(PersistedObject):
     def __init__(self, fn):
         super(PersistedSet, self).__init__(fn, set([]))

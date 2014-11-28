@@ -17,7 +17,14 @@ conservative = [
     "Everyone other than fox news and #pjnet lies and defends #kingobama. #tcot",
     "The mainstream media is good for nothing!",
     "Its time to retire the left.",
-    "Why do I say \'conservative\' values?  Are there any other kind? #tcot?"
+    "Why do I say \'conservative\' values?  Are there any other kind? #tcot?",
+    "Pelosi is a moron...",
+    "I am #readyforhillary!  Read to #beathillary that is #tcot!",
+    "They shouldn't call it #obamacare.  Why?  Obama doesn't care!",
+    "Now that the midterm elections are over, lets see if we can get back from socialism.",
+    "So glad I don't live in a socialist sinkhole like Europe.",
+    "America is the greatest country on earth.  Its time we started acting like it!",
+    "Terrified of what the left will do next",
     ]
 
 liberal = [
@@ -38,7 +45,11 @@ liberal = [
     "Finally saw the Intouchables.  It was okish...",
     "News Room reruns omg omg!",
     "So ready for Hillary! #readyforhillary",
-    "Is it 2016 yet?"
+    "Is it 2016 yet?",
+    "Bohner is a moron...",
+    "I wish I lived in a socialist paradise like Sweden.",
+    "Sometimes this country makes me sad...",
+    "Really scared of what the right will do next."
     ]
 
 general = [
@@ -61,6 +72,9 @@ general = [
     "Neighbor wants to invite us for dinner.  So boring.",
     "Burned my snack!  Hate ovens...",
     "Finally saw Gravity.  Pretty good, Sandra rocked.",
+    "I've got that boom-boom that all the boys chase and all the right junk in all the right place!",
+    "Chipotle is definately the best fast food.",
+    "Why can't the left and the right just get along and make things work for me?"
     ]
 
 christian = [
@@ -81,7 +95,9 @@ christian = [
     "Lincon was a pretty great movie, finally saw it!",
     "Dinner with church group tonight.  #blessed #rager",
     "Making a delicious chicken dinner.  Mash potatoes and gravy.  Oh my!",
-    "Still #blessed"
+    "Still #blessed",
+    "Going out for dinner tonight at #olivegarden!",
+    "Taking my kids to #biblestudy, even though I don't think they're really into it this week.",
     ]
 
 teen = [
@@ -107,7 +123,8 @@ teen = [
     "Goin out with the guuuurlzzz",
     "Need money for 1D tickets #omg1d.",
     "Can't believe all these fake #5SOS fans.  Bored of #1D, on to the next hot thing?  Not I!",
-    
+    "FOLLOW ME HARRY",
+    "FOLLOW ME ZAYNE ZOMG!"
     ]
 
 doctor = [
@@ -128,7 +145,8 @@ doctor = [
     "WebMD is a scary thing.  Talk to a real doctor folks, theres no substitute.",
     "Not to worry, folks.  Ebola remains 100% not a threat in the USA, and that is not likely to change.",
     "Smoking increases risk of lung cancer.  Tell your kids it doesn't make them look cool enough to keep doing it.",
-    "Should have been a phramacist..."
+    "Should have been a phramacist...",
+    "Don't sue me.  I just want to save your life!",
     ]
 
 
