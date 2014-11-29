@@ -3,7 +3,7 @@ import random
 import twitter
 from sentence_gen import Sentence
 
-def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
+def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mode=False):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
     inReply = user is None
     tweets = TweetsIterator(g_data, original=tweet, user=user)
@@ -11,7 +11,7 @@ def ChooseResponse(g_data, user=None, tweet=None, attempts = 10):
         tweets.Reset()
         sentence = Sentence()
         g_data.TraceInfo("Rewriting sentence \"%s\"" % " ".join(sentence))
-        rw = Rewriter(tweets, sentence, inReply, g_data)
+        rw = Rewriter(tweets, sentence, inReply, g_data, alliteration_mode = alliteration_mode)
         result = rw.Rewrite()
         if result and inReply:
             result = '@' + tweet.GetUser().GetScreenName() + ": " + result
@@ -91,12 +91,13 @@ class TweetsIterator:
 
 
 class Rewriter:
-    def __init__(self, tweets, sentence, inReply, g_data):
+    def __init__(self, tweets, sentence, inReply, g_data, alliteration_mode=False):
         self.g_data = g_data
         self.progressEver = not inReply
         self.vocab = v.Vocab(g_data)
         self.tweets = tweets
         self.sentence = sentence
+        self.alliteration_mode = alliteration_mode
         assert self.AddVocab()
 
     # adds the next tweet, if available.  
@@ -104,7 +105,10 @@ class Rewriter:
     def AddVocab(self):
         tweet = self.tweets.Next(self.progressEver)
         if tweet:
-            self.vocab.Add(tweet.GetText(), addSimilar = tweet.GetUser().GetScreenName() == self.g_data.myName)
+            added = self.vocab.Add(tweet.GetText(), 
+                                   addSimilar = self.vocab.found_alliteration or tweet.GetUser().GetScreenName() == self.g_data.myName)
+            if added == 0 and self.vocab.found_alliteration:
+                self.vocab.AddAlliterations(10)
             return True
         return False
 
@@ -119,6 +123,8 @@ class Rewriter:
             if ix == 0 or self.sentence[ix-1] in [".","?","!"]:
                 self.sentence[ix] = word[0].upper() + word[1:]
             self.vocab.Register(word)
+            if self.alliteration_mode and not self.vocab.found_alliteration:
+                self.vocab.BeginAlliterationMode(word)
             self.progressEver = True
             return True
         return False

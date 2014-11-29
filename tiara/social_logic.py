@@ -81,35 +81,21 @@ class StatsLogger(Ticker):
         if me is not None:
             self.logger.info("%d %d" % (me.GetFriendsCount(), me.GetFollowersCount()))
 
-AVERAGE_MINUTES_TO_ACT = 120
-AVERAGE_MINUTES_TO_RESPOND = 120
-
 class SocialLogic:
-    def __init__(self, g_data):
+    def __init__(self, g_data, args):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         self.max_id = p.PersistedObject("max_id", 0)
-        # I best set max_id from the legacy just in case
-        #
-        if self.max_id.Get() == 0:
-            try:
-                with open(abs_prefix + "/max_id","r") as f:
-                    self.max_id.Set(int(f.readline()))
-            except IOError as e:
-                assert e[0] == 2 and e[1] == 'No such file or directory'
         self.g_data = g_data
 
-        self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
-        self.g_data.TraceInfo("%d cycles until first action." % self.untilNextAction)
-        
-        self.untilNextResponse = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_RESPOND))
-        self.g_data.TraceInfo("%d cycles until first action." % self.untilNextResponse)
-
-        self.tix = 0
+        self.alliteration_mode = args["alliteration_mode"]
 
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
-        self.statsLogger = StatsLogger(g_data,15)
-
+        self.ticker = []
+        self.ticker.append(StatsLogger(g_data,15))
+        self.ticker.append(LambdaTicker(g_data, 120, lambda: self.Follow(), "follow"))
+        self.ticker.append(LambdaTicker(g_data, 120, lambda: self.BotherRandom(), "BotherRandom"))
+        
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id.Get(), "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
         self.g_data.TraceInfo("Setting max_id to %d" % max_id)
@@ -127,7 +113,7 @@ class SocialLogic:
 
     def ReplyTo(self, tweet):
         self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
-        response = r.ChooseResponse(self.g_data, tweet=tweet)
+        response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.alliteration_mode)
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
@@ -244,21 +230,9 @@ class SocialLogic:
         
                 
     def Act(self):
-        self.untilNextAction -= 1
-        self.untilNextResponse -= 1
-        if self.untilNextAction <= 0:
-            self.untilNextAction = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_ACT))
-            self.g_data.TraceInfo("Performing action! %d cycles until next action." % self.untilNextAction)
-            self.Follow()
-        if self.untilNextResponse <= 0:
-            self.untilNextResponse = int(random.expovariate(1.0/AVERAGE_MINUTES_TO_RESPOND))
-            self.g_data.TraceInfo("Performing response! %d cycles until next action." % self.untilNextResponse)
-            self.BotherRandom()
         self.Reply()
-        if self.tix % 15 == 0:
-            self.StalkTwitter()
-        self.tix += 1
-        self.statsLogger.Tick()
+        for t in self.tickers:
+            t.Tick()
     
 
 AVERAGE_MINUTES_TO_FOLLOW_BACK = 60

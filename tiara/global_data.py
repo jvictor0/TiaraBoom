@@ -8,6 +8,7 @@ import api_handler
 import random
 import social_logic
 import socialbot
+import string
 
 class GlobalData:
     def __init__(self):
@@ -52,7 +53,7 @@ class GlobalData:
 
             sl_name             = conf['social_logic']['name']
             if sl_name == "TiaraBoom":
-                self.socialLogic = social_logic.SocialLogic(self)
+                self.socialLogic = social_logic.SocialLogic(self, conf["social_logic"])
             elif sl_name == "FollowBack":
                 self.socialLogic = social_logic.FollowBackLogic(self, conf["social_logic"])
             elif sl_name == "SocialBot":
@@ -95,6 +96,23 @@ class GlobalData:
         if res:
             return res
         return []
+
+    def EnglishWord(self, i):
+        return self.englishPos[i][0]
+
+    def NumEnglishWords(self):
+        return len(self.englishPos)
+
+    def LetterRange(self, a):
+        if a == 'z':
+            return BinarySearch(self.englishPos, 'z',True), self.NumEnglishWords()
+        elif a == 'Z':
+            return BinarySearch(self.englishPos, 'Z', True), BinarySearch(self.englishPos, 'a', True)
+        elif a.islower():
+            a_plus_1 = string.lowercase[ord(a)+1-ord('a')]
+        else:
+            a_plus_1 = string.uppercase[ord(a)+1-ord('A')]
+        return BinarySearch(self.englishPos, a, True), BinarySearch(self.englishPos, a_plus_1, True)
 
     def FamilyRepresentative(self, word):
         res = BinarySearch(self.englishFamilies,word.lower())

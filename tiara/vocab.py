@@ -7,17 +7,29 @@ class Vocab:
         self.dict = { }
         self.g_data = g_data
         self.used = []
+        self.found_alliteration = False
+        self.alliteration_count = 10
 
     def Add(self, tweet, addSimilar = False):
         words = re.split(r"[^a-zA-Z\'\-]", tweet)
+        result = 0
         for w in words:
             rep = self.g_data.FamilyRepresentative(w)
             if not rep is None and rep not in self.used:
                 if addSimilar:
-                    self.Add(self.g_data.Similar(rep))
+                    result += self.Add(self.g_data.Similar(rep))
                 else:
                     for word, part in self.g_data.FamilyLookup(rep):
-                        ListInsert(self.dict, part, word)
+                        if not self.found_alliteration or self.IsAlliteration(word):
+                            ListInsert(self.dict, part, word)
+                            result += 1
+        return result
+
+    def BeginAlliterationMode(self, letter):
+        self.found_alliteration = True
+        self.alliteration = letter[0].lower()
+        for k in self.dict.keys():
+            self.dict[k] = [w for w in self.dict[k] if self.IsAlliteration(w)]
 
     def Register(self, word):
         rep = self.g_data.FamilyRepresentative(word)
@@ -28,19 +40,42 @@ class Vocab:
             if part in self.dict:
                 self.dict[part] = filter(lambda v: v != w, self.dict[part])
         for coWord, pres in self.g_data.Cooccuring(rep):
-            for i in xrange(pres):
-                self.Add(coWord)
+            if not self.found_alliteration or self.IsAlliteration(coWord):
+                for i in xrange(pres):
+                    self.Add(coWord)
     
     def __getitem__(self, part):
         if part in ["(_Kvt)","(_Kvf)"]: # verber
-            return self.Verber(part[4])
-        if part in self.dict:
+            result = self.Verber(part[4])
+        elif part in self.dict:
             entries = self.dict[part]
             if len(entries) == 0:
-                return None
-            return random.choice(entries)
-        return None
+                result = None
+            else:
+                result = random.choice(entries)
+        else:
+            result = None
+        return result
 
+    def AddAlliterations(self, num):
+        self.alliteration_count -= 1
+        if self.alliteration_count == 0:
+            self.alliteration_count = 10
+            self.found_alliteration = False
+        if not self.found_alliteration:
+            return
+        word_start_range = self.g_data.LetterRange(self.alliteration)
+        word_start_cap_range = self.g_data.LetterRange(self.alliteration.upper())
+        word_start = random.randrange(*word_start_range)
+        word_start_cap = random.randrange(*word_start_cap_range)
+        for i in xrange(num):
+            ix = word_start+i if i%3 != 0 else word_start_cap+i
+            wsr = word_start_range if i%3 !=0 else word_start_cap_range
+            if not wsr[0] <= ix < wsr[1]:
+                continue
+            w = self.g_data.EnglishWord(word_start+i if i%3 != 0 else word_start_cap+i)
+            self.Add(w)
+            
 
     def Shuffled(self, part):
         if part in self.dict:
@@ -58,3 +93,5 @@ class Vocab:
                     return vr        
         return None
 
+    def IsAlliteration(self, word):
+        return word[0].lower() == self.alliteration

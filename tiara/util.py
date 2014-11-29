@@ -26,10 +26,12 @@ def log_assert(bool_, message, g_data):
 
 # does binary search in a sorted alist
 #
-def BinarySearch(l, key):  
+def BinarySearch(l, key, index = False):  
     hi = len(l)
     lo = 0
-    pos = bisect_left(l,(key,None),lo,hi)         
+    pos = bisect_left(l,(key,None),lo,hi)
+    if index:
+        return pos
     if pos != hi and l[pos][0] == key:
         return l[pos][1]
     if pos != 0 and l[pos-1][0] == key:

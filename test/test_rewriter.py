@@ -79,13 +79,13 @@ def TestCooccuring():
 def TestRewriter():
     InitializeGlobalData()
     tweet = g_data.ApiHandler().ShowStatus(516828410635489280)
-    print r.ChooseResponse(g_data, tweet=tweet)
+    print r.ChooseResponse(g_data, tweet=tweet, alliteration_mode = True)
 
 def RewriterRandom():
     InitializeGlobalData()
     tweets = r.RandomWordIterator(g_data)
     for i in xrange(2500):
         sentence = s.Sentence()
-        rw = r.Rewriter(tweets, sentence, False, g_data)
+        rw = r.Rewriter(tweets, sentence, False, g_data, alliteration_mode = True)
 #        print " ".join(sentence)
         print rw.Rewrite()
