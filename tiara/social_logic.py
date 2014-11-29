@@ -91,13 +91,13 @@ class SocialLogic:
 
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
-        self.ticker = []
-        self.ticker.append(StatsLogger(g_data,15))
-        self.ticker.append(LambdaTicker(g_data, 120, lambda: self.Follow(), "follow"))
-        self.ticker.append(LambdaTicker(g_data, 120, lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers = []
+        self.tickers.append(StatsLogger(g_data,15))
+        self.tickers.append(LambdaTicker(g_data, 120, lambda: self.Follow(), "follow"))
+        self.tickers.append(LambdaTicker(g_data, 120, lambda: self.BotherRandom(), "BotherRandom"))
         
     def SetMaxId(self, max_id):
-        log_assert(self.max_id.Get() <= max_id.Get(), "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
+        log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
         self.g_data.TraceInfo("Setting max_id to %d" % max_id)
         self.max_id.Set(max_id)
                  
