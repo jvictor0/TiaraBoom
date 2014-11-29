@@ -4,82 +4,7 @@ import random
 from util import *
 import json
 import persisted as p
-
-class Ticker(object):
-    def __init__(self, tix):
-        self.time = 0
-        self.last_time = time.time()
-        self.limit = tix * 60
-        self.avg_limit = tix * 60
-
-    def Tick(self):
-        t = time.time()
-        self.time += (t - self.last_time)
-        self.last_time = t
-        while self.time > self.limit:
-            self.Tock()
-            self.time -= self.limit
-
-    def Tock(self):
-        pass
-
-class VerboseExpTicker(object):
-    def __init__(self, g_data, tix, name='action'):
-        self.time = 0
-        self.last_time = time.time()
-        self.avg_limit = tix * 60
-        self.g_data = g_data
-        self.name = name
-        self.limit = random.expovariate(1.0/self.avg_limit)
-        self.g_data.TraceInfo("Startup! %f minutes until first %s." % (self.limit/60, name))
-
-    def Tick(self):
-        t = time.time()
-        self.time += (t - self.last_time)
-        self.last_time = t
-        while self.time > self.limit:
-            self.Tock()
-            self.time -= self.limit
-            self.limit = random.expovariate(1.0/self.avg_limit)
-            self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
-            return
-
-
-    def Tock(self):
-        pass
-
-class LambdaTicker(VerboseExpTicker):
-    def __init__(self, g_data, tix, fun, name='action'):
-        super(LambdaTicker,self).__init__(g_data, tix, name),
-        self.fun = fun
-
-    def Tock(self):
-        self.fun()
-
-class LambdaStraightTicker(Ticker):
-    def __init__(self, tix, fun):
-        super(LambdaStraightTicker,self).__init__(tix),
-        self.fun = fun
-
-    def Tock(self):
-        self.fun()
-
-
-class StatsLogger(Ticker):
-    def __init__(self, g_data, tix):
-        super(StatsLogger,self).__init__(tix)
-        self.g_data = g_data
-        self.logger = logging.getLogger('Status')
-        self.logger.setLevel(logging.DEBUG)
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        handler = logging.FileHandler(abs_prefix + "/status_log")
-        handler.setFormatter(logging.Formatter('%(asctime)s: %(message)s', "%Y-%m-%d %H:%M:%S"))
-        self.logger.addHandler(handler)
-
-    def Tock(self):
-        me = self.g_data.ApiHandler().ShowUser(self.g_data.myName)
-        if me is not None:
-            self.logger.info("%d %d" % (me.GetFriendsCount(), me.GetFollowersCount()))
+import ticker as t
 
 class SocialLogic:
     def __init__(self, g_data, args):
@@ -92,9 +17,9 @@ class SocialLogic:
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
         self.tickers = []
-        self.tickers.append(StatsLogger(g_data,15))
-        self.tickers.append(LambdaTicker(g_data, 120, lambda: self.Follow(), "follow"))
-        self.tickers.append(LambdaTicker(g_data, 120, lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers.append(t.StatsLogger(g_data,15))
+        self.tickers.append(t.LambdaTicker(g_data, 120, lambda: self.Follow(), "follow"))
+        self.tickers.append(t.LambdaTicker(g_data, 120, lambda: self.BotherRandom(), "BotherRandom"))
         
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -107,9 +32,22 @@ class SocialLogic:
             # warning already in log, no need to warn again
             return None
         for t in tweets[-1::-1]:
+            if self.SignalsStop(t):
+                self.SetMaxId(t.GetId())
+                self.g_data.ApiHandler().UnFollow(user_id=t.GetUser().GetId())
+                continue
             if self.ReplyTo(t):
                 self.SetMaxId(t.GetId())
         return True
+
+    def SignalsStop(self, t):
+        for w in ["stop",
+                  "bye",
+                  "go away"]:
+            if w in t.GetText().lower():
+                self.g_data.TraceWarn("Not responding to %d, contains '%s'" % (t.GetId(), w))
+                return True
+        return False
 
     def ReplyTo(self, tweet):
         self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
@@ -234,123 +172,3 @@ class SocialLogic:
         for t in self.tickers:
             t.Tick()
     
-
-AVERAGE_MINUTES_TO_FOLLOW_BACK = 60
-
-class FollowBacker(VerboseExpTicker):
-    def __init__(self, g_data, tix):
-        super(FollowBacker,self).__init__(g_data,tix)
-        self.g_data = g_data
-        
-    def Tock(self):
-        random.choice([lambda: self.g_data.SocialLogic().FollowBack(),
-                       lambda: self.g_data.SocialLogic().FindFollowBacker()])()
-        
-
-class UserSnooper(Ticker):
-    def __init__(self, g_data, hash_bucket):
-        super(UserSnooper,self).__init__(16)
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        self.targets = []
-        self.g_data = g_data
-        with open(abs_prefix + "/targets","r") as f:
-            for line in f:
-                uid = int(line)
-                if uid % 15 == hash_bucket:
-                    self.targets.append(uid)
-        with open(abs_prefix + "/targets_data","r") as f:
-            for line in f:
-                uid = int(line.split()[0])
-                assert self.targets[-1] == uid
-                print "pop " + str(uid)
-                self.targets.pop()
-
-    def Tock(self):
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + "/targets_data","a") as f:
-            for i in xrange(min(90,len(self.targets))):
-                uid = self.targets.pop()
-                data = self.g_data.ApiHandler().ShowStatuses(user_id = uid)
-                if data is None:
-                    f.write("%d []\n" % uid)
-                else:
-                    f.write("%d %s\n" % (uid,json.dumps([s.AsDict() for s in data])))
-            
-        
-
-class FollowBackLogic:
-    def __init__(self, g_data, config):
-        self.g_data = g_data
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        self.friends = []
-#        with open(abs_prefix + "/friendbots","r") as f:
-#            for line in f:
-#                self.friends.append(line.strip().split())
-#        assert len(self.friends) == 15
-        self.hash_bucket = int(config["hash_bucket"])
-        self.pem  = abs_prefix + "/" + config["pem"]
-
-        self.statsLogger  = StatsLogger (g_data, 15)
-        self.snooper      = UserSnooper (g_data, self.hash_bucket)
-        
-
-    def Act(self):
-        self.statsLogger.Tick()
-        self.snooper.Tick()
-
-    def Hashes(self, i):
-        #return list(set([i*13 % 15, i * 17 % 15, i * 19 % 15]))
-        return [self.hash_bucket]
-
-    def FindFollowBacker(self):
-        tweets = self.g_data.ApiHandler().Search("lang:en " + random.choice(["#follow",
-                                                                             "#followback",
-                                                                             "#followtrain",
-                                                                             "#anotherfollowtrain",
-                                                                             "#teamfollowback",
-                                                                             "#tfb",
-                                                                             "#mgwv"]))
-        if tweets is None or len(tweets) == 0:
-            return
-        tweet = random.choice(tweets)
-        self.Follow(tweet.GetUser())
-        for u in tweet.user_mentions:
-            if random.choice([True,False]):
-                self.Follow(u)
-        
-
-    def Follow(self, f):
-        uid = f.GetId()
-        for h in self.Hashes(uid):
-            if h == self.hash_bucket:
-                if self.g_data.ApiHandler().Follow(screen_name=f.GetScreenName()) is None:
-                    return False
-                return True
-            else:
-                try:
-                    QueryFriendBot("follow @%s" % f.GetSceenName(),
-                                   self.friends[h][1],
-                                   self.g_data.password,
-                                   pem=self.pem)
-                except Exception as e:
-                    self.g_data.TraceWarn(str(e))
-                    return False
-        return True
-
-    def FollowBack(self):
-        followers = self.g_data.ApiHandler().GetFollowers(screen_name=self.g_data.myName)
-        if followers is None:
-            followers = []
-        found = False
-        for f in followers[:min(len(followers),4)]:
-            if not self.Follow(f):
-                break
-            found = True
-        if not found:
-            self.FindFollowBacker()
-
-    def RandomFriendID(self, name):
-        result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=name)
-        if result is None or result == []:
-            return None
-        return random.choice(result)

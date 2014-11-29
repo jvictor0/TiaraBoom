@@ -123,6 +123,13 @@ class ApiHandler():
             return False
         return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id), cache=False)
 
+    def UnFollow(self, screen_name=None, user_id=None):
+        if self.g_data.read_only_mode:
+            self.g_data.TraceWarn("UnFollow in Read-Only-Mode: \"@%s\"" % screen_name)
+            return False
+        return self.ApiCall("UnFollow",NotNone(user_id,screen_name),lambda: self.api.DestroyFriendship(screen_name=screen_name,user_id=user_id), cache=False)
+
+
     def GetFollowerIDsPagedInternal(self, user_id, screen_name, cursor):
         url = '%s/followers/ids.json' % self.api.base_url
         parameters = {}
