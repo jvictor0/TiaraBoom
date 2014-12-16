@@ -22,8 +22,8 @@ class SocialLogic:
         self.bestNewFriendScore = 0
         self.tickers = []
         self.tickers.append(t.StatsLogger(g_data,15))
-        self.tickers.append(t.LambdaTicker(g_data, 120, lambda: self.Follow(), "follow"))
-        self.tickers.append(t.LambdaTicker(g_data, 120, lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.Follow(), "follow"))
+        self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.BotherRandom(), "BotherRandom"))
         self.tickers.append(t.LambdaStraightTicker(60, lambda: self.PurgeBadFriends()))
         self.tickers.append(t.LambdaStraightTicker(15, lambda: self.StalkTwitter()))
         
@@ -186,7 +186,7 @@ class SocialLogic:
         
     def TweetFrom(self, user):
         self.g_data.TraceInfo("Tweeting from @%s" % user.GetScreenName())
-        response = r.ChooseResponse(self.g_data, user=user)
+        response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.alliteration_mode)
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response)
             if not result is None:
