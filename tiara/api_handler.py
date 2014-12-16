@@ -49,13 +49,15 @@ class ApiHandler():
         return self.ApiCall("ShowUser", screen_name, lambda: self.api.GetUser(screen_name=screen_name), cache=False)
 
     def Tweet(self, status, in_reply_to_status=None):
+        if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
+            self.g_data.TraceWarn("Attempt to respond to self is a bad idea, posting general tweet")
+            in_reply_to_status = None
+            if status[:len(self.g_data.myName)+3] == ("@%s: " % self.g_data.myName):
+                status = status[len(self.g_data.myName)+3:]
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Tweet in Read-Only-Mode: \"%s\"" % status)
             return False
         irtsi = in_reply_to_status.GetId() if not in_reply_to_status is None else None
-        if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
-            self.g_data.TraceWarn("Attempt to respond to self is a bad idea, posting general tweet")
-            in_reply_to_status = None
         result = self.ApiCall("Tweet", status,
                               lambda: self.api.PostUpdate(status, in_reply_to_status_id=irtsi),
                               cache=False)
