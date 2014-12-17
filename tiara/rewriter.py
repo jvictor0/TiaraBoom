@@ -3,17 +3,20 @@ import random
 import twitter
 from sentence_gen import Sentence
 
-def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mode=False):
+def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mode=False, seed=None):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
     if not user is None and user.GetProtected():
         return None
-    inReply = user is None
-    tweets = TweetsIterator(g_data, original=tweet, user=user)
+    inReply = not tweet is None
+    if seed is None:
+        tweets = TweetsIterator(g_data, original=tweet, user=user)
+    else:
+        tweets = RandomWordIterator(g_data, seed)
     for i in xrange(attempts):
         tweets.Reset()
         sentence = Sentence()
         g_data.TraceInfo("Rewriting sentence \"%s\"" % " ".join(sentence))
-        rw = Rewriter(tweets, sentence, inReply, g_data, alliteration_mode = alliteration_mode)
+        rw = Rewriter(tweets, sentence, inReply and seed is None, g_data, alliteration_mode = alliteration_mode)
         result = rw.Rewrite()
         if result and inReply:
             result = '@' + tweet.GetUser().GetScreenName() + ": " + result
@@ -26,13 +29,16 @@ def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mo
     return None
 
 class RandomWordIterator:
-    def __init__(self, g_data):
+    def __init__(self, g_data, seed = None):
         self.g_data = g_data
+        self.seed = seed
 
     def Next(self, ignore):
         result = twitter.Status()
-        result.SetText(self.g_data.RandomEnglishWord())
+        result.SetText(self.g_data.RandomEnglishWord() if self.seed is None else self.seed)
         result.SetUser(twitter.User())
+        self.seed = None
+        print result.GetText()
         return result
 
     def Reset(self):

@@ -47,6 +47,8 @@ class GlobalData:
             conf = json.load(f)
             self.password       = conf['password']
             self.myName         = conf['twitter_name']
+            self.host           = conf['host'] if 'host' in conf else 'localhost'
+            self.port           = conf['port'] if 'port' in conf else 10001
             self.authentication = conf["authentication"]
             self.apiHandler = api_handler.ApiHandler(self)
             self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False

@@ -67,3 +67,4 @@ data/friendbots
 data/targets
 data/targets_data
 save.*
+client/config.json
