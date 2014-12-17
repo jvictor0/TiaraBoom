@@ -5,13 +5,13 @@ import time
 
 class Client():
     def __init__(self):
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../client")
         with open(abs_prefix + '/config.json','r') as f:
             conf = json.load(f)
             self.port = conf["port"]
             self.host = conf["host"]
+            print (self.host,self.port)
             self.password = conf["password"]
-            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock = socket.socket()
         self.sock.connect((self.host, self.port))
         self.sock.send(self.password)
@@ -20,7 +20,7 @@ class Client():
     def Send(self, msg):
         self.sock.send(msg)
         if msg == "quit":
-            self.sock.Close()
+            self.Close()
             return False
         data = self.sock.recv(1024)
         print data
