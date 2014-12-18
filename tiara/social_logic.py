@@ -179,8 +179,7 @@ class SocialLogic:
             return None
         for t in tweets:
             if self.BotherAppropriate(t):
-                self.ReplyTo(t)
-                return True
+                return self.ReplyTo(t)
         self.g_data.TraceWarn("No tweet by @%s was found botherable!" % tweets[0].GetUser().GetScreenName())
         return None
         

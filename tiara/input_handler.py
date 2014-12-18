@@ -8,13 +8,15 @@ class InputHandler:
 
     def Apply(self, g_data, args):
         ret = self.func(g_data, args)
-        if isinstance(ret, bool):
+        if ret is None:
+            return "error"
+        isinstance(ret, bool):
             if ret:
                 return "ok"
             return "error"
-        if ret is None:
-            return "error"
-        return ret
+        if not isinstance(ret, str):
+            return ret
+        return "ok"
 
 
 def HandleSearchReply(g_data, input):
