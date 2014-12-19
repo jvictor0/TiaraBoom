@@ -1,6 +1,8 @@
 import rewriter as r
 import twitter
 import random
+from util import *
+
 
 class InputHandler:
     def __init__(self, name, func, help):
@@ -16,19 +18,19 @@ class InputHandler:
             if ret:
                 return "ok"
             return "error"
-        if isinstance(ret, str):
+        if isinstance(ret, basestring):
             return ret
         return "ok"
 
 def HandleSearchReply(g_data, input):
     term = ' '.join(input)
-    tweets = g_data.ApiHandler().Search(term)
+    tweets = [t for t in g_data.ApiHandler().Search(term) if g_data.SocialLogic().BotherAppropriate(t)]
     if not tweets is None and len(tweets) > 0:
         tweet = random.choice(tweets)
         result = g_data.SocialLogic().ReplyTo(tweet)
         if not result is None:
-            return result.GetURL()
-        return "error replying to tweet: %s" % tweet.GetURL()
+            return GetURL(result)
+        return "error replying to tweet: %s" % GetURL(tweet)
     if tweets is None:
         return "error searching for term"
     return "no tweets found matching search term"
@@ -38,6 +40,10 @@ def HandleReply(g_data, input):
         return "reply takes 1 argument"
     arg = input[0]
     if arg[0] == '@':
+        result = g_data.SocialLogic().Bother(arg[1:])
+        if result is None:
+            return "error in bothering %s" % arg
+        return GetURL(result)
     try:
         tid = int(arg)
     except Exception as e:
@@ -47,8 +53,8 @@ def HandleReply(g_data, input):
         return "could not find tweet %s" % input[0]
     result = g_data.SocialLogic().ReplyTo(tweet)
     if result is None:
-        return "error responding to tweet at %s" % tweet.GetURL()
-    return result.GetURL()
+        return "error responding to tweet at %s" % GetURL(tweet)
+    return GetURL(result)
 
 def HandleTweet(g_data, input):
     flags = [t for t in input if len(t) >= 2 and t[:2] == "--"]
@@ -68,14 +74,15 @@ def HandleTweet(g_data, input):
         to_user = g_data.ApiHandler().ShowUser(to)
         if to_user is None:
             return "cannot find user @%s" % to
-        response_seed = Twitter.Status()
+        response_seed = twitter.Status()
         response_seed.SetText(input)
         response_seed.SetUser(to_user)
         seed = None
     tweet = r.ChooseResponse(g_data, seed = input, tweet=response_seed, alliteration_mode = allit)
     result = g_data.ApiHandler().Tweet(tweet)
     if not result is None:
-        return result.GetURL()
+        print "returning GetURL(result)"
+        return GetURL(result)
     return "error sending tweet"
 
 def HandleUserInput(g_data, input):

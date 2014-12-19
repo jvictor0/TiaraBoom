@@ -102,3 +102,6 @@ def FormatResponse(tweet,response):
 def Const(x):
     return lambda g_data, args: x
 ConstTrue = Const(True)
+
+def GetURL(status):
+    return "https://twitter.com/%s/status/%d" % (status.GetUser().GetScreenName(), status.GetId())
