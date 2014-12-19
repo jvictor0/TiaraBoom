@@ -12,11 +12,11 @@ class InputHandler:
         ret = self.func(g_data, args)
         if ret is None:
             return "error"
-        isinstance(ret, bool):
+        if isinstance(ret, bool):
             if ret:
                 return "ok"
             return "error"
-        if not isinstance(ret, str):
+        if isinstance(ret, str):
             return ret
         return "ok"
 
@@ -38,11 +38,11 @@ def HandleReply(g_data, input):
         return "reply takes 1 argument"
     arg = input[0]
     if arg[0] == '@':
-        result = g_data.SocialLogic().Bother(arg[1:])
-        if result is None:
-            return "error in bothering %s" % arg
-        return result.GetURL()
-    tweet = g_data.ApiHandler().ShowStatus(int(inp[1]))
+    try:
+        tid = int(arg)
+    except Exception as e:
+        return "please use either @username or numerical tweet_id"
+    tweet = g_data.ApiHandler().ShowStatus(tid)
     if tweet == None:
         return "could not find tweet %s" % input[0]
     result = g_data.SocialLogic().ReplyTo(tweet)
