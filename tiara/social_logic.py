@@ -65,7 +65,7 @@ class SocialLogic:
             if not result is None:
                 if not tweet.GetUser().GetScreenName() in self.tweeted_at:
                     self.tweeted_at.Append(tweet.GetUser().GetScreenName())
-                return True
+                return result
         self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
         return None
 
@@ -189,7 +189,7 @@ class SocialLogic:
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response)
             if not result is None:
-                return True
+                return result
         self.g_data.TraceWarn("Failed to tweet from @%s" % user.GetScreenName())
         return None
 
