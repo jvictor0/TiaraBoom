@@ -54,8 +54,8 @@ if __name__ == '__main__':
             else:
                 data = s.recv(1024)
                 data = data.strip()
-                if data and data != "quit":
-                    g_data.TraceInfo('received "%s" from %s' % (data, s.getpeername()))
+                g_data.TraceInfo('received "%s" from %s' % (data, s.getpeername()))
+                if data and not data in ["quit","_upgrade"]:
                     if message_queues[s][1]:
                         message_queues[s][0].put(HandleUserInput(g_data, data))
                     else:
@@ -68,13 +68,23 @@ if __name__ == '__main__':
                             g_data.TraceInfo('%s:%s failed the password' % s.getpeername())
                     if s not in outputs:
                         outputs.append(s)
-                else:
-                    g_data.TraceInfo('closing %s:%s' % s.getpeername())
+                elif data == "quit":
+                    try:
+                        g_data.TraceInfo('closing %s:%s' % s.getpeername())
+                    except Exception as e:
+                        g_data.TraceInfo("closing, cant get peer name")
                     if s in outputs:
                         outputs.remove(s)
                     inputs.remove(s)
                     s.close()                        
                     del message_queues[s]
+                elif data == "_upgrade":
+                    s.close()
+                    server.close()
+                    os.system("git pull --rebase origin master")
+                    os.execl(sys.executable, sys.executable, * sys.argv)
+                else:
+                    assert False
         for s in writable:
             if s in exceptional:
                 continue
@@ -85,10 +95,13 @@ if __name__ == '__main__':
                 if s in outputs:
                     outputs.remove(s)
             else:
-                g_data.TraceInfo('sending "%s" to %s' % (next_msg, s.getpeername()))
+                g_data.TraceInfo('sending "%s" to %s' % (next_msg[:min(50,len(next_msg))], s.getpeername()))
                 s.send(next_msg)
         for s in exceptional:
-            g_data.TraceInfo('closing %s:%s' % s.getpeername())
+            try:
+                g_data.TraceInfo('closing %s:%s' % s.getpeername())
+            except Exception as e:
+                g_data.TraceInfo("closing, cant get peer name")
             inputs.remove(s)
             if s in outputs:
                 outputs.remove(s)

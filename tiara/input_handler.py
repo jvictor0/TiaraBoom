@@ -35,6 +35,15 @@ def HandleSearchReply(g_data, input):
         return "error searching for term"
     return "no tweets found matching search term"
 
+def HandleSearch(g_data, input):
+    term = ' '.join(input)
+    tweets = [t for t in g_data.ApiHandler().Search(term)]
+    if not tweets is None and len(tweets) > 0:
+        return "\n".join(["%s: Repliable = %s" % (GetURL(t),g_data.SocialLogic().BotherAppropriate(t)) for t in tweets])
+    if tweets is None:
+        return "error searching for term"
+    return "no tweets found matching search term"
+
 def HandleReply(g_data, input):
     if len(input) != 1 or len(input[0]) == 0:
         return "reply takes 1 argument"
@@ -106,5 +115,6 @@ input_handlers = [
                  "'tweet word ...' sends a tweet attempting to use words specified.  For instance 'tweet apple penis' will form a tweet using the words apple and/or penis.  Requires real english words, spelled correctly.\n  flags: --alliteration-mode\n         --to=@<username>"),
     InputHandler("follow", lambda g_data, x: "syntax error" if len(x) != 1 or len(x[0]) == 0 or x[0][0] != '@' else g_data.ApiHandler().Follow(x[0][1:]),
                  "'follow @username' follows username"),
+        InputHandler('search', HandleSearch, "search for tweets based on the twitter search api, but don't reply to it.\n  Example: 'search_reply #poop' finds a tweets containing #poop."),
     InputHandler('search_reply', HandleSearchReply, "search for a tweet based on the twitter search api, reply to it.\n  Example: 'search_reply #poop' finds a tweet containing #poop and replies to it.")
     ]
