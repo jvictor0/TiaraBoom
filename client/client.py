@@ -24,8 +24,7 @@ class Client(cmd.Cmd):
 
     def Send(self, msg):
         self.sock.send(msg)
-        if msg == "quit":
-            self.Close()
+        if msg in ["quit","_kill","_upgrade"]:
             return False
         data = self.sock.recv(4096)
         while True:
@@ -41,9 +40,7 @@ class Client(cmd.Cmd):
     prompt = "boom> "
 
     def default(self, line):
-        self.Send(line)
-        if line in ["_upgrade","_kill"]:
-            return True
+        return not self.Send(line)
 
     def do_help(self, line):
         self.default("help " + line)
@@ -52,6 +49,7 @@ class Client(cmd.Cmd):
         return True
 
     def do_quit(self, line):
+        self.Send("quit")
         return True
 
     def emptyline(self):
