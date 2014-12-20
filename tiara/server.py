@@ -68,7 +68,7 @@ if __name__ == '__main__':
                             g_data.TraceInfo('%s:%s failed the password' % s.getpeername())
                     if s not in outputs:
                         outputs.append(s)
-                elif data == "quit":
+                elif not data or data == "quit":
                     try:
                         g_data.TraceInfo('closing %s:%s' % s.getpeername())
                     except Exception as e:
@@ -84,6 +84,7 @@ if __name__ == '__main__':
                     os.system("git pull --rebase origin master")
                     os.execl(sys.executable, sys.executable, * sys.argv)
                 else:
+                    assert data == "_kill"
                     s.close()
                     server.close()
                     g_data.TraceInfo("Recieved _kill, going down NOW")
