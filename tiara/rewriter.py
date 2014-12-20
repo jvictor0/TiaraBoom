@@ -32,17 +32,17 @@ class RandomWordIterator:
     def __init__(self, g_data, seed = None):
         self.g_data = g_data
         self.seed = seed
+        self.orig_seed = seed
 
     def Next(self, ignore):
         result = twitter.Status()
         result.SetText(self.g_data.RandomEnglishWord() if self.seed is None else self.seed)
         result.SetUser(twitter.User())
         self.seed = None
-        print result.GetText()
         return result
 
     def Reset(self):
-        pass
+        self.seed = self.orig_seed
 
 class TweetsIterator:
     def __init__(self, g_data, original = None, user=None):

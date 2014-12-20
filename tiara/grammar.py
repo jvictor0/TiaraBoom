@@ -315,7 +315,7 @@ def _indep_clause_pl(p,t):
     if t == "command_pos" or t == "command_neg":
         return _command(p)
     if t == "being_cond":
-        return _being_clause_conditional(p)
+        return _being_clause_conditional(p), t
     return RandomFilteredChoice([(True,lambda: _indep_clause_pl_intrans_3(p,t),2),
                                  (True,lambda: _indep_clause_pl_trans_3(p,t),3),
                                  (True,lambda: _indep_clause_pl_intrans_ego_3(p,t),2),
@@ -832,7 +832,8 @@ def _sentence_compound():
     pre, conj, post, tn2 = _conjunction(tn)
     if tn2 is None:
         tn2 = RandomChoice([(None,3),([tn],1)])
-    return phrase([pre, fst, conj, _indep_clause(tn2)[0], post])
+    snd, tn3 = _indep_clause(tn2)
+    return phrase([pre, fst, conj, snd, post])
 
 # the dog eats                    the dog ate              the dog will eat
 # the dog is eating               the was eating           the dog will be eating
@@ -882,8 +883,8 @@ def _conjunction(t):
          (_nil,random.choice([["now","that"],"if","unless",
                               [_comma,"so","that"],[_comma,"as","long","as"],[_comma,"as","soon","as"]]),_nil,
           _polarize(["pres_cont","pres"])),4),
-
-        (ts in ["command","futr","futr_cont","pres_cont"],(_nil,[_comma,_negatory_conjunction()],_nil,"being_cond"),6)
+        (ts in ["command","futr","futr_cont","pres_cont"],
+         (_nil,[_comma,_negatory_conjunction()],_nil,"being_cond"),6)
         
         ])
 
