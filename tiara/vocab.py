@@ -10,10 +10,21 @@ class Vocab:
         self.found_alliteration = False
         self.alliteration_count = 10
 
+    def DeHashtagify(self, word):
+        result = []
+        for start in xrange(1, len(word)):
+            for end in xrange(start, len(word)):
+                if self.g_data.IsWord(word[start:end])
+                result.append(word)
+        return result
+
     def Add(self, tweet, addSimilar = False):
-        words = re.split(r"[^a-zA-Z\'\-]", tweet)
+        words = re.split(r"[^a-zA-Z\'\-#]", tweet)
         result = 0
         for w in words:
+            if w[0] == '#':
+                Add(' '.join(self.DeHashtagify(w)))
+                continue
             rep = self.g_data.FamilyRepresentative(w)
             if not rep is None and rep not in self.used:
                 if addSimilar:

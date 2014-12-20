@@ -116,6 +116,9 @@ class GlobalData:
             a_plus_1 = string.uppercase[ord(a)+1-ord('A')]
         return BinarySearch(self.englishPos, a, True), BinarySearch(self.englishPos, a_plus_1, True)
 
+    def IsWord(self, word):
+        return not self.FamilyRepresentative(word) is None
+
     def FamilyRepresentative(self, word):
         res = BinarySearch(self.englishFamilies,word.lower())
         if res:

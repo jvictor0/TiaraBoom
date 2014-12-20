@@ -157,6 +157,6 @@ class Rewriter:
 
 def Finalize(sentence):
     for i in xrange(len(sentence)-1):
-        if sentence[i] == "a" and sentence[i+1][0] in ['a','e','i','o']:
-            sentence[i] = "an"
+        if sentence[i].lower() == "a" and sentence[i+1][0].lower() in ['a','e','i','o']:
+            sentence[i] = sentence[i] + "n"
     return " ".join(sentence).replace(" ,",",").replace(" .",".").replace(" !","!").replace(" ?","?").replace(" ;",";").replace(" - ","-").strip()
