@@ -42,7 +42,7 @@ class Client(cmd.Cmd):
 
     def default(self, line):
         self.Send(line)
-        if line == "_upgrade":
+        if line in ["_upgrade","_kill"]:
             return True
 
     def do_help(self, line):

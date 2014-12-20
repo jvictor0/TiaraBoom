@@ -55,7 +55,7 @@ if __name__ == '__main__':
                 data = s.recv(1024)
                 data = data.strip()
                 g_data.TraceInfo('received "%s" from %s' % (data, s.getpeername()))
-                if data and not data in ["quit","_upgrade"]:
+                if data and not data in ["quit","_upgrade","_kill"]:
                     if message_queues[s][1]:
                         message_queues[s][0].put(HandleUserInput(g_data, data))
                     else:
@@ -84,6 +84,9 @@ if __name__ == '__main__':
                     os.system("git pull --rebase origin master")
                     os.execl(sys.executable, sys.executable, * sys.argv)
                 else:
+                    s.close()
+                    server.close()
+                    g_data.TraceInfo("Recieved _kill, going down NOW")
                     assert False
         for s in writable:
             if s in exceptional:
