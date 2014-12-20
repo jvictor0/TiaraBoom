@@ -112,8 +112,7 @@ class ApiHandler():
                                                   count=count,
                                                   result_type="recent",
                                                   include_entities=False,
-                                                  since_id=max_id,
-                                                  lang="en"),
+                                                  since_id=max_id),
                             cache=False)
 
     def Search(self, term, count=100, result_type="recent"):
