@@ -24,7 +24,7 @@ class SocialLogic:
         self.tickers.append(t.StatsLogger(g_data,15))
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.Follow(), "follow"))
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.BotherRandom(), "BotherRandom"))
-        self.tickers.append(t.LambdaStraightTicker(60, lambda: self.PurgeBadFriends()))
+#        self.tickers.append(t.LambdaStraightTicker(60, lambda: self.PurgeBadFriends()))
         self.tickers.append(t.LambdaStraightTicker(15, lambda: self.StalkTwitter()))
         
     def SetMaxId(self, max_id):
