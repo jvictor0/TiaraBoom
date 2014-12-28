@@ -200,7 +200,7 @@ class SocialLogic:
             return False
         if len(tweet.media) != 0:
             return False
-        if len(tweet.user_mentions) == 0:
+        if len(tweet.user_mentions) != 0:
             return False
         if not tweet.GetRetweeted_status() is None:
             return False
