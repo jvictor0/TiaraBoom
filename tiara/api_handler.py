@@ -56,7 +56,7 @@ class ApiHandler():
                 status = status[len(self.g_data.myName)+3:]
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Tweet in Read-Only-Mode: \"%s\"" % status)
-            return False
+            return None
         irtsi = in_reply_to_status.GetId() if not in_reply_to_status is None else None
         result = self.ApiCall("Tweet", status,
                               lambda: self.api.PostUpdate(status, in_reply_to_status_id=irtsi),
@@ -111,7 +111,7 @@ class ApiHandler():
                             lambda: self.api.GetSearch(term="to:%s" % self.g_data.myName,
                                                   count=count,
                                                   result_type="recent",
-                                                  include_entities=False,
+                                                  include_entities=True,
                                                   since_id=max_id),
                             cache=False)
 
@@ -121,13 +121,13 @@ class ApiHandler():
     def Follow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
-            return False
+            return None
         return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id), cache=False)
 
     def UnFollow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("UnFollow in Read-Only-Mode: \"@%s\"" % screen_name)
-            return False
+            return None
         return self.ApiCall("UnFollow",NotNone(user_id,screen_name),lambda: self.api.DestroyFriendship(screen_name=screen_name,user_id=user_id), cache=False)
 
 

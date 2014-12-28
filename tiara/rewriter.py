@@ -2,6 +2,8 @@ import vocab as v
 import random
 import twitter
 from sentence_gen import Sentence
+import urllib2
+import html2text
 
 def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mode=False, seed=None):
     assert user is None or tweet is None, "cannot ChooseResponse to both user_name and tweet"
@@ -113,10 +115,17 @@ class Rewriter:
     def AddVocab(self):
         tweet = self.tweets.Next(self.progressEver)
         if tweet:
-            added = self.vocab.Add(tweet.GetText(), 
+            text = tweet.GetText()
+            for u in tweet.urls:
+                try:
+                    html = urllib2.urlopen(u.expanded_url, timeout = 5).read()
+                    text = text + " " + html2text.html2text(html.decode('utf-8', 'ignore'))
+                except Exception as e:
+                    self.g_data.TraceWarn("Unable to fetch url %s (%s)" % (u.expanded_url,e))
+            added = self.vocab.Add(text, 
                                    addSimilar = self.vocab.found_alliteration or tweet.GetUser().GetScreenName() == self.g_data.myName)
             if added == 0 and self.vocab.found_alliteration:
-                self.vocab.AddAlliterations(10)
+                self.vocab.AddAlliterations(30)
             return True
         return False
 

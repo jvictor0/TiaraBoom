@@ -42,7 +42,7 @@ class SocialLogic:
                 self.SetMaxId(t.GetId())
                 self.g_data.ApiHandler().UnFollow(user_id=t.GetUser().GetId())
                 continue
-            if self.ReplyTo(t):
+            if self.ReplyTo(t) or self.g_data.read_only_mode:
                 if not t.GetUser().GetScreenName() in self.responded:
                     self.responded.Append(t.GetUser().GetScreenName())
                 self.SetMaxId(t.GetId())
@@ -198,9 +198,11 @@ class SocialLogic:
             return False
         if len(tweet.hashtags) > 2:
             return False
-        if len(tweet.media) != 0 or len(tweet.urls) != 0:
+        if len(tweet.media) != 0:
             return False
-        if not tweet.GetInReplyToStatusId() is None or not tweet.GetRetweeted_status() is None:
+        if len(tweet.user_mentions) == 0:
+            return False
+        if not tweet.GetRetweeted_status() is None:
             return False
         return True
 
