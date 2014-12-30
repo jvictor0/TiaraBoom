@@ -40,6 +40,7 @@ class RandomWordIterator:
         result = twitter.Status()
         result.SetText(self.g_data.RandomEnglishWord() if self.seed is None else self.seed)
         result.SetUser(twitter.User())
+        result.urls = []
         self.seed = None
         return result
 
