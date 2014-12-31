@@ -7,6 +7,8 @@ import socket
 import Queue
 import os
 from input_handler import HandleUserInput
+import random
+import hashlib
 
 
 if __name__ == '__main__':
@@ -54,12 +56,19 @@ if __name__ == '__main__':
             else:
                 data = s.recv(1024)
                 data = data.strip()
-                g_data.TraceInfo('received "%s" from %s' % (data, s.getpeername()))
                 if data and not data in ["quit","_upgrade","_kill"]:
                     if message_queues[s][1]:
+                        g_data.TraceInfo('received "%s" from %s' % (data, s.getpeername()))
                         message_queues[s][0].put(HandleUserInput(g_data, data))
+                    elif len(message_queues[s]) == 2:
+                        if data == "hi":
+                            g_data.TraceDebug("received hi message")
+                            message_queues[s] = (message_queues[s][0], False, random.randrange(0,2**32))
+                            message_queues[s][0].put(str(message_queues[s][2]))
                     else:
-                        if data == server_password:
+                        h = hashlib.sha256(str(message_queues[s][2]))
+                        h.update(server_password)
+                        if data == h.hexdigest():
                             message_queues[s] = (message_queues[s][0],True)
                             message_queues[s][0].put("welcome")
                             g_data.TraceInfo('%s:%s entered the password' % s.getpeername())
