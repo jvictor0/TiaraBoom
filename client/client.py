@@ -5,6 +5,7 @@ import time
 import sys
 import select
 import cmd
+import hashlib
 
 class Client(cmd.Cmd):
     def preloop(self):
@@ -18,7 +19,12 @@ class Client(cmd.Cmd):
             self.password = conf["password"]
         self.sock = socket.socket()
         self.sock.connect((self.host, self.port))
-        self.sock.send(self.password)
+        self.sock.send("hi")
+        pad = self.sock.recv(1024)
+        h = hashlib.sha256(pad)
+        h.update(self.password)
+        passwrd = h.hexdigest()
+        self.sock.send(passwrd)
         assert self.sock.recv(1024) == "welcome"
         print "connected"
 
