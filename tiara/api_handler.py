@@ -5,13 +5,14 @@ from util import *
 CACHE_SIZE = 25
 
 class ApiHandler():
-    def __init__(self, g_data):
+    def __init__(self, g_data, authentication):
         self.g_data = g_data
         self.cache = {}
-        self.api = twitter.Api(consumer_key=g_data.authentication["consumer_key"],
-                               consumer_secret=g_data.authentication["consumer_secret"], 
-                               access_token_key=g_data.authentication["access_token_key"], 
-                               access_token_secret=g_data.authentication["access_token_secret"]) 
+        self.api = twitter.Api(consumer_key=authentication["consumer_key"],
+                               consumer_secret=authentication["consumer_secret"], 
+                               access_token_key=authentication["access_token_key"], 
+                               access_token_secret=authentication["access_token_secret"]) 
+        self.errno = 0
             
     def CacheInsert(self, key, value, old_value=None):
         self.cache[key] = (value,0)
@@ -26,6 +27,7 @@ class ApiHandler():
         assert len(self.cache) <= CACHE_SIZE
             
     def ApiCall(self, name, args, fun, cache=True):
+        self.errno = 0
         if cache and (name,args) in self.cache:
             result = self.cache[(name,args)]
             self.g_data.TraceInfo("%s(%s) cache hit!" % (name,args))
@@ -40,6 +42,10 @@ class ApiHandler():
         except Exception as e:
             self.g_data.TraceWarn("%s(%s) failure" % (name,args))
             self.g_data.TraceWarn(str(e))
+            try:
+                self.errno = e.message[0]['code']
+            except Exception as e:
+                pass
             return None
 
     def ShowStatus(self, status_id):
@@ -77,14 +83,15 @@ class ApiHandler():
                             lambda: self.api.GetHomeTimeline(exclude_replies=True),
                             cache = False)
         
-    def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False):
+    def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False, max_id=None):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
                             lambda:  self.api.GetUserTimeline(screen_name=screen_name,
-                                                         user_id=user_id,
-                                                         count=count,
-                                                         include_rts=False,
-                                                         trim_user=trim_user,
-                                                         exclude_replies=False),
+                                                              user_id=user_id,
+                                                              count=count,
+                                                              include_rts=False,
+                                                              trim_user=trim_user,
+                                                              exclude_replies=False,
+                                                              max_id = max_id),
                             cache=False)
 
     def GetFollowerIDs(self, screen_name=None, user_id=None):

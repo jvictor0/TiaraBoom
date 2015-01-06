@@ -9,6 +9,11 @@ import random
 import social_logic
 import socialbot
 import string
+import data_gatherer
+
+class EmptySocialLogic:
+    def Act(self):
+        pass
 
 class GlobalData:
     def __init__(self):
@@ -50,8 +55,9 @@ class GlobalData:
             self.host           = conf['host'] if 'host' in conf else 'localhost'
             self.port           = conf['port'] if 'port' in conf else 10001
             self.authentication = conf["authentication"]
-            self.apiHandler = api_handler.ApiHandler(self)
+            self.apiHandler = api_handler.ApiHandler(self, self.authentication)
             self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
+            self.data_gatherer = data_gatherer.DataGatherer(self, conf)
 
             sl_name             = conf['social_logic']['name']
             if sl_name == "TiaraBoom":
@@ -60,6 +66,8 @@ class GlobalData:
                 self.socialLogic = social_logic.FollowBackLogic(self, conf["social_logic"])
             elif sl_name == "SocialBot":
                 self.socialLogic = socialbot.SocialBotLogic(self, conf["social_logic"])
+            elif sl_name == "None":
+                self.socialLogic = EmptySocialLogic()
             else:
                 assert False
         

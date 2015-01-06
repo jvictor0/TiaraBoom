@@ -1,5 +1,6 @@
 import cPickle
 import os
+import random
 
 class PersistedObject(object):
     def __init__(self, fn, default = None):
@@ -51,6 +52,13 @@ class PersistedSet(PersistedObject):
     def Insert(self, key):
         self.object.add(key)
         self.Update()
+    
+    def Delete(self, key):
+        self.object.remove(key)
+        self.Update()
+
+    def Random(self):
+        return random.choice(list(self.object))
 
 class PersistedList(PersistedObject):
     def __init__(self, fn):
