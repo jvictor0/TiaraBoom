@@ -2,42 +2,23 @@ import twitter
 import os
 from util import *
 
-CACHE_SIZE = 25
-
 class ApiHandler():
     def __init__(self, g_data, authentication):
         self.g_data = g_data
-        self.cache = {}
         self.api = twitter.Api(consumer_key=authentication["consumer_key"],
                                consumer_secret=authentication["consumer_secret"], 
                                access_token_key=authentication["access_token_key"], 
                                access_token_secret=authentication["access_token_secret"]) 
         self.errno = 0
             
-    def CacheInsert(self, key, value, old_value=None):
-        self.cache[key] = (value,0)
-        if old_value == None:
-            old_value = CACHE_SIZE
-        for k, v in self.cache.items():
-            if v[1] < old_value:
-                if v[1] + 1 < CACHE_SIZE:
-                    self.cache[k] = (v[0],v[1]+1)
-                else: 
-                    del self.cache[k]
-        assert len(self.cache) <= CACHE_SIZE
-            
-    def ApiCall(self, name, args, fun, cache=True):
+    def ApiCall(self, name, args, fun, tp=None):
         self.errno = 0
-        if cache and (name,args) in self.cache:
-            result = self.cache[(name,args)]
-            self.g_data.TraceInfo("%s(%s) cache hit!" % (name,args))
-            self.CacheInsert((name,args), result[0], result[1])
-            return result[0]
         try:
             result = fun()
             self.g_data.TraceInfo("%s(%s) success!" % (name,args))
-            if cache:
-                self.CacheInsert((name,args), result)
+            if tp == "LOT":
+                for t in reslt:
+                    self.g_data.data_gatherer.InsertTweet(t)
             return result
         except Exception as e:
             self.g_data.TraceWarn("%s(%s) failure" % (name,args))
@@ -48,11 +29,21 @@ class ApiHandler():
                 pass
             return None
 
-    def ShowStatus(self, status_id):
-        return self.ApiCall("ShowStatus", status_id, lambda: self.api.GetStatus(status_id))
+    def ShowStatus(self, status_id, cache=True):
+        if cache:
+            cached = self.g_data.data_gatherer.LookupStatus(status_id)
+            if not cached is None:
+                return cached
+        s = self.ApiCall("ShowStatus", status_id, lambda: self.api.GetStatus(status_id))
+        if not s is None:
+            self.g_data.data_gatherer.InsertTweet(s)
+            return s
+        else:
+            self.g_data.data_gatherer.InsertUngettable(status_id, self.errno)
+            return None
 
     def ShowUser(self, screen_name):
-        return self.ApiCall("ShowUser", screen_name, lambda: self.api.GetUser(screen_name=screen_name), cache=False)
+        return self.ApiCall("ShowUser", screen_name, lambda: self.api.GetUser(screen_name=screen_name))
 
     def Tweet(self, status, in_reply_to_status=None):
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
@@ -65,8 +56,7 @@ class ApiHandler():
             return None
         irtsi = in_reply_to_status.GetId() if not in_reply_to_status is None else None
         result = self.ApiCall("Tweet", status,
-                              lambda: self.api.PostUpdate(status, in_reply_to_status_id=irtsi),
-                              cache=False)
+                              lambda: self.api.PostUpdate(status, in_reply_to_status_id=irtsi))
         
         if not result is None:
             if not in_reply_to_status is None:
@@ -80,8 +70,7 @@ class ApiHandler():
 
     def GetHomeTimeline(self):
         return self.ApiCall("GetHomeTimeline", "",
-                            lambda: self.api.GetHomeTimeline(exclude_replies=True),
-                            cache = False)
+                            lambda: self.api.GetHomeTimeline(exclude_replies=True), tp="LOT")
         
     def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False, max_id=None):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
@@ -92,17 +81,15 @@ class ApiHandler():
                                                               trim_user=trim_user,
                                                               exclude_replies=False,
                                                               max_id = max_id),
-                            cache=False)
+                            tp="LOT")
 
     def GetFollowerIDs(self, screen_name=None, user_id=None):
          return self.ApiCall("GetFollowerIDs", NotNone(screen_name, user_id),
-                             lambda: self.api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1,count=5000),
-                             cache=False)
+                             lambda: self.api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1,count=5000))
 
     def GetFollowerIDsPaged(self, screen_name=None, user_id=None, cursor=-1):
          return self.ApiCall("GetFollowerIDsPaged", (NotNone(screen_name, user_id),cursor),
-                             lambda: self.GetFollowerIDsPagedInternal(user_id,screen_name,cursor),
-                             cache=False)
+                             lambda: self.GetFollowerIDsPagedInternal(user_id,screen_name,cursor))
 
     def GetFollowers(self, user_id=None, screen_name=None):
         def GFP(scn,uid):
@@ -110,8 +97,7 @@ class ApiHandler():
             return [twitter.User.NewFromJsonDict(x) for x in data['users']]
 
         return self.ApiCall("GetFollowers", NotNone(screen_name, user_id), 
-                             lambda: GFP(screen_name, user_id),
-                             cache=False)
+                             lambda: GFP(screen_name, user_id))
 
     def RecentTweets(self, max_id, count=5):
         return self.ApiCall("RecentTweets","",
@@ -120,22 +106,22 @@ class ApiHandler():
                                                   result_type="recent",
                                                   include_entities=True,
                                                   since_id=max_id),
-                            cache=False)
+                            tp="LOT")
 
     def Search(self, term, count=100, result_type="recent"):
-        return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term,count=count), cache = False)
+        return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term,count=count), tp="LOT")
     
     def Follow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return None
-        return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id), cache=False)
+        return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id))
 
     def UnFollow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("UnFollow in Read-Only-Mode: \"@%s\"" % screen_name)
             return None
-        return self.ApiCall("UnFollow",NotNone(user_id,screen_name),lambda: self.api.DestroyFriendship(screen_name=screen_name,user_id=user_id), cache=False)
+        return self.ApiCall("UnFollow",NotNone(user_id,screen_name),lambda: self.api.DestroyFriendship(screen_name=screen_name,user_id=user_id))
 
 
     def GetFollowerIDsPagedInternal(self, user_id, screen_name, cursor):

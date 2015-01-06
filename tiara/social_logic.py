@@ -14,17 +14,12 @@ class SocialLogic:
 
         self.alliteration_mode = args["alliteration_mode"]
 
-        self.tweeted_at = p.PersistedList("tweeted_at")
-        self.responded = p.PersistedList("responded")
-        self.confirmed_friends = p.PersistedList("confirmed_friends")
-
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
         self.tickers = []
         self.tickers.append(t.StatsLogger(g_data,15))
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.Follow(), "follow"))
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.BotherRandom(), "BotherRandom"))
-#        self.tickers.append(t.LambdaStraightTicker(60, lambda: self.PurgeBadFriends()))
         self.tickers.append(t.LambdaStraightTicker(15, lambda: self.StalkTwitter()))
         
     def SetMaxId(self, max_id):
@@ -43,8 +38,6 @@ class SocialLogic:
                 self.g_data.ApiHandler().UnFollow(user_id=t.GetUser().GetId())
                 continue
             if self.ReplyTo(t) or self.g_data.read_only_mode:
-                if not t.GetUser().GetScreenName() in self.responded:
-                    self.responded.Append(t.GetUser().GetScreenName())
                 self.SetMaxId(t.GetId())
         return True
 
@@ -63,53 +56,10 @@ class SocialLogic:
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
-                if not tweet.GetUser().GetScreenName() in self.tweeted_at:
-                    self.tweeted_at.Append(tweet.GetUser().GetScreenName())
                 return result
         self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
         return None
 
-    def PurgeBadFriends(self):
-        result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=self.g_data.myName)
-        if result is None or result == []:
-            return None
-        count = 0
-        for i in result[-1::-1]:
-            if i in self.confirmed_friends:
-                continue
-            count += 1
-            if count > 30:
-                self.g_data.TraceInfo("Nobody unfollowed, many friends confirmed")
-                return True
-            timeline = self.g_data.ApiHandler().ShowStatuses(user_id=i)
-            if timeline is None:
-                self.g_data.TraceWarn("Couldn't get statuses, something might have gone wrong")
-                return True
-            if len(timeline) == 0:
-                self.g_data.ApiHandler().UnFollow(user_id=i)
-                self.g_data.TraceInfo("Unfollowing %d for not tweeting" % i)
-                self.confirmed_friends.Append(i)
-                return True
-            else:
-                sn = timeline[0].GetUser().GetScreenName()
-                if sn in self.tweeted_at and not sn in self.responded:
-                    self.g_data.TraceInfo("unfollowing @%s for not responding to me" % sn)
-                    self.g_data.ApiHandler().UnFollow(screen_name = sn)
-                    self.confirmed_friends.Append(i)
-                    return True
-                bk = False;
-                for t in timeline:
-                    if self.BotherAppropriate(t):
-                        self.confirmed_friends.Append(i)
-                        bk = True
-                        break
-                if bk:
-                    continue
-                self.g_data.TraceInfo("unfollowing @%s because his or her tweets suck" % sn)
-                self.g_data.ApiHandler().UnFollow(screen_name = sn)
-                self.confirmed_friends.Append(i)
-                return True
-                
 
     def RandomFollowerID(self, name):
         result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=name)

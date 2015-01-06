@@ -2,6 +2,9 @@ import database as db
 import persisted as p
 import ticker as t
 import random
+import json
+from twitter.status import Status
+from twitter.user import User
 
 # looks like Fri Jan 02 03:14:31 +0000 2015
 def TwitterTimestampToMySQL(ts):
@@ -47,7 +50,9 @@ class DataGatherer:
                         "retweets bigint not null,"
                         "favorites bigint not null,"
                         
-                        "ts timestamp not null,"
+                        "ts datetime not null,"
+
+                        "json text character set utf8mb4 default null,"
                         
                         "index(user_id),"
                         "index(parent),"
@@ -71,7 +76,7 @@ class DataGatherer:
 
     def RemoveProcessedTweets(self):
         for tid in list(self.tweets_to_process.Get()):
-            if (not self.Lookup(tid,"parent") is None) or (not self.Lookup(tid) is None):
+            if (len(self.Lookup(tid,"parent")) != 0) or (len(self.Lookup(tid)) != 0):
                 print "deleting %d" % tid
                 self.tweets_to_process.Delete(tid)
             else:
@@ -93,17 +98,20 @@ class DataGatherer:
             self.InsertTweetById(long(random.choice(tweets)["parent"]))
 
     def InsertTweetById(self, tid):
-        s = self.apiHandler.ShowStatus(tid)
+        s = self.apiHandler.ShowStatus(tid, cache=False)
         if not s is None:
             self.InsertTweet(s)
             return True
         else:
             if self.apiHandler.errno in [34,179,63]: # not found, not allowed, suspended
-                self.con.query("insert into ungettable_tweets values (%d,%d) on duplicate key update errorcode=errorcode" % (tid,self.apiHandler.errno))
+                self.InsertUngettable(tid, self.apiHandler.errno)
                 return True
             self.g_data.TraceWarn("Unhandled error in InsertTweetById %d" % self.apiHandler.errno)
             assert False
             return None
+
+    def InsertUngettable(self, tid, errno):
+        self.con.query("insert into ungettable_tweets values (%d,%d) on duplicate key update errorcode=errorcode" % (tid,errno))
 
     def InsertTweet(self, s):
         parent = "null"
@@ -121,10 +129,15 @@ class DataGatherer:
         timestamp = "'%s'" % TwitterTimestampToMySQL(s.GetCreatedAt())
         likes = str(s.GetFavoriteCount())
         retweets = str(s.GetRetweetCount())
-        values = [sid, parent, name.encode("utf8"), uid, parent_name.encode("utf8"), parent_id, "%s", retweets, likes, timestamp.encode("utf8")]
+        values = [sid, parent, name.encode("utf8"), uid,
+                  parent_name.encode("utf8"), parent_id,
+                  "%s",
+                  retweets, likes,
+                  timestamp.encode("utf8"),
+                  "%s"]
         values = ",".join(values)
         query = "insert into tweets values (%s) on duplicate key update favorites = %s, retweets = %s" % (values, likes, retweets)
-        self.con.query(query, body.encode("utf8"))
+        self.con.query(query, body.encode("utf8"), json.dumps(s.AsDict()).encode("utf8"))
         assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
 
     def GetUnprocessed(self, user=None):
@@ -140,14 +153,41 @@ class DataGatherer:
 
     def Lookup(self, tid, field = "id"):
         res = self.con.query("select * from tweets where %s = %d" % (field,tid))
-        if len(res) == 0:
-            return None
         return res
 
-    def FixTimestampBug(self):
-        rows = [int(a["id"]) for a in self.con.query("select id from tweets where ts > '2015-01-03 00:00:00'")]
-        for tid in rows:
-            s = self.apiHandler.ShowStatus(tid)
-            timestamp = "'%s'" % TwitterTimestampToMySQL(s.GetCreatedAt())
-            self.con.query("update tweets set ts = %s where id = %d" % (timestamp.encode("utf8"), tid))
+    def RowToStatus(self, row):
+        s = Status.NewFromJsonDict(json.loads(row["json"]))
+        s.SetRetweetCount(int(row["retweets"]))
+        s.SetFavoriteCount(int(row["favorites"]))
+        if s.urls is None:
+            s.urls = []
+        assert s.GetUser() is None, row
+        s.SetUser(User())
+        s.GetUser().SetScreenName(row['user_name'])
+        s.GetUser().SetId(long(row['user_id']))
+        return s
+
+    def LookupStatuses(self, tid, field = "id"):
+        rows = self.Lookup(tid,field)
+        return [self.RowToStatus(r) for r in rows if not r["json"] is None]
+
+    def LookupStatus(self, tid, field = "id"):
+        statuses = self.LookupStatuses(tid, field)
+        if len(statuses) == 0:
+            return None
+        return statuses[0]
+            
+    def AddJSON(self, tid):
+        s = self.apiHandler.ShowStatus(tid, cache=False)
+        if s is None:
+            return None
+        favs = s.GetFavoriteCount()
+        retws = s.GetRetweetCount()
+        s = s.AsDict()
+        if "user" in s:
+            del s["user"]
+        q = "update tweets set favorites = %d, retweets = %d, json = %%s" % (favs, retws)
+        js = json.dumps(s).encode("utf8")
+        self.con.query(q, js)
+        return True
                 
