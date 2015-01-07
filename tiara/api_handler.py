@@ -17,8 +17,8 @@ class ApiHandler():
             result = fun()
             self.g_data.TraceInfo("%s(%s) success!" % (name,args))
             if tp == "LOT":
-                for t in reslt:
-                    self.g_data.data_gatherer.InsertTweet(t)
+                for t in result:
+                    self.g_data.dbmgr.InsertTweet(t)
             return result
         except Exception as e:
             self.g_data.TraceWarn("%s(%s) failure" % (name,args))
@@ -31,15 +31,15 @@ class ApiHandler():
 
     def ShowStatus(self, status_id, cache=True):
         if cache:
-            cached = self.g_data.data_gatherer.LookupStatus(status_id)
+            cached = self.g_data.dbmgr.LookupStatus(status_id)
             if not cached is None:
                 return cached
         s = self.ApiCall("ShowStatus", status_id, lambda: self.api.GetStatus(status_id))
         if not s is None:
-            self.g_data.data_gatherer.InsertTweet(s)
+            self.g_data.dbmgr.InsertTweet(s)
             return s
         else:
-            self.g_data.data_gatherer.InsertUngettable(status_id, self.errno)
+            self.g_data.dbmgr.InsertUngettable(status_id, self.errno)
             return None
 
     def ShowUser(self, screen_name):
@@ -60,12 +60,8 @@ class ApiHandler():
         
         if not result is None:
             if not in_reply_to_status is None:
-                self.g_data.LogTweet(in_reply_to_status.GetUser().GetScreenName(),
-                                     in_reply_to_status.GetText(),
-                                     in_reply_to_status.GetId(),
-                                     in_reply_to_status.GetInReplyToStatusId())
-            reply_id = None if in_reply_to_status is None else in_reply_to_status.GetId()
-            self.g_data.LogTweet(self.g_data.myName, status, result.GetId(), reply_id)
+                assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId()) is None
+            self.g_data.dbmgr.InsertTweet(result.GetId())
         return result
 
     def GetHomeTimeline(self):

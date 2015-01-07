@@ -6,6 +6,8 @@ import json
 from twitter.status import Status
 from twitter.user import User
 
+MODES=2
+
 # looks like Fri Jan 02 03:14:31 +0000 2015
 def TwitterTimestampToMySQL(ts):
     ts = ts.split()
@@ -17,11 +19,12 @@ def TwitterTimestampToMySQL(ts):
     year = ts[5]
     return "%s-%s-%s %s" % (year,mon,day,time)
 
-class DataGatherer:
+class DataManager:
     def __init__(self, g_data, config):
         self.con = None
         self.tweets_to_process = p.PersistedSet('tweets_to_process')
         self.g_data = g_data
+        self.shard = 0
         if 'database' in config:
             self.con = db.ConnectToMySQL()
             self.con.query("create database if not exists %s" % config["database"])
@@ -60,8 +63,13 @@ class DataGatherer:
                         "default charset = utf8mb4"))
                 
     def UpdateTweets(self):
+        if self.con is None:
+            return
         max_id = None
+        count = 0
         while True:
+            count += 1
+            assert count <= 30
             statuses = self.apiHandler.ShowStatuses(screen_name=self.g_data.myName,
                                                     max_id=max_id)
             if statuses is None:
@@ -72,7 +80,7 @@ class DataGatherer:
             max_id = min([s.GetId() for s in statuses]) - 1
                        
             for s in statuses:
-                self.InsertTweet(s)
+                assert not self.LookupStatus(s) is None
 
     def RemoveProcessedTweets(self):
         for tid in list(self.tweets_to_process.Get()):
@@ -83,7 +91,9 @@ class DataGatherer:
                 print "keeping %d" % tid
 
     def ProcessUnprocessedTweets(self):
-        count = 60
+        if self.con is None:
+            return
+        count = 30
         while len(self.tweets_to_process) > 0 and count > 0:
             tid = self.tweets_to_process.Random()
             count -= 1
@@ -111,9 +121,13 @@ class DataGatherer:
             return None
 
     def InsertUngettable(self, tid, errno):
+        if self.con is None:
+            return
         self.con.query("insert into ungettable_tweets values (%d,%d) on duplicate key update errorcode=errorcode" % (tid,errno))
 
     def InsertTweet(self, s):
+        if self.con is None:
+            return
         parent = "null"
         parent_name = "null"
         parent_id  = "null"
@@ -135,9 +149,12 @@ class DataGatherer:
                   retweets, likes,
                   timestamp.encode("utf8"),
                   "%s"]
-        values = ",".join(values)
+        values = " , ".join(values)
         query = "insert into tweets values (%s) on duplicate key update favorites = %s, retweets = %s" % (values, likes, retweets)
-        self.con.query(query, body.encode("utf8"), json.dumps(s.AsDict()).encode("utf8"))
+        jsdict = s.AsDict()
+        if "user" in jsdict:
+            del jsdict["user"]
+        self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
         assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
 
     def GetUnprocessed(self, user=None):
@@ -152,6 +169,8 @@ class DataGatherer:
         return self.con.query(query)
 
     def Lookup(self, tid, field = "id"):
+        if self.con is None:
+            return []
         res = self.con.query("select * from tweets where %s = %d" % (field,tid))
         return res
 
@@ -177,17 +196,9 @@ class DataGatherer:
             return None
         return statuses[0]
             
-    def AddJSON(self, tid):
-        s = self.apiHandler.ShowStatus(tid, cache=False)
-        if s is None:
-            return None
-        favs = s.GetFavoriteCount()
-        retws = s.GetRetweetCount()
-        s = s.AsDict()
-        if "user" in s:
-            del s["user"]
-        q = "update tweets set favorites = %d, retweets = %d, json = %%s" % (favs, retws)
-        js = json.dumps(s).encode("utf8")
-        self.con.query(q, js)
-        return True
-                
+    def Act(self):
+        if self.shard % MODES == 0:
+            self.UpdateTweets()
+        elif self.shard % MODES == 1:
+            self.ProcessUnprocessedTweets()
+        self.shard += 1

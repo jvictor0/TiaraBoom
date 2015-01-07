@@ -57,7 +57,7 @@ class GlobalData:
             self.authentication = conf["authentication"]
             self.apiHandler = api_handler.ApiHandler(self, self.authentication)
             self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
-            self.data_gatherer = data_gatherer.DataGatherer(self, conf)
+            self.dbmgr = data_gatherer.DataManager(self, conf)
 
             sl_name             = conf['social_logic']['name']
             if sl_name == "TiaraBoom":

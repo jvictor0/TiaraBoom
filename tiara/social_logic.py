@@ -21,6 +21,7 @@ class SocialLogic:
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.Follow(), "follow"))
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.BotherRandom(), "BotherRandom"))
         self.tickers.append(t.LambdaStraightTicker(15, lambda: self.StalkTwitter()))
+        self.tickers.append(t.LambdaStraightTicker(16, lambda: self.g_data.dbmgr.Act())
         
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -44,7 +45,8 @@ class SocialLogic:
     def SignalsStop(self, t):
         for w in ["stop",
                   "bye",
-                  "go away"]:
+                  "go away",
+                  "block"]:
             if w in t.GetText().lower():
                 self.g_data.TraceWarn("Not responding to %d, contains '%s'" % (t.GetId(), w))
                 return True

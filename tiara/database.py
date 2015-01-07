@@ -129,7 +129,7 @@ class Connection(object):
 
     def _execute(self, query, *parameters):
         if parameters != None and parameters != ():
-            query = query % self._db.escape(parameters, self.encoders)
+            query = query % tuple([self._db.escape(p, self.encoders) for p in parameters])
         if isinstance(query, unicode):
             query = query.encode(self._db.character_set_name())
 
