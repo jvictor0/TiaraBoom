@@ -21,7 +21,7 @@ class SocialLogic:
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.Follow(), "follow"))
         self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.BotherRandom(), "BotherRandom"))
         self.tickers.append(t.LambdaStraightTicker(15, lambda: self.StalkTwitter()))
-        self.tickers.append(t.LambdaStraightTicker(16, lambda: self.g_data.dbmgr.Act())
+        self.tickers.append(t.LambdaStraightTicker(16, lambda: self.g_data.dbmgr.Act()))
         
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -63,20 +63,28 @@ class SocialLogic:
         return None
 
 
-    def RandomFollowerID(self, name):
-        result = self.g_data.ApiHandler().GetFollowerIDs(screen_name=name)
+    def RandomFriendID(self, name):
+        result = self.g_data.ApiHandler().GetFriendIDs(screen_name=name)
         if result is None or result == []:
             return None
         return random.choice(result)
 
     def StalkTwitter(self):
-        follower = self.RandomFollowerID(self.g_data.myName)
-        if follower is None:
-            return
+        friends = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
+        if friends is None or friends == []:
+            return None
+        follower = random.choice(friends)
         followers = self.g_data.ApiHandler().GetFollowers(user_id=follower)
+        self.g_data.ApiHandler().ShowStatuses(user_id=follower)
         if followers is None:
             return
+        if len(followers) > 30:
+            random.shuffle(followers)
+            followers = followers[:30]
         for user in followers:
+            if user.GetProtected() or user.GetId() in friends:
+                continue
+            self.g_data.ApiHandler().ShowStatuses(screen_name=user.GetScreenName()) 
             score = self.ScoreUser(user)
             if score is None:
                 self.g_data.TraceInfo("Ending StalkTwitter after ScoreUser")
@@ -118,7 +126,7 @@ class SocialLogic:
         return result
 
     def BotherRandom(self):
-        id = self.RandomFollowerID(self.g_data.myName)
+        id = self.RandomFriendID(self.g_data.myName)
         self.Bother(user_id=id)
 
     def Bother(self, screen_name=None, user_id=None):

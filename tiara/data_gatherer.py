@@ -80,7 +80,7 @@ class DataManager:
             max_id = min([s.GetId() for s in statuses]) - 1
                        
             for s in statuses:
-                assert not self.LookupStatus(s) is None
+                assert not self.LookupStatus(s.GetId()) is None
 
     def RemoveProcessedTweets(self):
         for tid in list(self.tweets_to_process.Get()):
@@ -105,8 +105,10 @@ class DataManager:
         tweets = self.GetUnprocessed()
         self.g_data.TraceInfo("There are currently %d unprocessed tweets" % len(tweets))
         for i in xrange(count):
+            if len(tweets) == 0:
+                return
             self.InsertTweetById(long(random.choice(tweets)["parent"]))
-
+            
     def InsertTweetById(self, tid):
         s = self.apiHandler.ShowStatus(tid, cache=False)
         if not s is None:

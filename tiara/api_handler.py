@@ -61,7 +61,7 @@ class ApiHandler():
         if not result is None:
             if not in_reply_to_status is None:
                 assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId()) is None
-            self.g_data.dbmgr.InsertTweet(result.GetId())
+            self.g_data.dbmgr.InsertTweet(result)
         return result
 
     def GetHomeTimeline(self):
@@ -82,6 +82,10 @@ class ApiHandler():
     def GetFollowerIDs(self, screen_name=None, user_id=None):
          return self.ApiCall("GetFollowerIDs", NotNone(screen_name, user_id),
                              lambda: self.api.GetFollowerIDs(screen_name=screen_name,user_id=user_id,cursor=-1,count=5000))
+
+    def GetFriendIDs(self, screen_name=None, user_id=None):
+         return self.ApiCall("GetFollowerIDs", NotNone(screen_name, user_id),
+                             lambda: self.api.GetFriendIDs(screen_name=screen_name,user_id=user_id,cursor=-1,count=5000))
 
     def GetFollowerIDsPaged(self, screen_name=None, user_id=None, cursor=-1):
          return self.ApiCall("GetFollowerIDsPaged", (NotNone(screen_name, user_id),cursor),
