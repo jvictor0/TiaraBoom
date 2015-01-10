@@ -18,11 +18,14 @@ class SocialLogic:
         self.bestNewFriendScore = 0
         self.tickers = []
         self.tickers.append(t.StatsLogger(g_data,15))
-        self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.Follow(), "follow"))
-        self.tickers.append(t.LambdaTicker(g_data, 180, lambda: self.BotherRandom(), "BotherRandom"))
-        self.tickers.append(t.LambdaStraightTicker(15, lambda: self.StalkTwitter()))
+        self.tickers.append(t.LambdaTicker(g_data, 2*60, lambda: self.Follow(), "follow"))
+        self.tickers.append(t.LambdaTicker(g_data, 2*60, lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers.append(t.LambdaStraightTicker(16, lambda: self.StalkTwitter()))
         self.tickers.append(t.LambdaStraightTicker(16, lambda: self.g_data.dbmgr.Act()))
         
+        self.followMethod = p.PersistedObject("followMethod", 'hops')
+        self.followCore   = p.PersistedList("followCore")
+
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
         self.g_data.TraceInfo("Setting max_id to %d" % max_id)
@@ -69,22 +72,64 @@ class SocialLogic:
             return None
         return random.choice(result)
 
+    def SetStrategy(self, args):
+        if len(args) == 2 and args[0] == "target" and args[1] in ["hops","gravitate"]:
+            self.followMethod.Set(args[1])
+            return "ok"
+        elif args == ["target","show"]:
+            return self.followMethod.Get()
+        elif len(args) == 3 and args[0] == "gravitate" and args[1] in ["add","remove"] and args[2][0] == '@':
+            target = args[2][1:]
+            if args[1] == "add" and target in self.followCore:
+                self.g_data.ApiHandler().Follow(screen_name=target)
+                return "already gravitating towards @%s" % target
+            elif args[1] == "remove":
+                self.followCore.Set([n for n in self.followCore.Get() if n != target])
+                return "ok"
+            else:
+                self.followCore.Append(target)
+                return "ok"
+        elif args == ["gravitate","show"]:
+            return str(self.followCore.Get())
+        elif args == ["help"]:
+            return "'set_strategy target <target_strategy_name>' sets the target strategy.  The strategy 'hops' targets followers of followers.  The strategy 'gravitate' follows friends and followers of individuals in a specific list.  'set_strategy gravitate (add/remove) @gbop' will add/remove @gbop to the list being gravitated towards, and 'set_strategy gravitate show' shows thes gravitate list."
+        return "syntax error"
+        
+
     def StalkTwitter(self):
+        if self.followMethod.Get() == "hops":
+            self.StalkTwitterHops()
+        elif self.followMethod.Get() == "gravitate":
+            self.StalkTwitterGravitate()
+        else:
+            assert False, followMethod.Get()
+
+    def StalkTwitterGravitate(self):
+        target = random.choice(self.followCore.Get())
+        followers = random.choice([self.g_data.ApiHandler().GetFollowers,self.g_data.ApiHandler().GetFriends])(user_id=target)
+        if followers is None:
+            return
+        self.UpdateNewBestFriend(followers)
+
+    def StalkTwitterHops(self):
         friends = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
         if friends is None or friends == []:
             return None
+        random.shuffle(friends)
+        for i in xrange(min(85,len(friends))):
+            self.g_data.ApiHandler().ShowStatuses(user_id=friends[i]) 
         follower = random.choice(friends)
-        followers = self.g_data.ApiHandler().GetFollowers(user_id=follower)
+        followers = random.choice([self.g_data.ApiHandler().GetFollowers,self.g_data.ApiHandler().GetFriends])(user_id=follower)
         self.g_data.ApiHandler().ShowStatuses(user_id=follower)
         if followers is None:
             return
-        if len(followers) > 30:
-            random.shuffle(followers)
-            followers = followers[:30]
-        for user in followers:
+        self.UpdateNewBestFriend(followers)
+
+    def UpdateNewBestFriend(self, user_list):
+        for user in user_list:
             if user.GetProtected() or user.GetId() in friends:
                 continue
-            self.g_data.ApiHandler().ShowStatuses(screen_name=user.GetScreenName()) 
+            #self.g_data.ApiHandler().ShowStatuses(screen_name=user.GetScreenName())  not yet
             score = self.ScoreUser(user)
             if score is None:
                 self.g_data.TraceInfo("Ending StalkTwitter after ScoreUser")
@@ -176,6 +221,7 @@ class SocialLogic:
         if result is None:
             return None
         fn = random.choice([lambda : self.TweetFrom(user),
+                            lambda : self.TweetFrom(user),
                             lambda : self.Bother(screen_name = user.GetScreenName())])
         return fn()
         

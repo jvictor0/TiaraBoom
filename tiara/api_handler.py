@@ -99,6 +99,12 @@ class ApiHandler():
         return self.ApiCall("GetFollowers", NotNone(screen_name, user_id), 
                              lambda: GFP(screen_name, user_id))
 
+    def GetFriends(self, user_id=None, screen_name=None, count = 200):
+        return self.ApiCall("GetFriends", NotNone(screen_name, user_id), 
+                             lambda: self.api.GetFriends(screen_name = screen_name, 
+                                                         user_id = user_id,
+                                                         count = count))
+
     def RecentTweets(self, max_id, count=5):
         return self.ApiCall("RecentTweets","",
                             lambda: self.api.GetSearch(term="to:%s" % self.g_data.myName,
