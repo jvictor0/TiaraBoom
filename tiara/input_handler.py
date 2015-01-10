@@ -80,7 +80,7 @@ def HandleTweet(g_data, input):
         else:
             return "unrecognized flag %s" % f
     if not to is None:
-        to_user = g_data.ApiHandler().ShowUser(to)
+        to_user = g_data.ApiHandler().ShowUser(screen_name = to)
         if to_user is None:
             return "cannot find user @%s" % to
         response_seed = twitter.Status()

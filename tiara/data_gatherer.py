@@ -5,8 +5,15 @@ import random
 import json
 from twitter.status import Status
 from twitter.user import User
+import datetime
 
 MODES=2
+
+AFFLICT_FOLLOWBACK = 1
+AFFLICT_DELETER = 2
+AFFLICT_PROTECTED = 3
+AFFLICT_SUSPENDED = 4
+AFFLICT_BLOCKER = 5
 
 # looks like Fri Jan 02 03:14:31 +0000 2015
 def TwitterTimestampToMySQL(ts):
@@ -18,6 +25,9 @@ def TwitterTimestampToMySQL(ts):
     assert ts[4] == "+0000", ts
     year = ts[5]
     return "%s-%s-%s %s" % (year,mon,day,time)
+
+def MySQLTimestampToPython(ts):
+    return datetime.datetime.strptime(ts, "%Y-%m-%d%H:%M:%S")
 
 class DataManager:
     def __init__(self, g_data, config):
@@ -61,6 +71,24 @@ class DataManager:
                         "index(parent),"
                         "index(parent_id))"
                         "default charset = utf8mb4"))
+        
+        self.con.query(("create table if not exists ungettable_tweets("
+                        "id bigint primary key,"
+                        "errorcode int)"))
+        
+        self.con.query(("create table if not exists user_afflictions("
+                        "id bigint,"
+                        "affliction int,"
+                        "primary key(id, affliction))"))
+        
+        self.con.query(("create table if not exists users("
+                        "id bigint primary key,"
+                        "screen_name varchar(200) character set utf8mb4 default null,"
+                        "num_followers bigint,"
+                        "num_friends bigint,"
+                        "following tinyint,"
+                        "has_followed tinyint,"
+                        "updated timestamp)"))
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -121,7 +149,25 @@ class DataManager:
             self.g_data.TraceWarn("Unhandled error in InsertTweetById %d" % self.apiHandler.errno)
             assert False
             return None
-
+        
+    def InsertUser(self, user):
+        uid = str(user.GetId())
+        sn  = "'%s'" % user.GetScreenName().encode("utf8")
+        folls = str(user.GetFollowersCount())
+        friens = str(user.GetFriendsCount())
+        following = "1" if user.following else "0"
+        has_followed = following
+        values = ",".join([uid, sn, folls, friens, "NOW()", following, has_followed])
+        updates = ["num_followers = %s" % folls,
+                   "num_friends = %s" % friens,
+                   "screen_name = %s" % sn,
+                   "following = %d" % following]
+        if user.following:
+            updates.append("has_followed = 1")
+        q = "insert into users values (%s) on duplicate key update %s" % (values, ",".join(updates))
+        print q
+        self.con.query(q)
+        
     def InsertUngettable(self, tid, errno):
         if self.con is None:
             return
@@ -158,6 +204,7 @@ class DataManager:
             del jsdict["user"]
         self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
         assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
+        self.InsertUser(s.GetUser())
 
     def GetUnprocessed(self, user=None):
         query = ("select tl.id, tl.parent, tl.parent_name, tl.parent_id "
@@ -183,9 +230,13 @@ class DataManager:
         if s.urls is None:
             s.urls = []
         assert s.GetUser() is None, row
-        s.SetUser(User())
-        s.GetUser().SetScreenName(row['user_name'])
-        s.GetUser().SetId(long(row['user_id']))
+        u = self.LookupUser(int(row["user_id"]))
+        if u is None:
+            s.SetUser(User())
+            s.GetUser().SetScreenName(row['user_name'])
+            s.GetUser().SetId(long(row['user_id']))
+        else:
+            s.SetUser(u)
         return s
 
     def LookupStatuses(self, tid, field = "id"):
@@ -197,10 +248,31 @@ class DataManager:
         if len(statuses) == 0:
             return None
         return statuses[0]
+
+    def LookupUser(self, uid, days_old = None):
+        q = "select * from users where id = %d" % uid
+        if not days_old is None:
+            q = q + " and updated > timestampadd(day, -%d, now())" % days_old
+        row = self.con.query(q)
+        if len(row) == 0:
+            return None
+        assert len(row) == 1
+        if row[0]["num_followers"] is None:
+            return None
+        user = User()
+        user.SetScreenName(row[0]["screen_name"])
+        user.SetId(uid)
+        user.SetFollowersCount(row[0]["num_followers"])
+        user.SetFriendsCount(row[0]["num_friends"])
+        user.following = True if row[0]["following"] == "1" else False
+        return user
             
     def Act(self):
-        if self.shard % MODES == 0:
+        if False and self.shard % MODES == 0:
             self.UpdateTweets()
         elif self.shard % MODES == 1:
             self.ProcessUnprocessedTweets()
         self.shard += 1
+        rs = self.con.query("select id from users where num_followers is null limit 85")
+        for r in rs:
+            self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)

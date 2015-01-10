@@ -179,7 +179,7 @@ class SocialLogic:
             self.g_data.TraceInfo("Bothering @%s" % screen_name)
         else:
             self.g_data.TraceInfo("Bothering id = %s" % user_id)
-        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = screen_name, user_id=user_id, trim_user=False)
+        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = screen_name, user_id=user_id)
         if tweets is None or tweets == []:
             return None
         for t in tweets:

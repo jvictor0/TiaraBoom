@@ -34,7 +34,7 @@ class ApiHandler():
             cached = self.g_data.dbmgr.LookupStatus(status_id)
             if not cached is None:
                 return cached
-        s = self.ApiCall("ShowStatus", status_id, lambda: self.api.GetStatus(status_id))
+        s = self.ApiCall("ShowStatus", status_id, lambda: self.api.ShowStatusInternal(status_id))
         if not s is None:
             self.g_data.dbmgr.InsertTweet(s)
             return s
@@ -42,8 +42,17 @@ class ApiHandler():
             self.g_data.dbmgr.InsertUngettable(status_id, self.errno)
             return None
 
-    def ShowUser(self, screen_name):
-        return self.ApiCall("ShowUser", screen_name, lambda: self.api.GetUser(screen_name=screen_name))
+    def ShowUser(self, screen_name=None, user_id = None, cache=True):
+        if cache and not user_id is None:
+            cached = self.g_data.dbmgr.LookupUser(user_id, 1)
+            if not cached is None:
+                return cached
+        u = self.ApiCall("ShowUser", NotNone(screen_name, user_id), lambda: self.ShowUserInternal(user_id=user_id, screen_name=screen_name))
+        if not u is None:
+            self.g_data.dbmgr.InsertUser(u)
+            return u
+        else:
+            return None # TODO: mark as afflicted
 
     def Tweet(self, status, in_reply_to_status=None):
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
@@ -64,19 +73,12 @@ class ApiHandler():
             self.g_data.dbmgr.InsertTweet(result)
         return result
 
-    def GetHomeTimeline(self):
-        return self.ApiCall("GetHomeTimeline", "",
-                            lambda: self.api.GetHomeTimeline(exclude_replies=True), tp="LOT")
-        
     def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False, max_id=None):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
-                            lambda:  self.api.GetUserTimeline(screen_name=screen_name,
-                                                              user_id=user_id,
-                                                              count=count,
-                                                              include_rts=False,
-                                                              trim_user=trim_user,
-                                                              exclude_replies=False,
-                                                              max_id = max_id),
+                            lambda:  self.api.GetUserTimelineInternal(screen_name=screen_name,
+                                                                      user_id=user_id,
+                                                                      count=count,
+                                                                      max_id = max_id),
                             tp="LOT")
 
     def GetFollowerIDs(self, screen_name=None, user_id=None):
@@ -92,30 +94,30 @@ class ApiHandler():
                              lambda: self.GetFollowerIDsPagedInternal(user_id,screen_name,cursor))
 
     def GetFollowers(self, user_id=None, screen_name=None):
-        def GFP(scn,uid):
-            next,prev,data = self.api.GetFollowersPaged(screen_name=scn,user_id=uid,cursor=-1)
-            return [twitter.User.NewFromJsonDict(x) for x in data['users']]
-
         return self.ApiCall("GetFollowers", NotNone(screen_name, user_id), 
-                             lambda: GFP(screen_name, user_id))
+                            lambda: self.GetRelatedInternal("followers",
+                                                            user_id = user_id,
+                                                            screen_name = screen_name, 
+                                                            count = count))
 
     def GetFriends(self, user_id=None, screen_name=None, count = 200):
         return self.ApiCall("GetFriends", NotNone(screen_name, user_id), 
-                             lambda: self.api.GetFriends(screen_name = screen_name, 
-                                                         user_id = user_id,
-                                                         count = count))
+                            lambda: self.GetRelatedInternal("friends",
+                                                            user_id = user_id,
+                                                            screen_name = screen_name, 
+                                                            count = count))
 
     def RecentTweets(self, max_id, count=5):
         return self.ApiCall("RecentTweets","",
-                            lambda: self.api.GetSearch(term="to:%s" % self.g_data.myName,
-                                                  count=count,
-                                                  result_type="recent",
-                                                  include_entities=True,
-                                                  since_id=max_id),
+                            lambda: self.GetSearchInternal(term="to:%s" % self.g_data.myName,
+                                                           count=count,
+                                                           result_type="recent",
+                                                           include_entities=True,
+                                                           since_id=max_id),
                             tp="LOT")
 
     def Search(self, term, count=100, result_type="recent"):
-        return self.ApiCall("Search",term,lambda : self.api.GetSearch(term=term,count=count), tp="LOT")
+        return self.ApiCall("Search",term,lambda : self.GetSearchInternal(term=term,count=count), tp="LOT")
     
     def Follow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
@@ -149,3 +151,60 @@ class ApiHandler():
         sec = self.api.GetSleepTime('/followers/ids')
         return result, next_cursor
 
+    def ApiCallInternal(self, url, data, request="GET"):
+        url = "%s/%s" % (self.api.base_url, url)
+        json_data = self.api._RequestUrl(url, request, data=data)
+        data = self.api._ParseAndCheckTwitter(json_data.content)
+        return data
+        
+    def ShowUserInternal(self, user_id, screen_name):
+        paremeters = {}
+        if user_id:
+            paremeters["user_id"] = user_id
+        else:
+            paremeters["screen_name"] = screen_name
+        data = self.ApiCallInternal("users/show.json",paremeters)
+        return self.UserFromJson(data)
+
+    def GetRelatedInternal(self, relation, user_id, screen_name, count):
+        paremeters = {"count":count, "include_user_entities":True}
+        if user_id:
+            paremeters["user_id"] = user_id
+        else:
+            paremeters["screen_name"] = screen_name
+        data = self.ApiCallInernal("%s/list.json" % relation,parameters)
+        return [self.UserFromJson(u) for u in data["users"]]
+
+    def GetSearchInternal(self,term,count,result_type="mixed",since_id=None):
+        args = {"term" : term, "count" : count, "result_type" : result_type}
+        if not since_id is None:
+            args["since_id"] = since_id
+        data = self.ApiCallInternal("serach/tweets.json",args)
+        return [self.StatusFromJson(s) for s in data["statuses"]]
+
+    def ShowStatusInternal(self, status_id):
+        s = self.ApiCallInternal("statuses/show.json", {"id" : status_id})
+        return self.StatusFromJson(s)
+
+    def GetUserTimelineInternal(screen_name,user_id,count,max_id):
+        parameters = {"trim_user" : False, "count" : count}
+        if user_id:
+            parameters['user_id'] = user_id
+        elif screen_name:
+            parameters['screen_name'] = screen_name
+        if max_id:
+            parameters['max_id'] = long(max_id)
+        ss = self.ApiCallInternal("statuses/user_timeline.json",paremters)
+        return [self.UserFromJson(s) for ss in s]
+
+    def UserFromJson(self, json):
+        u = twitter.user.User.NewFromJsonDict(json)
+        if "following" in json:
+            u.following = json["following"]
+        return u
+
+    def StatusFromJson(self, json):
+        s = twitter.status.Status.NewFromJsonDict(json)
+        if "user" in json:
+            s.SetUser(self.StatusFromJson(self, json["user"]))
+        return s

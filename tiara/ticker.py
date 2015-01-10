@@ -76,6 +76,6 @@ class StatsLogger(Ticker):
         self.logger.addHandler(handler)
 
     def Tock(self):
-        me = self.g_data.ApiHandler().ShowUser(self.g_data.myName)
+        me = self.g_data.ApiHandler().ShowUser(screen_name = self.g_data.myName, cache=False)
         if me is not None:
             self.logger.info("%d %d" % (me.GetFriendsCount(), me.GetFollowersCount()))
