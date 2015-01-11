@@ -127,7 +127,7 @@ class SocialLogic:
 
     def UpdateNewBestFriend(self, user_list):
         for user in user_list:
-            if user.GetProtected() or user.GetId() in friends:
+            if user.GetProtected():
                 continue
             #self.g_data.ApiHandler().ShowStatuses(screen_name=user.GetScreenName())  not yet
             score = self.ScoreUser(user)
