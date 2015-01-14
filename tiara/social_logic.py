@@ -18,8 +18,8 @@ class SocialLogic:
         self.bestNewFriendScore = 0
         self.tickers = []
         self.tickers.append(t.StatsLogger(g_data,15))
-        self.tickers.append(t.LambdaTicker(g_data, 2*60, lambda: self.Follow(), "follow"))
-        self.tickers.append(t.LambdaTicker(g_data, 2*60, lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers.append(t.LambdaTicker(g_data, 4*60, lambda: self.Follow(), "follow"))
+        self.tickers.append(t.LambdaTicker(g_data, 4*60, lambda: self.BotherRandom(), "BotherRandom"))
         self.tickers.append(t.LambdaStraightTicker(16, lambda: self.StalkTwitter()))
         self.tickers.append(t.LambdaStraightTicker(16, lambda: self.g_data.dbmgr.Act()))
         
@@ -142,6 +142,8 @@ class SocialLogic:
     # we shall eventually replace this with a learning machine
     #
     def ScoreUser(self, user):
+        if self.g_data.dbmgr.EverFollowed(user):
+            return -1
         numFriends = user.GetFriendsCount()
         numFollowers = user.GetFollowersCount()
         result = 0
@@ -171,8 +173,15 @@ class SocialLogic:
         return result
 
     def BotherRandom(self):
-        id = self.RandomFriendID(self.g_data.myName)
-        self.Bother(user_id=id)
+        result = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
+        if result is None or result == []:
+            return None
+        random.shuffle(result)
+        for uid in result[:min(30,len(result))]:
+            u = self.g_data.ApiHandler().ShowUser(user_id = uid)
+            if self.BotherUserAppropriate(u):
+                self.Bother(user_id=uid)
+                return True
 
     def Bother(self, screen_name=None, user_id=None):
         if not screen_name is None:
@@ -187,7 +196,7 @@ class SocialLogic:
                 return self.ReplyTo(t)
         self.g_data.TraceWarn("No tweet by @%s was found botherable!" % tweets[0].GetUser().GetScreenName())
         return None
-        
+    
     def TweetFrom(self, user):
         self.g_data.TraceInfo("Tweeting from @%s" % user.GetScreenName())
         response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.alliteration_mode)
@@ -209,6 +218,16 @@ class SocialLogic:
             return False
         if not tweet.GetRetweeted_status() is None:
             return False
+        if "follow" in tweet.GetText().lower():
+            return False
+        if OlderThan(MySQLTimestampToPython(TwitterTimestampToMySQL(tweet.GetCreatedAt())), 7):
+            return False
+        return True
+
+    def BotherUserAppropriate(self, user):
+        ts = self.g_data.dbmgr.MostRecentTweet(user.GetId())
+        if not ts is None and not OlderThan(ts, 7):
+            return False
         return True
 
     def Follow(self):
@@ -221,7 +240,6 @@ class SocialLogic:
         if result is None:
             return None
         fn = random.choice([lambda : self.TweetFrom(user),
-                            lambda : self.TweetFrom(user),
                             lambda : self.Bother(screen_name = user.GetScreenName())])
         return fn()
         

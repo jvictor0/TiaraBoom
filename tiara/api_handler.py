@@ -19,6 +19,9 @@ class ApiHandler():
             if tp == "LOT":
                 for t in result:
                     self.g_data.dbmgr.InsertTweet(t)
+            if tp == "LOU":
+                for u in result:
+                    self.g_data.dbmgr.InsertUser(u)
             return result
         except Exception as e:
             self.g_data.TraceWarn("%s(%s) failure" % (name,args))
@@ -33,8 +36,9 @@ class ApiHandler():
         if cache:
             cached = self.g_data.dbmgr.LookupStatus(status_id)
             if not cached is None:
+                self.g_data.TraceDebug("Cache hit!")
                 return cached
-        s = self.ApiCall("ShowStatus", status_id, lambda: self.api.ShowStatusInternal(status_id))
+        s = self.ApiCall("ShowStatus", status_id, lambda: self.ShowStatusInternal(status_id))
         if not s is None:
             self.g_data.dbmgr.InsertTweet(s)
             return s
@@ -46,6 +50,7 @@ class ApiHandler():
         if cache and not user_id is None:
             cached = self.g_data.dbmgr.LookupUser(user_id, 1)
             if not cached is None:
+                self.g_data.TraceDebug("Cache hit!")
                 return cached
         u = self.ApiCall("ShowUser", NotNone(screen_name, user_id), lambda: self.ShowUserInternal(user_id=user_id, screen_name=screen_name))
         if not u is None:
@@ -75,10 +80,10 @@ class ApiHandler():
 
     def ShowStatuses(self, screen_name=None, user_id=None, count=200, trim_user=False, max_id=None):
         return self.ApiCall("ShowStatuses",  NotNone(screen_name, user_id),
-                            lambda:  self.api.GetUserTimelineInternal(screen_name=screen_name,
-                                                                      user_id=user_id,
-                                                                      count=count,
-                                                                      max_id = max_id),
+                            lambda:  self.GetUserTimelineInternal(screen_name = screen_name,
+                                                                  user_id = user_id,
+                                                                  count = count,
+                                                                  max_id = max_id),
                             tp="LOT")
 
     def GetFollowerIDs(self, screen_name=None, user_id=None):
@@ -93,19 +98,21 @@ class ApiHandler():
          return self.ApiCall("GetFollowerIDsPaged", (NotNone(screen_name, user_id),cursor),
                              lambda: self.GetFollowerIDsPagedInternal(user_id,screen_name,cursor))
 
-    def GetFollowers(self, user_id=None, screen_name=None):
+    def GetFollowers(self, user_id=None, screen_name=None, count=200):
         return self.ApiCall("GetFollowers", NotNone(screen_name, user_id), 
                             lambda: self.GetRelatedInternal("followers",
                                                             user_id = user_id,
                                                             screen_name = screen_name, 
-                                                            count = count))
+                                                            count = count),
+                            tp="LOU")
 
     def GetFriends(self, user_id=None, screen_name=None, count = 200):
         return self.ApiCall("GetFriends", NotNone(screen_name, user_id), 
                             lambda: self.GetRelatedInternal("friends",
                                                             user_id = user_id,
                                                             screen_name = screen_name, 
-                                                            count = count))
+                                                            count = count),
+                            tp="LOU")
 
     def RecentTweets(self, max_id, count=5):
         return self.ApiCall("RecentTweets","",
@@ -123,14 +130,23 @@ class ApiHandler():
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("Follow in Read-Only-Mode: \"@%s\"" % screen_name)
             return None
-        return self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id))
+        u = self.ApiCall("Follow",NotNone(user_id,screen_name),lambda: self.api.CreateFriendship(screen_name=screen_name,user_id=user_id))
+        if not u is None:
+            u.following = True
+            self.g_data.dbmgr.InsertUser(u)
+            return u
+        return None
 
     def UnFollow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
             self.g_data.TraceWarn("UnFollow in Read-Only-Mode: \"@%s\"" % screen_name)
             return None
-        return self.ApiCall("UnFollow",NotNone(user_id,screen_name),lambda: self.api.DestroyFriendship(screen_name=screen_name,user_id=user_id))
-
+        u = self.ApiCall("UnFollow",NotNone(user_id,screen_name),lambda: self.api.DestroyFriendship(screen_name=screen_name,user_id=user_id))
+        if not u is None:
+            u.following = False
+            self.g_data.dbmgr.InsertUser(u)
+            return u
+        return None
 
     def GetFollowerIDsPagedInternal(self, user_id, screen_name, cursor):
         url = '%s/followers/ids.json' % self.api.base_url
@@ -158,21 +174,21 @@ class ApiHandler():
         return data
         
     def ShowUserInternal(self, user_id, screen_name):
-        paremeters = {}
+        parameters = {}
         if user_id:
-            paremeters["user_id"] = user_id
+            parameters["user_id"] = user_id
         else:
-            paremeters["screen_name"] = screen_name
-        data = self.ApiCallInternal("users/show.json",paremeters)
+            parameters["screen_name"] = screen_name
+        data = self.ApiCallInternal("users/show.json",parameters)
         return self.UserFromJson(data)
 
     def GetRelatedInternal(self, relation, user_id, screen_name, count):
-        paremeters = {"count":count, "include_user_entities":True}
+        parameters = {"count":count, "include_user_entities":True}
         if user_id:
-            paremeters["user_id"] = user_id
+            parameters["user_id"] = user_id
         else:
-            paremeters["screen_name"] = screen_name
-        data = self.ApiCallInernal("%s/list.json" % relation,parameters)
+            parameters["screen_name"] = screen_name
+        data = self.ApiCallInternal("%s/list.json" % relation,parameters)
         return [self.UserFromJson(u) for u in data["users"]]
 
     def GetSearchInternal(self,term,count,result_type="mixed",since_id=None):
@@ -186,16 +202,16 @@ class ApiHandler():
         s = self.ApiCallInternal("statuses/show.json", {"id" : status_id})
         return self.StatusFromJson(s)
 
-    def GetUserTimelineInternal(screen_name,user_id,count,max_id):
+    def GetUserTimelineInternal(self, screen_name,user_id,count,max_id):
         parameters = {"trim_user" : False, "count" : count}
         if user_id:
             parameters['user_id'] = user_id
-        elif screen_name:
+        if screen_name:
             parameters['screen_name'] = screen_name
         if max_id:
             parameters['max_id'] = long(max_id)
-        ss = self.ApiCallInternal("statuses/user_timeline.json",paremters)
-        return [self.UserFromJson(s) for ss in s]
+        data = self.ApiCallInternal("statuses/user_timeline.json",parameters)
+        return [self.StatusFromJson(s) for s in data]
 
     def UserFromJson(self, json):
         u = twitter.user.User.NewFromJsonDict(json)
@@ -206,5 +222,5 @@ class ApiHandler():
     def StatusFromJson(self, json):
         s = twitter.status.Status.NewFromJsonDict(json)
         if "user" in json:
-            s.SetUser(self.StatusFromJson(self, json["user"]))
+            s.SetUser(self.UserFromJson(json["user"]))
         return s

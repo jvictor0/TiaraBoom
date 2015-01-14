@@ -6,6 +6,8 @@ import json
 from twitter.status import Status
 from twitter.user import User
 import datetime
+from util import *
+
 
 MODES=2
 
@@ -14,20 +16,6 @@ AFFLICT_DELETER = 2
 AFFLICT_PROTECTED = 3
 AFFLICT_SUSPENDED = 4
 AFFLICT_BLOCKER = 5
-
-# looks like Fri Jan 02 03:14:31 +0000 2015
-def TwitterTimestampToMySQL(ts):
-    ts = ts.split()
-    assert ts[0] in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], ts
-    mon = str(1 + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].index(ts[1]))
-    day = ts[2]
-    time = ts[3]
-    assert ts[4] == "+0000", ts
-    year = ts[5]
-    return "%s-%s-%s %s" % (year,mon,day,time)
-
-def MySQLTimestampToPython(ts):
-    return datetime.datetime.strptime(ts, "%Y-%m-%d%H:%M:%S")
 
 class DataManager:
     def __init__(self, g_data, config):
@@ -161,11 +149,10 @@ class DataManager:
         updates = ["num_followers = %s" % folls,
                    "num_friends = %s" % friens,
                    "screen_name = %s" % sn,
-                   "following = %d" % following]
+                   "following = %s" % following]
         if user.following:
             updates.append("has_followed = 1")
         q = "insert into users values (%s) on duplicate key update %s" % (values, ",".join(updates))
-        print q
         self.con.query(q)
         
     def InsertUngettable(self, tid, errno):
@@ -266,9 +253,23 @@ class DataManager:
         user.SetFriendsCount(row[0]["num_friends"])
         user.following = True if row[0]["following"] == "1" else False
         return user
-            
+
+    def EverFollowed(self, uid):
+        res = self.con.query("select has_followed from users where id = %d" % uid)
+        if len(res) == 0:
+            return False
+        return res[0] == "1"
+           
+    def MostRecentTweet(self, uid):
+        q = "select max(ts) as a from tweets where parent_id = %d and user_name = '%s'" % (uid, self.g_data.myName)
+        result = self.con.query(q)
+        if result[0]["a"] is None:
+            return None
+        assert len(result) == 1
+        return MySQLTimestampToPython(result[0]["a"])
+ 
     def Act(self):
-        if False and self.shard % MODES == 0:
+        if self.shard % MODES == 0:
             self.UpdateTweets()
         elif self.shard % MODES == 1:
             self.ProcessUnprocessedTweets()

@@ -3,6 +3,7 @@ import logging
 import sys
 import inspect
 import traceback
+import datetime
 
 import paramiko
 
@@ -105,3 +106,20 @@ ConstTrue = Const(True)
 
 def GetURL(status):
     return "https://twitter.com/%s/status/%d" % (status.GetUser().GetScreenName(), status.GetId())
+
+# looks like Fri Jan 02 03:14:31 +0000 2015
+def TwitterTimestampToMySQL(ts):
+    ts = ts.split()
+    assert ts[0] in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], ts
+    mon = str(1 + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].index(ts[1]))
+    day = ts[2]
+    time = ts[3]
+    assert ts[4] == "+0000", ts
+    year = ts[5]
+    return "%s-%s-%s %s" % (year,mon,day,time)
+
+def MySQLTimestampToPython(ts):
+    return datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+
+def OlderThan(ts,days):
+    return (ts.now() - ts) > datetime.timedelta(days,0,0)
