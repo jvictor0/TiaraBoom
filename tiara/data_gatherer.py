@@ -9,13 +9,14 @@ import datetime
 from util import *
 
 
-MODES=2
+MODES=3
 
 AFFLICT_FOLLOWBACK = 1
 AFFLICT_DELETER = 2
 AFFLICT_PROTECTED = 3
 AFFLICT_SUSPENDED = 4
 AFFLICT_BLOCKER = 5
+AFFLICT_DEACTIVATED = 6
 
 class DataManager:
     def __init__(self, g_data, config):
@@ -76,7 +77,7 @@ class DataManager:
                         "num_friends bigint,"
                         "following tinyint,"
                         "has_followed tinyint,"
-                        "updated timestamp)"))
+                        "updated timestamp default current_timestamp on update current_timestamp)"))
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -159,6 +160,23 @@ class DataManager:
         if self.con is None:
             return
         self.con.query("insert into ungettable_tweets values (%d,%d) on duplicate key update errorcode=errorcode" % (tid,errno))
+
+    def InsertAfflicted(self, uid, errno):
+        if self.con is None:
+            return
+        self.con.query("insert into user_afflictions values (%d,%d) on duplicate key update affliction=affliction" % (uid,errno))
+        if errno in [AFFLICT_DEACTIVATED, AFFLICT_SUSPENDED]:
+            self.con.query("delete from users where id = %d and num_followers is null" % uid)
+
+    def GetAffliction(self, uid):
+        if self.con is None:
+            return None
+        rows = self.con.query("select * from users where id = %d and has_followed = 1 and following = 0" % uid)
+        if len(rows) == 1:
+            self.InsertAfflicted(uid, AFFLICT_BLOCKER)
+        elif self.EverFollowed(uid):
+            self.con.query("delete from user_afflictions where id = %d and affliction = %d" % (uid, AFFLICT_BLOCKER))
+        return [r["affliction"] for r in self.con.query("select * from user_afflictions where id = %d" % uid)]
 
     def InsertTweet(self, s):
         if self.con is None:
@@ -258,7 +276,7 @@ class DataManager:
         res = self.con.query("select has_followed from users where id = %d" % uid)
         if len(res) == 0:
             return False
-        return res[0] == "1"
+        return res[0]["has_followed"] == "1"
            
     def MostRecentTweet(self, uid):
         q = "select max(ts) as a from tweets where parent_id = %d and user_name = '%s'" % (uid, self.g_data.myName)
@@ -267,13 +285,32 @@ class DataManager:
             return None
         assert len(result) == 1
         return MySQLTimestampToPython(result[0]["a"])
+
+    def TweetHistory(self, uid):
+        q = ("select ch.id as chid, pa.id as paid from tweets ch join tweets pa "
+             "on ch.parent = pa.id "
+             "where (ch.user_id = %d and pa.user_name = '%s') "
+             " or (ch.parent_id = %d and ch.user_name = '%s')")
+        q = q % (uid, self.g_data.myName, uid, self.g_data.myName)
+        rows = self.con.query(q)
+        result = []
+        for r in rows:
+            left = self.LookupStatus(int(r["chid"]))
+            right = self.LookupStatus(int(r["paid"]))
+            result.append((left,right))
+        return result
  
+    def UpdateUsers(self):
+        q = "select id from users order by updated limit 30"
+        result = self.con.query(q)
+        for r in result:
+            self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)
+
     def Act(self):
         if self.shard % MODES == 0:
             self.UpdateTweets()
         elif self.shard % MODES == 1:
             self.ProcessUnprocessedTweets()
+        elif self.shard % MODES == 2:
+            self.UpdateUsers()
         self.shard += 1
-        rs = self.con.query("select id from users where num_followers is null limit 85")
-        for r in rs:
-            self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)

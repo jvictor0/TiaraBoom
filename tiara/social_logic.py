@@ -106,10 +106,18 @@ class SocialLogic:
 
     def StalkTwitterGravitate(self):
         target = random.choice(self.followCore.Get())
-        followers = random.choice([self.g_data.ApiHandler().GetFollowers,self.g_data.ApiHandler().GetFriends])(user_id=target)
+        followers = random.choice([self.g_data.ApiHandler().GetFollowerIDs,self.g_data.ApiHandler().GetFriendIDs])(user_id=target)
         if followers is None:
             return
-        self.UpdateNewBestFriend(followers)
+        random.shuffle(followers)
+        cands = []
+        for i in xrange(30):
+            if len(followers) == i:
+                break
+            u = self.g_data.ApiHandler().ShowUser(user_id = followers[i])
+            if not u is None:
+                cands.append(u)
+        self.UpdateNewBestFriend(cands)
 
     def StalkTwitterHops(self):
         friends = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
@@ -142,12 +150,14 @@ class SocialLogic:
     # we shall eventually replace this with a learning machine
     #
     def ScoreUser(self, user):
-        if self.g_data.dbmgr.EverFollowed(user):
+        if self.g_data.dbmgr.EverFollowed(user.GetId()):
             return -1
+        if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
+            return -1 
         numFriends = user.GetFriendsCount()
         numFollowers = user.GetFollowersCount()
         result = 0
-        if 'follow' in user.GetScreenName().lower() or 'follow' in user.GetName().lower():
+        if 'follow' in user.GetScreenName().lower():
             return -1 # because fuck you, thats why
         if user.GetProtected():
             return -1 # I don't want to talk to you anyways!
@@ -180,8 +190,8 @@ class SocialLogic:
         for uid in result[:min(30,len(result))]:
             u = self.g_data.ApiHandler().ShowUser(user_id = uid)
             if self.BotherUserAppropriate(u):
-                self.Bother(user_id=uid)
-                return True
+                if self.Bother(user_id=uid):
+                    return True
 
     def Bother(self, screen_name=None, user_id=None):
         if not screen_name is None:
@@ -228,6 +238,11 @@ class SocialLogic:
         ts = self.g_data.dbmgr.MostRecentTweet(user.GetId())
         if not ts is None and not OlderThan(ts, 7):
             return False
+        if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
+            return False
+        stats = self.HistoryStatistics(user)
+        if stats["attempts"] > 1 and stats["conversations"] == 0: # they probably aren't into it
+            return False
         return True
 
     def Follow(self):
@@ -242,6 +257,34 @@ class SocialLogic:
         fn = random.choice([lambda : self.TweetFrom(user),
                             lambda : self.Bother(screen_name = user.GetScreenName())])
         return fn()
+        
+
+    def HistoryStatistics(self, user):
+        tweets = self.g_data.dbmgr.TweetHistory(user.GetId())
+        ids = set([t.GetId() for t,s in tweets] + [s.GetId() for t,s in tweets])
+        roots = set([])
+        rootUrls = []
+        initiatesUrls = []
+        initiates = 0
+        for c,p in tweets:
+            if not p.GetInReplyToStatusId() in ids:
+                if p.GetUser().GetId() == user.GetId() and p.GetInReplyToScreenName() != self.g_data.myName:
+                    rootUrls.append(GetURL(p))
+                    roots.add(c.GetId())
+                else:
+                    initiatesUrls.append(GetURL(p))
+                    initiates = initiates + 1
+        responses = len([t for t,s in tweets if t.GetUser().GetId() == user.GetId()])
+        conversations = initiates
+        for c,p in tweets:
+            if p.GetId() in roots:
+                conversations += 1
+        return { "attempts" : len(roots),
+                 "initiates" : initiates,
+                 "conversations" : conversations,
+                 "responses" : responses,
+                 "initiatesUrls" : initiatesUrls,
+                 "conversationUrls" : rootUrls}
         
                 
     def Act(self):

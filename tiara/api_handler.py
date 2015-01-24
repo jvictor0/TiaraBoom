@@ -1,5 +1,6 @@
 import twitter
 import os
+import data_gatherer as d
 from util import *
 
 class ApiHandler():
@@ -57,7 +58,14 @@ class ApiHandler():
             self.g_data.dbmgr.InsertUser(u)
             return u
         else:
-            return None # TODO: mark as afflicted
+            affliction = LKD({ 63 : d.AFFLICT_SUSPENDED,
+                               34 : d.AFFLICT_DEACTIVATED },
+                             self.errno, None)
+            if not affliction is None and not user_id is None:
+                self.g_data.dbmgr.InsertAfflicted(user_id, affliction)
+            elif affliction is None:
+                g_data.TraceWarn("Unrecognized affliction!")
+            return None 
 
     def Tweet(self, status, in_reply_to_status=None):
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
@@ -75,6 +83,7 @@ class ApiHandler():
         if not result is None:
             if not in_reply_to_status is None:
                 assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId()) is None
+            result.GetUser().following = False #not following myself!
             self.g_data.dbmgr.InsertTweet(result)
         return result
 
@@ -119,7 +128,6 @@ class ApiHandler():
                             lambda: self.GetSearchInternal(term="to:%s" % self.g_data.myName,
                                                            count=count,
                                                            result_type="recent",
-                                                           include_entities=True,
                                                            since_id=max_id),
                             tp="LOT")
 
@@ -192,10 +200,10 @@ class ApiHandler():
         return [self.UserFromJson(u) for u in data["users"]]
 
     def GetSearchInternal(self,term,count,result_type="mixed",since_id=None):
-        args = {"term" : term, "count" : count, "result_type" : result_type}
+        args = {"q" : term, "count" : count, "result_type" : result_type, "include_entities" : True}
         if not since_id is None:
             args["since_id"] = since_id
-        data = self.ApiCallInternal("serach/tweets.json",args)
+        data = self.ApiCallInternal("search/tweets.json",args)
         return [self.StatusFromJson(s) for s in data["statuses"]]
 
     def ShowStatusInternal(self, status_id):
