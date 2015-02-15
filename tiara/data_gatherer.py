@@ -16,6 +16,7 @@ AFFLICT_PROTECTED = 3
 AFFLICT_SUSPENDED = 4
 AFFLICT_BLOCKER = 5
 AFFLICT_DEACTIVATED = 6
+AFFLICT_NON_ENGLISH = 7
 
 class DataManager:
     def __init__(self, g_data, config):
@@ -74,10 +75,16 @@ class DataManager:
                         "screen_name varchar(200) character set utf8mb4 default null,"
                         "num_followers bigint,"
                         "num_friends bigint,"
+                        "language varchar(200) default null,"
+                        "updated timestamp default current_timestamp on update current_timestamp)"))
+        self.con.query(("create table if not exists user_following_status("
+                        "id bigint,"
+                        "my_name varchar(100) character set utf8mb4 default null,"
                         "following tinyint,"
                         "has_followed tinyint,"
-                        "updated timestamp default current_timestamp on update current_timestamp)"))                        
-                        
+                        "updated timestamp default current_timestamp on update current_timestamp,"
+                        "primary key(id, my_name))"))
+
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -144,16 +151,25 @@ class DataManager:
         sn  = "'%s'" % user.GetScreenName().encode("utf8")
         folls = str(user.GetFollowersCount())
         friens = str(user.GetFriendsCount())
-        following = "1" if user.following else "0"
-        has_followed = following
-        values = ",".join([uid, sn, folls, friens, following, has_followed, "NOW()"])
+        language = "'%s'" % user.GetLang()
+        values = ",".join([uid, sn, folls, friens, language, "NOW()"])
         updates = ["num_followers = %s" % folls,
                    "num_friends = %s" % friens,
                    "screen_name = %s" % sn,
-                   "following = %s" % following]
-        if user.following:
-            updates.append("has_followed = 1")
+                   "language = %s" % language]
         q = "insert into users values (%s) on duplicate key update %s" % (values, ",".join(updates))
+        self.con.query(q)
+
+        following = "1" if user.following else "0"
+        has_followed = following
+
+        updates = ["following = %s" % following]
+        if following == "1":
+            updates.append("has_followed = 1")
+        
+        q = ("insert into user_following_status values (%s,'%s',%s,%s,NOW()) "
+             "on duplicate key update %s")
+        q = q % (uid, self.g_data.myName, following, has_followed, ",".join(updates))
         self.con.query(q)
         
     def InsertUngettable(self, tid, errno):
@@ -165,13 +181,13 @@ class DataManager:
         if self.con is None:
             return
         self.con.query("insert into user_afflictions values (%d,%d) on duplicate key update affliction=affliction" % (uid,errno))
-        if errno in [AFFLICT_DEACTIVATED, AFFLICT_SUSPENDED]:
-            self.con.query("delete from users where id = %d and num_followers is null" % uid)
 
     def GetAffliction(self, uid):
         if self.con is None:
             return None
-        rows = self.con.query("select * from users where id = %d and has_followed = 1 and following = 0" % uid)
+        rows = self.con.query(("select * from user_following_status "
+                               "where my_name = '%s' and id = %d and has_followed = 1 and following = 0")
+                              % (self.g_data.myName, uid))
         if len(rows) == 1:
             self.InsertAfflicted(uid, AFFLICT_BLOCKER)
         elif self.EverFollowed(uid):
@@ -230,6 +246,8 @@ class DataManager:
         return res
 
     def RowToStatus(self, row):
+        if row["json"] is None:
+            return None
         s = Status.NewFromJsonDict(json.loads(row["json"]))
         s.SetRetweetCount(int(row["retweets"]))
         s.SetFavoriteCount(int(row["favorites"]))
@@ -238,16 +256,15 @@ class DataManager:
         assert s.GetUser() is None, row
         u = self.LookupUser(int(row["user_id"]))
         if u is None:
-            s.SetUser(User())
-            s.GetUser().SetScreenName(row['user_name'])
-            s.GetUser().SetId(long(row['user_id']))
+            return None
         else:
             s.SetUser(u)
         return s
 
     def LookupStatuses(self, tid, field = "id"):
         rows = self.Lookup(tid,field)
-        return [self.RowToStatus(r) for r in rows if not r["json"] is None]
+        return filter(lambda x: not x is None,
+                      [self.RowToStatus(r) for r in rows])
 
     def LookupStatus(self, tid, field = "id"):
         statuses = self.LookupStatuses(tid, field)
@@ -265,16 +282,25 @@ class DataManager:
         assert len(row) == 1
         if row[0]["num_followers"] is None:
             return None
+        if row[0]["language"] is None:
+            return None
         user = User()
         user.SetScreenName(row[0]["screen_name"])
         user.SetId(uid)
-        user.SetFollowersCount(row[0]["num_followers"])
-        user.SetFriendsCount(row[0]["num_friends"])
+        user.SetFollowersCount(int(row[0]["num_followers"]))
+        user.SetFriendsCount(int(row[0]["num_friends"]))
+        user.SetLang(row[0]["language"])
+        q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,uid)
+        if not days_old is None:
+            q = q + " and updated > timestampadd(day, -%d, now())" % days_old
+        row = self.con.query(q)
+        if len(row) == 0:
+            return None
         user.following = True if row[0]["following"] == "1" else False
         return user
 
     def EverFollowed(self, uid):
-        res = self.con.query("select has_followed from users where id = %d" % uid)
+        res = self.con.query("select has_followed from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,uid))
         if len(res) == 0:
             return False
         return res[0]["has_followed"] == "1"

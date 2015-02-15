@@ -14,7 +14,8 @@ class Ticker(object):
         self.SetLimit(tix)
         self.g_data = g_data
         self.name = name
-        if verbose:
+        self.verbose = verbose
+        if self.verbose:
             self.g_data.TraceInfo("Startup! %f minutes until first %s." % (self.limit/60, name))
 
     def SetLimit(self, new_avg=None):
@@ -30,7 +31,7 @@ class Ticker(object):
             self.Tock()
             self.time -= self.limit
             self.SetLimit()
-            if verbose:
+            if self.verbose:
                 self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
             return
 
