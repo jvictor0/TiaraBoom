@@ -24,7 +24,7 @@ class ApiHandler():
                 for u in result:
                     self.g_data.dbmgr.InsertUser(u)
             return result
-        except Exception as e:
+        except twitter.TwitterError as e:
             self.g_data.TraceWarn("%s(%s) failure" % (name,args))
             self.g_data.TraceWarn(str(e))
             try:
