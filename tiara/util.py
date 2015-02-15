@@ -123,3 +123,6 @@ def MySQLTimestampToPython(ts):
 
 def OlderThan(ts,days):
     return (ts.now() - ts) > datetime.timedelta(days,0,0)
+
+def Decay(x):
+    return max(0,3 - 0.5**(x-2))

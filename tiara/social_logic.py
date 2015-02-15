@@ -275,6 +275,8 @@ class SocialLogic:
                     initiatesUrls.append(GetURL(p))
                     initiates = initiates + 1
         responses = len([t for t,s in tweets if t.GetUser().GetId() == user.GetId()])
+        favs = sum([t.GetFavoriteCount() for t,s in tweets if t.GetUser().GetScreenName() == self.g_data.myName])
+        rts =  sum([t.GetRetweetCount()  for t,s in tweets if t.GetUser().GetScreenName() == self.g_data.myName])
         conversations = initiates
         for c,p in tweets:
             if p.GetId() in roots:
@@ -284,8 +286,35 @@ class SocialLogic:
                  "conversations" : conversations,
                  "responses" : responses,
                  "initiatesUrls" : initiatesUrls,
-                 "conversationUrls" : rootUrls}
-        
+                 "conversationUrls" : rootUrls,
+                 "favorites" : favs,
+                 "retweets"  : rts
+                 }
+
+    def ScoreFriendFeatures(self, user):
+        stats = self.HistoryStatistics(user)
+        return {
+            "favorites"     : stats["favorites"],
+            "retweets"      : stats["retweets"],
+            "conversations" : stats["conversations"],
+            "avg_convo_len" : float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0,
+            "decayed_convo_len" : Decay(float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0),
+            "response_prob" : float(stats["conversations"])/stats["attempts"]  if stats["attempts"] != 0 else 0.0,
+            "virginity"     : 1.0/(2**stats["attempts"]),
+            }
+
+    def ScoreFriend(self, user):
+        coefs = { # this should be tweakable
+            "favorites"     : 0.25,
+            "retweets"      : 0.25,
+            "conversations" : 1.0,
+            "avg_convo_len" : 0.0,
+            "decayed_convo_len" : 2.0,
+            "response_prob" : 1.0,
+            "virginity"     : 1.0
+            }
+        features = self.ScoreFriendFeatures(user)
+        return sum([coefs[k] * features[k] for k in features.keys()])
                 
     def Act(self):
         self.Reply()
