@@ -16,16 +16,22 @@ class EmptySocialLogic:
         pass
 
 class GlobalData:
-    def __init__(self):
+    def __init__(self, g_data=None):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + '/english_families.json',"r") as f:
-            self.englishFamilies = DictToSortedTuple(json.load(f))
-        with open(abs_prefix + '/english_pos.json',"r") as f:
-            self.englishPos = DictToSortedTuple(json.load(f))
-        with open(abs_prefix + '/cooccuring.json',"r") as f:
-            self.cooccuring = DictToSortedTuple(json.load(f))
-        with open(abs_prefix + '/similar.json',"r") as f:
-            self.similar = DictToSortedTuple(json.load(f))
+        if not g_data is None:
+            self.englishFamilies = g_data.englishFamilies
+            self.englishPos = g_data.englishPos
+            self.cooccuring = g_data.cooccuring
+            self.similar = g_data.similar
+        else:            
+            with open(abs_prefix + '/english_families.json',"r") as f:
+                self.englishFamilies = DictToSortedTuple(json.load(f))
+            with open(abs_prefix + '/english_pos.json',"r") as f:
+                self.englishPos = DictToSortedTuple(json.load(f))
+            with open(abs_prefix + '/cooccuring.json',"r") as f:
+                self.cooccuring = DictToSortedTuple(json.load(f))
+            with open(abs_prefix + '/similar.json',"r") as f:
+                self.similar = DictToSortedTuple(json.load(f))
             
         log_format = '%(levelname)s %(asctime)s: %(message)s'
         logging.basicConfig(format=log_format)
@@ -59,17 +65,7 @@ class GlobalData:
             self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
             self.dbmgr = data_gatherer.DataManager(self, conf)
 
-            sl_name             = conf['social_logic']['name']
-            if sl_name == "TiaraBoom":
-                self.socialLogic = social_logic.SocialLogic(self, conf["social_logic"])
-            elif sl_name == "FollowBack":
-                self.socialLogic = social_logic.FollowBackLogic(self, conf["social_logic"])
-            elif sl_name == "SocialBot":
-                self.socialLogic = socialbot.SocialBotLogic(self, conf["social_logic"])
-            elif sl_name == "None":
-                self.socialLogic = EmptySocialLogic()
-            else:
-                assert False
+            self.socialLogic = social_logic.SocialLogic(self, conf["social_logic"])
         
         self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
         self.TraceDebug("size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos)))

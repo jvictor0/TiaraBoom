@@ -12,19 +12,44 @@ class SocialLogic:
         self.max_id = p.PersistedObject("max_id", 0)
         self.g_data = g_data
 
-        self.alliteration_mode = args["alliteration_mode"]
-
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
         self.tickers = []
-        self.tickers.append(t.StatsLogger(g_data,15))
-        self.tickers.append(t.LambdaTicker(g_data, 4*60, lambda: self.Follow(), "follow"))
-        self.tickers.append(t.LambdaTicker(g_data, 4*60, lambda: self.BotherRandom(), "BotherRandom"))
-        self.tickers.append(t.LambdaStraightTicker(16, lambda: self.StalkTwitter()))
-        self.tickers.append(t.LambdaStraightTicker(16, lambda: self.g_data.dbmgr.Act()))
+        self.params = args
+        self.invalid = False
+
+        SKD("mean_follow_time",          self.params, 4 * 60)
+        SKD("mean_bother_time",          self.params, 4 * 60)
+        SKD("reply",                     self.params, {"mode" : "classic", "alliteration_mode" : False })
+        SKD("gravitation_parameter",     self.params, 0.0)
+        SKD("gravitation_targets",       self.params, [])
+        SKD("friend_score_coefficients", self.params, {})
+        if len(self.params["gravitation_targets"]) == 0:
+            self.param["gravitation_parameter"] = 0.0
+
+        if self.params["reply"]["mode"] == "classic":
+            SKD("alliteration_mode",  self.params["reply"], False)
+        else:
+            self.invalid = True
+
+        if len(self.params) != 6:
+            self.invalid = True
+
+        fsc = self.params["friend_score_coefficients"]
+        SKD("favorites"     , fsc, 0.25)
+        SKD("retweets"      , fsc, 0.25)
+        SKD("conversations" , fsc, 1.0)
+        SKD("avg_convo_len" , fsc, 0.0)
+        SKD("decayed_convo_len" , fsc, 2.0)
+        SKD("response_prob" , fsc, 1.0)
+        SKD("virginity"     , fsc, 1.0)
+        if len(fsc) != 7:
+            self.invalid = True
         
-        self.followMethod = p.PersistedObject("followMethod", 'hops')
-        self.followCore   = p.PersistedList("followCore")
+        self.tickers.append(t.Ticker(g_data, self.params["mean_follow_time"], lambda: self.Follow(), "Follow"))
+        self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers.append(t.Ticker(g_data, 16, lambda: self.StalkTwitter(), "StalkTwitter", exponential=False))
+        self.tickers.append(t.Ticker(g_data, 16, lambda: self.g_data.dbmgr.Act(), "ManageDb", exponential=False))
 
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -57,7 +82,7 @@ class SocialLogic:
 
     def ReplyTo(self, tweet):
         self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
-        response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.alliteration_mode)
+        response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.params["reply"]["alliteration_mode"])
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
@@ -72,40 +97,15 @@ class SocialLogic:
             return None
         return random.choice(result)
 
-    def SetStrategy(self, args):
-        if len(args) == 2 and args[0] == "target" and args[1] in ["hops","gravitate"]:
-            self.followMethod.Set(args[1])
-            return "ok"
-        elif args == ["target","show"]:
-            return self.followMethod.Get()
-        elif len(args) == 3 and args[0] == "gravitate" and args[1] in ["add","remove"] and args[2][0] == '@':
-            target = args[2][1:]
-            if args[1] == "add" and target in self.followCore:
-                self.g_data.ApiHandler().Follow(screen_name=target)
-                return "already gravitating towards @%s" % target
-            elif args[1] == "remove":
-                self.followCore.Set([n for n in self.followCore.Get() if n != target])
-                return "ok"
-            else:
-                self.followCore.Append(target)
-                return "ok"
-        elif args == ["gravitate","show"]:
-            return str(self.followCore.Get())
-        elif args == ["help"]:
-            return "'set_strategy target <target_strategy_name>' sets the target strategy.  The strategy 'hops' targets followers of followers.  The strategy 'gravitate' follows friends and followers of individuals in a specific list.  'set_strategy gravitate (add/remove) @gbop' will add/remove @gbop to the list being gravitated towards, and 'set_strategy gravitate show' shows thes gravitate list."
-        return "syntax error"
-        
-
     def StalkTwitter(self):
-        if self.followMethod.Get() == "hops":
-            self.StalkTwitterHops()
-        elif self.followMethod.Get() == "gravitate":
+        if random.uniform(0,1) > self.params["gravitation_parameter"]:
             self.StalkTwitterGravitate()
         else:
-            assert False, followMethod.Get()
+            self.StalkTwitterHops()
+
 
     def StalkTwitterGravitate(self):
-        target = random.choice(self.followCore.Get())
+        target = random.choice(self.params["gravitation_targets"])
         followers = random.choice([self.g_data.ApiHandler().GetFollowerIDs,self.g_data.ApiHandler().GetFriendIDs])(user_id=target)
         if followers is None:
             return
@@ -124,8 +124,6 @@ class SocialLogic:
         if friends is None or friends == []:
             return None
         random.shuffle(friends)
-        for i in xrange(min(85,len(friends))):
-            self.g_data.ApiHandler().ShowStatuses(user_id=friends[i]) 
         follower = random.choice(friends)
         followers = random.choice([self.g_data.ApiHandler().GetFollowers,self.g_data.ApiHandler().GetFriends])(user_id=follower)
         self.g_data.ApiHandler().ShowStatuses(user_id=follower)
@@ -137,12 +135,8 @@ class SocialLogic:
         for user in user_list:
             if user.GetProtected():
                 continue
-            #self.g_data.ApiHandler().ShowStatuses(screen_name=user.GetScreenName())  not yet
             score = self.ScoreUser(user)
-            if score is None:
-                self.g_data.TraceInfo("Ending StalkTwitter after ScoreUser")
-                return # we might be out of api calls or something, probably should end this stalk
-            if score > self.bestNewFriendScore:
+            if float(score)/(score + self.bestNewFriendScore) > random.uniform(0,1):
                 self.g_data.TraceInfo("Interested in new friend @%s with score %d" % (user.GetScreenName(), score))
                 self.bestNewFriendScore = score
                 self.bestNewFriend = user
@@ -209,7 +203,7 @@ class SocialLogic:
     
     def TweetFrom(self, user):
         self.g_data.TraceInfo("Tweeting from @%s" % user.GetScreenName())
-        response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.alliteration_mode)
+        response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.params["reply"]["alliteration_mode"])
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response)
             if not result is None:
@@ -304,15 +298,9 @@ class SocialLogic:
             }
 
     def ScoreFriend(self, user):
-        coefs = { # this should be tweakable
-            "favorites"     : 0.25,
-            "retweets"      : 0.25,
-            "conversations" : 1.0,
-            "avg_convo_len" : 0.0,
-            "decayed_convo_len" : 2.0,
-            "response_prob" : 1.0,
-            "virginity"     : 1.0
-            }
+        if not self.BotherUserAppropriate(user):
+            return -1
+        coefs = self.params["friend_score_coefficients"]
         features = self.ScoreFriendFeatures(user)
         return sum([coefs[k] * features[k] for k in features.keys()])
                 

@@ -90,6 +90,10 @@ def LKDS(d,a):
 def LKDL(d,a):
     return LKD(d,a,[])
 
+def SKD(a,d,r):
+    if not a in d:
+        d[a] = r
+
 def joinit(delimiter, iterable):
     it = iter(iterable)
     yield next(it)
