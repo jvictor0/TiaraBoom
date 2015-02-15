@@ -7,7 +7,6 @@ from twitter.status import Status
 from twitter.user import User
 import datetime
 from util import *
-import corenlp
 
 MODES=3
 
@@ -21,8 +20,6 @@ AFFLICT_DEACTIVATED = 6
 class DataManager:
     def __init__(self, g_data, config):
         self.con = None
-        self.nlp = None
-        self.InitCoreNLP()
         self.tweets_to_process = p.PersistedSet('tweets_to_process')
         self.g_data = g_data
         self.shard = 0
@@ -79,15 +76,7 @@ class DataManager:
                         "num_friends bigint,"
                         "following tinyint,"
                         "has_followed tinyint,"
-                        "updated timestamp default current_timestamp on update current_timestamp)"))
-
-        self.con.query(("create table if not exists depends("
-                        "id bigint,"
-                        "type varchar(50) character set utf8mb4 default null,"
-                        "arg1 varchar(512) character set utf8mb4 default null,"
-                        "arg2 varchar(512) character set utf8mb4 default null,"
-                        "key(arg1),key(arg2), key(id))"))
-                        
+                        "updated timestamp default current_timestamp on update current_timestamp)"))                        
                         
                 
     def UpdateTweets(self):
@@ -121,7 +110,7 @@ class DataManager:
     def ProcessUnprocessedTweets(self):
         if self.con is None:
             return
-        count = 85
+        count = 30
         while len(self.tweets_to_process) > 0 and count > 0:
             tid = self.tweets_to_process.Random()
             count -= 1
@@ -317,31 +306,6 @@ class DataManager:
         result = self.con.query(q)
         for r in result:
             self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)
-
-    def InitCoreNLP(self):
-        if not self.nlp:
-            self.nlp = corenlp.StanfordNLP()
-        
-    def InsertDependencies(self, tid, body):
-        deps = self.nlp.parse(body)
-        for s in deps["sentences"]:
-            for a,b,c in s["dependencies"]:
-                self.con.query("insert into depends values(%d,'%s',%%s,%%s)" % (tid, a.encode("utf8")), b.encode("utf8"), c.encode("utf8"))
-    
-    def TrollDependencies(self):
-        maxid = self.con.query("select max(id) as a from depends")[0]['a']
-        rows = self.con.query("select id, body from tweets where id > %s order by id limit 100" % maxid)
-        for r in rows:
-            print r["body"]
-            try:
-                self.InsertDependencies(int(r["id"]), r["body"])
-            except Exception as e:
-                print r["id"]
-                print e
-    
-    def TrollAllDependencies(self):
-        while True:
-            self.TrollDependencies()
 
     def Act(self):
         if self.shard % MODES == 0:
