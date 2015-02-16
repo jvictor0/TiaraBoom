@@ -136,7 +136,7 @@ class SocialLogic:
             if user.GetProtected():
                 continue
             score = self.ScoreUser(user)
-            if float(score)/(score + self.bestNewFriendScore) > random.uniform(0,1):
+            if score > 0 and float(score)/(score + self.bestNewFriendScore) > random.uniform(0,1):
                 self.g_data.TraceInfo("Interested in new friend @%s with score %d" % (user.GetScreenName(), score))
                 self.bestNewFriendScore = score
                 self.bestNewFriend = user
