@@ -10,6 +10,7 @@ import social_logic
 import socialbot
 import string
 import data_gatherer
+import enchant
 
 class EmptySocialLogic:
     def Act(self):
@@ -40,6 +41,8 @@ class GlobalData:
                 self.cooccuring = DictToSortedTuple(json.load(f))
             with open(abs_prefix + '/similar.json',"r") as f:
                 self.similar = DictToSortedTuple(json.load(f))
+
+        self.enchantDict = enchant.Dict("en_US")
 
         if g_data is None:
             log_format = '%(levelname)s %(asctime)s: %(message)s'
@@ -121,7 +124,7 @@ class GlobalData:
         return BinarySearch(self.englishPos, a, True), BinarySearch(self.englishPos, a_plus_1, True)
 
     def IsWord(self, word):
-        return not self.FamilyRepresentative(word) is None
+        return self.enchantDict.check(word)
 
     def FamilyRepresentative(self, word):
         res = BinarySearch(self.englishFamilies,word.lower())

@@ -1,11 +1,15 @@
 import database as db
 import persisted as p
 import ticker as t
+import vocab as v
+
 import random
 import json
+import datetime
+
 from twitter.status import Status
 from twitter.user import User
-import datetime
+
 from util import *
 
 MODES=3
@@ -84,6 +88,13 @@ class DataManager:
                         "has_followed tinyint,"
                         "updated timestamp default current_timestamp on update current_timestamp,"
                         "primary key(id, my_name))"))
+        self.con.query(("create table if not exists tweet_tokens("
+                        "user_id bigint,"
+                        "tweet_id bigint,"
+                        "key (user_id, tweet_id),"
+                        "token varchar(200) character set utf8mb4 default null,"
+                        "key(token, user_id, tweet_id))"))
+                        
 
                 
     def UpdateTweets(self):
@@ -332,6 +343,30 @@ class DataManager:
         result = self.con.query(q)
         for r in result:
             self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)
+
+    def TFIDF(self, uid, tid=None):
+        dfQuery = ("select token, count(distinct %s) as df "
+                   "from tweet_tokens "
+                   "group by token")
+        dfQuery = dfQuery % ("user_id" if tid is None else "user_id, tweet_id")
+        tfQuery = ("select token, count(*) as tf "
+                   "from tweet_tokens "
+                   "where user_id = %d %s")
+        tfQuery = tfQuery % (uid, ("and tweet_id = %d" % tid) if not tid is None else "")
+        numDocsQuery = "select count(distinct %s) from tokens" % ("user_id" if tid is None else "user_id, tweet_id")
+        q = ("select token, termfreq.tf as tf, docfreq.df as df, (%s) as n, "
+             "(1+log(tf)) * log(n/df) as tfidf "
+             "from (%s) termfreq join (%s) docfreq "
+             "on termfreq.tokens = docfreq.tokens")
+        q = q % (numDocsQuery, tfQuery, dfQuery)
+        rows = self.con.query(q)
+        return [(r["token"], r["tfidf"]) for r in rows]
+
+    def InsertTweetTokens(self, uid, tid, tweet):
+        tokens = v.Vocab(self.g_data).Tokenize(tweet)
+        q = "insert into tweet_tokens (user_id, tweet_id, token) values (%d,%d,%%s)" % (uid, tid)
+        for t in tokens:
+            con.query(q,t)
 
     def Act(self):
         if self.shard % MODES == 0:

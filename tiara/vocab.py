@@ -11,11 +11,30 @@ class Vocab:
         self.alliteration_count = 10
 
     def DeHashtagify(self, word):
+        if len(word) == 0:
+            return []
+        for end in range(len(word)+1)[-1::-1]:
+            if self.g_data.IsWord(word[:end]):
+                result = self.DeHashtagify(word[end:])
+                if not result is None:
+                    return [word[:end]] + result
+        return None
+
+    def Tokenize(self, tweet, lematize=True):
+        words = re.split(r"[^a-zA-Z\'\-#]", tweet)
         result = []
-        for start in xrange(1, len(word)):
-            for end in xrange(start, len(word)):
-                if self.g_data.IsWord(word[start:end]):
-                    result.append(word[start:end])
+        for word in words:
+            if len(word) > 0 and word[0] == '#':
+                these = self.DeHashtagify(word[1:])
+            else:
+                these = [word]
+            for w in these:
+                if lematize:
+                    result.append(w)
+                else:
+                    rep = self.g_data.FamilyRepresentative(w)
+                    if not rep is None:
+                        result.append(rep)
         return result
 
     def Add(self, tweet, addSimilar = False):
@@ -23,7 +42,7 @@ class Vocab:
         result = 0
         for w in words:
             if len(w) > 0 and w[0] == '#':
-                self.Add(' '.join(self.DeHashtagify(w)))
+                self.Add(' '.join(self.DeHashtagify(w[1:])))
                 continue
             rep = self.g_data.FamilyRepresentative(w)
             if not rep is None and rep not in self.used:

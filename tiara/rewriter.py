@@ -118,6 +118,7 @@ class Rewriter:
         if tweet:
             text = tweet.GetText()
             for u in (tweet.urls if not tweet.urls is None else []):
+                break # its not super working
                 try:
                     html = urllib2.urlopen(u.expanded_url, timeout = 5).read()
                     text = text + " " + html2text.html2text(html.decode('utf-8', 'ignore'))
