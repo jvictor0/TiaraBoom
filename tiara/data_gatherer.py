@@ -237,6 +237,7 @@ class DataManager:
         self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
         assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
         self.InsertUser(s.GetUser())
+        self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
 
     def GetUnprocessed(self, user=None):
         query = ("select tl.id, tl.parent, tl.parent_name, tl.parent_id "
@@ -344,7 +345,18 @@ class DataManager:
         for r in result:
             self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)
 
-    def TFIDF(self, uid, tid=None):
+    def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
+        if not tweet is None:
+            assert uid is None
+            assert tid is None
+            assert user is None
+            uid = tweet.GetUser().GetId()
+            tid = tweet.GetId()
+        if not user is None:
+            assert uid is None
+            assert tid is None
+            assert tweet is None
+            uid = user.GetId()
         dfQuery = ("select token, count(distinct %s) as df "
                    "from tweet_tokens "
                    "group by token")
@@ -367,6 +379,14 @@ class DataManager:
         q = "insert into tweet_tokens (user_id, tweet_id, token) values (%d,%d,%%s)" % (uid, tid)
         for t in tokens:
             con.query(q,t)
+
+    def InsertAllTweetTokens(self):
+        con.query("delete from tweet_tokens") # because fuck you thats why!
+        tweets = con.query("select user_id, id, body from tweets")
+        for i,r in enumerate(tweets): # am i insane or genious?
+            if i % 100 == 0:
+                print float(i)/len(tweets)
+            self.InsertTweetTokens(int(r["user_id"]),int(r["id"]),r["body"])
 
     def Act(self):
         if self.shard % MODES == 0:

@@ -5,6 +5,8 @@ from util import *
 import json
 import persisted as p
 import ticker as t
+import vocab as v
+import artrat_utils as au
 
 class SocialLogic:
     def __init__(self, g_data, args):
@@ -29,11 +31,17 @@ class SocialLogic:
 
         if self.params["reply"]["mode"] == "classic":
             SKD("alliteration_mode",  self.params["reply"], False)
+        elif self.params["reply"]["mode"] == "artrat":
+            if not "personality" in self.params:
+                self.invalid = True
+                return
         else:
             self.invalid = True
+            return
 
         if len(self.params) != 6:
             self.invalid = True
+            return
 
         fsc = self.params["friend_score_coefficients"]
         SKD("favorites"     , fsc, 0.25)
@@ -45,6 +53,7 @@ class SocialLogic:
         SKD("virginity"     , fsc, 1.0)
         if len(fsc) != 7:
             self.invalid = True
+            return
         
         self.tickers.append(t.Ticker(g_data, self.params["mean_follow_time"], lambda: self.Follow(), "Follow"))
         self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.BotherRandom(), "BotherRandom"))
@@ -81,15 +90,22 @@ class SocialLogic:
         return False
 
     def ReplyTo(self, tweet):
-        self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())
-        response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.params["reply"]["alliteration_mode"])
+        self.g_data.TraceInfo("replying to tweet %d" %  tweet.GetId())    
+        
+        if self.params["reply"]["mode"] == "classic":
+            response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.params["reply"]["alliteration_mode"])
+        elif self.params["reply"]["mode"] == "artrat":
+            response = au.ArtRatReplyTo(self.g_data, tweet, self.params["reply"]["personality"])
+        else:
+            assert False, self.params["reply"]
+            
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
                 return result
         self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
         return None
-
+            
 
     def RandomFriendID(self, name):
         result = self.g_data.ApiHandler().GetFriendIDs(screen_name=name)
