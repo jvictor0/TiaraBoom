@@ -10,16 +10,16 @@ import hashlib
 class Client(cmd.Cmd):
     def preloop(self):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../client")
-        cfig = "config.json" if len(sys.argv) == 1 else sys.argv[1]
+        cfig = "config.json" 
         with open(abs_prefix + '/' + cfig,'r') as f:
             conf = json.load(f)
             self.port = conf["port"]
             self.host = conf["host"]
             print (self.host,self.port)
-            self.password = conf["password"]
+            self.password = conf["bots"][sys.argv[1]]
         self.sock = socket.socket()
         self.sock.connect((self.host, self.port))
-        self.sock.send("hi")
+        self.sock.send(sys.argv[1])
         pad = self.sock.recv(1024)
         h = hashlib.sha256(pad)
         h.update(self.password)

@@ -16,13 +16,21 @@ class EmptySocialLogic:
         pass
 
 class GlobalData:
-    def __init__(self, g_data=None):
+    def __init__(self, g_data=None, conf=None):
+
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        if conf is None:
+            with open(abs_prefix + '/config.json','r') as f:
+                conf = json.load(f)["bots"][0]
+                
+        self.invalid = False
+        
         if not g_data is None:
             self.englishFamilies = g_data.englishFamilies
             self.englishPos = g_data.englishPos
             self.cooccuring = g_data.cooccuring
             self.similar = g_data.similar
+            self.logger = g_data.logger
         else:            
             with open(abs_prefix + '/english_families.json',"r") as f:
                 self.englishFamilies = DictToSortedTuple(json.load(f))
@@ -32,40 +40,35 @@ class GlobalData:
                 self.cooccuring = DictToSortedTuple(json.load(f))
             with open(abs_prefix + '/similar.json',"r") as f:
                 self.similar = DictToSortedTuple(json.load(f))
-            
-        log_format = '%(levelname)s %(asctime)s: %(message)s'
-        logging.basicConfig(format=log_format)
 
-        self.logger = logging.getLogger('TiaraBoom')
-        self.tweetLogger = logging.getLogger('TiaraBoomTweets')
+        if g_data is None:
+            log_format = '%(levelname)s %(asctime)s: %(message)s'
+            logging.basicConfig(format=log_format)
 
-        self.logger.setLevel(logging.DEBUG)
-        self.tweetLogger.setLevel(logging.DEBUG)
+            self.logger = logging.getLogger('TiaraBoom')
+            self.logger.setLevel(logging.DEBUG)
             
-        two_fifty_six_meg = 256000000
+            two_fifty_six_meg = 256000000
         
-        handler = logging.handlers.RotatingFileHandler(abs_prefix + "/tiaraboom_log", 
-                                                       maxBytes=two_fifty_six_meg, 
-                                                       backupCount=4)
-        handler.setFormatter(logging.Formatter(log_format,"%Y-%m-%d %H:%M:%S"))
-        self.logger.addHandler(handler)
-
-        tweetHandler = logging.FileHandler(abs_prefix + "/tweet_log")
-        tweetHandler.setFormatter(logging.Formatter('%(asctime)s: %(message)s', "%Y-%m-%d %H:%M:%S"))
-        self.tweetLogger.addHandler(tweetHandler)
-
-        with open(abs_prefix + '/config.json','r') as f:
-            conf = json.load(f)
-            self.password       = conf['password']
-            self.myName         = conf['twitter_name']
-            self.host           = conf['host'] if 'host' in conf else 'localhost'
-            self.port           = conf['port'] if 'port' in conf else 10001
-            self.authentication = conf["authentication"]
-            self.apiHandler = api_handler.ApiHandler(self, self.authentication)
-            self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
-            self.dbmgr = data_gatherer.DataManager(self, conf)
-
-            self.socialLogic = social_logic.SocialLogic(self, conf["social_logic"])
+            handler = logging.handlers.RotatingFileHandler(abs_prefix + "/tiaraboom_log", 
+                                                           maxBytes=two_fifty_six_meg, 
+                                                           backupCount=4)
+            handler.setFormatter(logging.Formatter(log_format,"%Y-%m-%d %H:%M:%S"))
+            self.logger.addHandler(handler)
+            
+            
+        self.password       = conf['password']
+        self.myName         = conf['twitter_name']
+        self.authentication = conf["authentication"]
+        self.apiHandler = api_handler.ApiHandler(self, self.authentication)
+        self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
+        if self.read_only_mode:
+            self.TraceInfo("In Read Only Mode!")
+        self.dbmgr = data_gatherer.DataManager(self, conf)
+        
+        self.socialLogic = social_logic.SocialLogic(self, conf["social_logic"])
+        if self.socialLogic.invalid:
+            self.invalid = True
         
         self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
         self.TraceDebug("size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos)))
@@ -74,16 +77,13 @@ class GlobalData:
 
 
     def TraceDebug(self, msg):
-        self.logger.debug(Indentation() + msg)
+        self.logger.debug(("(%s)" % self.myName) + Indentation() + msg)
     def TraceInfo(self, msg):
-        self.logger.info(Indentation() + msg)
+        self.logger.info( ("(%s)" % self.myName) + Indentation() + msg)
     def TraceWarn(self, msg):
-        self.logger.warn(Indentation() + msg)
+        self.logger.warn( ("(%s)" % self.myName) + Indentation() + msg)
     def TraceError(self, msg):
-        self.logger.error(Indentation() + msg)
-
-    def LogTweet(self, user, body, id, reply):
-        self.tweetLogger.debug("%s, %d, %s, %s" % (user,id,reply,body.replace("\n"," ")))
+        self.logger.error(("(%s)" % self.myName) + Indentation() + msg)
 
     def ApiHandler(self):
         return self.apiHandler

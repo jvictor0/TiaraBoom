@@ -116,6 +116,5 @@ input_handlers = [
     InputHandler("follow", lambda g_data, x: "syntax error" if len(x) != 1 or len(x[0]) == 0 or x[0][0] != '@' else g_data.ApiHandler().Follow(x[0][1:]),
                  "'follow @username' follows username"),
         InputHandler('search', HandleSearch, "search for tweets based on the twitter search api, but don't reply to it.\n  Example: 'search_reply #poop' finds a tweets containing #poop."),
-    InputHandler('search_reply', HandleSearchReply, "search for a tweet based on the twitter search api, reply to it.\n  Example: 'search_reply #poop' finds a tweet containing #poop and replies to it."),
-    InputHandler("set_strategy", lambda g_data,input: g_data.SocialLogic().SetStrategy(input), "use 'set_strategy help' for help")
+    InputHandler('search_reply', HandleSearchReply, "search for a tweet based on the twitter search api, reply to it.\n  Example: 'search_reply #poop' finds a tweet containing #poop and replies to it.")
     ]
