@@ -124,7 +124,11 @@ class GlobalData:
         return BinarySearch(self.englishPos, a, True), BinarySearch(self.englishPos, a_plus_1, True)
 
     def IsWord(self, word):
-        return self.enchantDict.check(word)
+        try:
+            result = self.enchantDict.check(word)
+            return result
+        except Exception as e:
+            return False
 
     def FamilyRepresentative(self, word):
         res = BinarySearch(self.englishFamilies,word.lower())

@@ -378,14 +378,15 @@ class DataManager:
         tokens = v.Vocab(self.g_data).Tokenize(tweet)
         q = "insert into tweet_tokens (user_id, tweet_id, token) values (%d,%d,%%s)" % (uid, tid)
         for t in tokens:
-            con.query(q,t)
+            self.con.query(q,t.encode("utf8"))
 
     def InsertAllTweetTokens(self):
-        con.query("delete from tweet_tokens") # because fuck you thats why!
-        tweets = con.query("select user_id, id, body from tweets")
+        self.con.query("delete from tweet_tokens") # because fuck you thats why!
+        tweets = self.con.query("select user_id, id, body from tweets")
         for i,r in enumerate(tweets): # am i insane or genious?
             if i % 100 == 0:
                 print float(i)/len(tweets)
+            print "   ", r["id"]
             self.InsertTweetTokens(int(r["user_id"]),int(r["id"]),r["body"])
 
     def Act(self):

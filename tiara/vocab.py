@@ -25,11 +25,13 @@ class Vocab:
         result = []
         for word in words:
             if len(word) > 0 and word[0] == '#':
-                these = self.DeHashtagify(word[1:])
+                these = self.DeHashtagify(word[1:].replace('#',"").replace("'","").replace("-",""))
+                if these is None:
+                    these = []
             else:
                 these = [word]
             for w in these:
-                if lematize:
+                if not lematize:
                     result.append(w)
                 else:
                     rep = self.g_data.FamilyRepresentative(w)
@@ -42,7 +44,7 @@ class Vocab:
         result = 0
         for w in words:
             if len(w) > 0 and w[0] == '#':
-                self.Add(' '.join(self.DeHashtagify(w[1:])))
+                self.Add(' '.join(self.DeHashtagify(w[1:].replace('#',"").replace("'","").replace("-",""))))
                 continue
             rep = self.g_data.FamilyRepresentative(w)
             if not rep is None and rep not in self.used:
