@@ -92,8 +92,8 @@ class DataManager:
                         "user_id bigint,"
                         "tweet_id bigint,"
                         "key (user_id, tweet_id),"
-                        "token varchar(200) character set utf8mb4 default null,"
-                        "key(token, user_id, tweet_id))"))
+                        "token varchar(100) character set utf8mb4 default null,"
+                        "primary key(token, user_id, tweet_id))"))
                         
 
                 
@@ -363,22 +363,27 @@ class DataManager:
         dfQuery = dfQuery % ("user_id" if tid is None else "user_id, tweet_id")
         tfQuery = ("select token, count(*) as tf "
                    "from tweet_tokens "
-                   "where user_id = %d %s")
+                   "where user_id = %d %s "
+                   "group by token")
         tfQuery = tfQuery % (uid, ("and tweet_id = %d" % tid) if not tid is None else "")
-        numDocsQuery = "select count(distinct %s) from tokens" % ("user_id" if tid is None else "user_id, tweet_id")
-        q = ("select token, termfreq.tf as tf, docfreq.df as df, (%s) as n, "
-             "(1+log(tf)) * log(n/df) as tfidf "
+        numDocsQuery = "select count(distinct %s) from tweet_tokens" % ("user_id" if tid is None else "user_id, tweet_id")
+        q = ("select termfreq.token, termfreq.tf as tf, docfreq.df as df, "
+             "(1+log(tf)) * log((%s)/df) as tfidf "
              "from (%s) termfreq join (%s) docfreq "
-             "on termfreq.tokens = docfreq.tokens")
+             "on termfreq.token = docfreq.token")
         q = q % (numDocsQuery, tfQuery, dfQuery)
         rows = self.con.query(q)
-        return [(r["token"], r["tfidf"]) for r in rows]
+        return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def InsertTweetTokens(self, uid, tid, tweet):
         tokens = v.Vocab(self.g_data).Tokenize(tweet)
         q = "insert into tweet_tokens (user_id, tweet_id, token) values (%d,%d,%%s)" % (uid, tid)
         for t in tokens:
-            self.con.query(q,t.encode("utf8"))
+            try:                
+                self.con.query(q,t.encode("utf8"))
+            except Exception as e:
+                assert e[0] == 1062 #dup key
+                return
 
     def InsertAllTweetTokens(self):
         self.con.query("delete from tweet_tokens") # because fuck you thats why!

@@ -17,12 +17,18 @@ class EmptySocialLogic:
         pass
 
 class GlobalData:
-    def __init__(self, g_data=None, conf=None):
+    def __init__(self, g_data=None, conf=None, name=None):
 
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         if conf is None:
             with open(abs_prefix + '/config.json','r') as f:
-                conf = json.load(f)["bots"][0]
+                confs = json.load(f)["bots"]
+                if not g_data is None:
+                    name = g_data.myName
+                if name is None:
+                    conf = confs[0]
+                else:
+                    conf = [c for c in confs if c["twitter_name"] == name][0]
                 
         self.invalid = False
         

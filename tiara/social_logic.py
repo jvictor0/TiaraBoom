@@ -29,16 +29,21 @@ class SocialLogic:
         if len(self.params["gravitation_targets"]) == 0:
             self.param["gravitation_parameter"] = 0.0
 
+        SKD("practice-mode", self.params["reply"], False)
+
         if self.params["reply"]["mode"] == "classic":
             SKD("alliteration_mode",  self.params["reply"], False)
         elif self.params["reply"]["mode"] == "artrat":
-            if not "personality" in self.params:
+            if not "personality" in self.params["reply"]:
+                self.invalid = True
+                return
+            if len(self.params["reply"]) != 3:
                 self.invalid = True
                 return
         else:
             self.invalid = True
             return
-
+            
         if len(self.params) != 6:
             self.invalid = True
             return
@@ -95,11 +100,15 @@ class SocialLogic:
         if self.params["reply"]["mode"] == "classic":
             response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.params["reply"]["alliteration_mode"])
         elif self.params["reply"]["mode"] == "artrat":
-            response = au.ArtRatReplyTo(self.g_data, tweet, self.params["reply"]["personality"])
+            response = au.ArtRatReplyTo(self.g_data, self.params["reply"]["personality"], tweet=tweet)
         else:
             assert False, self.params["reply"]
             
         if not response is None:
+            if self.params["reply"]["practice-mode"]:
+                self.g_data.TraceInfo("(PRACTICE) %s" % response)
+                self.g_data.TraceInfo("(PRACTICE) %s" % GetURL(tweet))
+                return tweet
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
                 return result
@@ -219,7 +228,14 @@ class SocialLogic:
     
     def TweetFrom(self, user):
         self.g_data.TraceInfo("Tweeting from @%s" % user.GetScreenName())
-        response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.params["reply"]["alliteration_mode"])
+        
+        if self.params["reply"]["mode"] == "classic":            
+            response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.params["reply"]["alliteration_mode"])
+        elif self.params["reply"]["mode"] == "artrat":
+            response = au.ArtRatReplyTo(self.g_data, self.params["reply"]["personality"], user=user)
+        else:
+            assert False, self.params["reply"]
+
         if not response is None:
             result = self.g_data.ApiHandler().Tweet(response)
             if not result is None:

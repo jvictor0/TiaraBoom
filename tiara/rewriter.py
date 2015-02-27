@@ -21,7 +21,7 @@ def ChooseResponse(g_data, user=None, tweet=None, attempts = 10, alliteration_mo
         rw = Rewriter(tweets, sentence, inReply and seed is None, g_data, alliteration_mode = alliteration_mode)
         result = rw.Rewrite()
         if result and inReply:
-            result = '@' + tweet.GetUser().GetScreenName() + ": " + result
+            result = '@' + tweet.GetUser().GetScreenName() + " " + result
         if result and len(result) <= 140:
             return result
         elif result:
