@@ -1,4 +1,7 @@
 import artrat.public as ar
+import artrat.article_rat as atc
+import os
+import os.path
 
 def GetConversationSymbols(g_data, tweet=None, user=None):
     symbols = {}
@@ -36,3 +39,20 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
                 g_data.TraceWarn("Failing long tweet \"%s\"" % result)
     return None
 
+def RefreshArticles(g_data):
+    assert False, "NO REFRESH!"
+    abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
+    sl = g_data.SocialLogic()
+    directory = os.path.join(abs_prefix, sl.params["reply"]["personality"])
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+    for source in sl.params["reply"]["sources"]:
+        atc.RefreshArticles(source, directory, sl.params["reply"]["personality"], g_data.TraceInfo)
+        
+def ResetArticles(g_data):
+    abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
+    sl = g_data.SocialLogic()
+    directory = os.path.join(abs_prefix, sl.params["reply"]["personality"])
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+    atc.Reset(directory, sl.params["reply"]["personality"], g_data.TraceInfo)
