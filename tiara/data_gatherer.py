@@ -22,10 +22,25 @@ AFFLICT_BLOCKER = 5
 AFFLICT_DEACTIVATED = 6
 AFFLICT_NON_ENGLISH = 7
 
+class FakeGData:
+    def __init__(self, name):
+        self.myName = name
+
+    def TraceWarn(a):
+        print a
+
+    def TraceInfo(a):
+        print a
+
+    def ApiHandler():
+        assert False, "Dont twitter ops with FakeGData"
+
+def MakeFakeDataMgr(name, dbname):
+    return DataManager(FakeGData(name), { "database" : dbname}, no_ddl = True)
+
 class DataManager:
-    def __init__(self, g_data, config):
+    def __init__(self, g_data, config, no_ddl=False):
         self.con = None
-        self.tweets_to_process = p.PersistedSet('tweets_to_process')
         self.g_data = g_data
         self.shard = 0
         if 'database' in config:
@@ -33,12 +48,17 @@ class DataManager:
             self.con.query("create database if not exists %s" % config["database"])
             self.con.query("use %s" % config["database"])
             self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
+            if no_ddl:
+                return
             if "gatherer_authentication" in config:
                 self.apiHandler = api_handler.ApiHandler(config["gatherer_authentication"])
             else:
                 self.apiHandler = g_data.ApiHandler()
             self.DDL()
- 
+
+    def ApiHandler():
+        return self.apiHandler
+        
     def DDL(self):
         self.con.query(("create table if not exists tweets("
                         
@@ -105,7 +125,7 @@ class DataManager:
         while True:
             count += 1
             assert count <= 30
-            statuses = self.apiHandler.ShowStatuses(screen_name=self.g_data.myName,
+            statuses = self.ApiHandler().ShowStatuses(screen_name=self.g_data.myName,
                                                     max_id=max_id)
             if statuses is None:
                 self.g_data.TraceWarn("Failed to update tweets")
@@ -117,24 +137,10 @@ class DataManager:
             for s in statuses:
                 assert not self.LookupStatus(s.GetId()) is None
 
-    def RemoveProcessedTweets(self):
-        for tid in list(self.tweets_to_process.Get()):
-            if (len(self.Lookup(tid,"parent")) != 0) or (len(self.Lookup(tid)) != 0):
-                print "deleting %d" % tid
-                self.tweets_to_process.Delete(tid)
-            else:
-                print "keeping %d" % tid
-
     def ProcessUnprocessedTweets(self):
         if self.con is None:
             return
         count = 30
-        while len(self.tweets_to_process) > 0 and count > 0:
-            tid = self.tweets_to_process.Random()
-            count -= 1
-            if not self.InsertTweetById(tid) is None:
-                self.tweets_to_process.Delete(tid)
-                
         if count == 0:
             return
         tweets = self.GetUnprocessed()
@@ -145,15 +151,15 @@ class DataManager:
             self.InsertTweetById(long(random.choice(tweets)["parent"]))
             
     def InsertTweetById(self, tid):
-        s = self.apiHandler.ShowStatus(tid, cache=False)
+        s = self.ApiHandler().ShowStatus(tid, cache=False)
         if not s is None:
             self.InsertTweet(s)
             return True
         else:
-            if self.apiHandler.errno in [34,179,63,144]: # not found, not allowed, suspended, not existing
-                self.InsertUngettable(tid, self.apiHandler.errno)
+            if self.ApiHandler().errno in [34,179,63,144]: # not found, not allowed, suspended, not existing
+                self.InsertUngettable(tid, self.ApiHandler().errno)
                 return True
-            self.g_data.TraceWarn("Unhandled error in InsertTweetById %d" % self.apiHandler.errno)
+            self.g_data.TraceWarn("Unhandled error in InsertTweetById %d" % self.ApiHandler().errno)
             assert False
             return None
         
@@ -338,12 +344,42 @@ class DataManager:
             right = self.LookupStatus(int(r["paid"]))
             result.append((left,right))
         return result
- 
+
+    def EntireConversation(self, tweet, considered = set([])):
+        result = []
+        while not tweet is None:
+            print considered, tweet.GetId()
+            if tweet.GetId() in considered:
+                break
+            result.append(tweet)
+            considered.add(tweet.GetId())
+            q = "select * from tweets where parent = %d" % tweet.GetId()
+            statuses = [self.RowToStatus(s) for s in self.con.query(q)]
+            for s in statuses:
+                result.extend(self.EntireConversation(s, considered))
+            if not tweet.GetInReplyToStatusId() is None:
+                tweet = self.LookupStatus(tweet.GetInReplyToStatusId())
+                if tweet is None:
+            else:
+                break
+        return result
+
+    def RecentConversations(self, limit):
+        q = "select * from tweets where parent_name = '%s' order by id desc limit %d" % (self.g_data.myName, limit)
+        statuses = [self.RowToStatus(s) for s in self.con.query(q)]
+        considered = set([])
+        result = []
+        for s in statuses:
+            nx = self.EntireConversation(s, considered)
+            if len(nx) != 0:
+                result.append(nx)
+        return result               
+            
     def UpdateUsers(self):
         q = "select id from users order by updated limit 30"
         result = self.con.query(q)
         for r in result:
-            self.apiHandler.ShowUser(user_id=int(r["id"]), cache=False)
+            self.ApiHandler().ShowUser(user_id=int(r["id"]), cache=False)
 
     def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
         if not tweet is None:
