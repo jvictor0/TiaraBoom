@@ -273,7 +273,7 @@ class DataManager:
             s.urls = []
         assert s.GetUser() is None, row
         u = self.LookupUser(int(row["user_id"]))
-        if u is None:
+        if u is None:            
             return None
         else:
             s.SetUser(u)

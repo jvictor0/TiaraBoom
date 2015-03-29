@@ -11,8 +11,8 @@ import artrat_utils as au
 class SocialLogic:
     def __init__(self, g_data, args):
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        self.max_id = p.PersistedObject("max_id", 0)
         self.g_data = g_data
+        self.max_id = p.PersistedObject("max_id_%s" % g_data.myName, 0)
 
         self.bestNewFriend      = None
         self.bestNewFriendScore = 0
@@ -78,7 +78,6 @@ class SocialLogic:
         for t in tweets[-1::-1]:
             if self.SignalsStop(t):
                 self.SetMaxId(t.GetId())
-                self.g_data.ApiHandler().UnFollow(user_id=t.GetUser().GetId())
                 continue
             if self.ReplyTo(t) or self.g_data.read_only_mode:
                 self.SetMaxId(t.GetId())

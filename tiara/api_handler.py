@@ -57,7 +57,7 @@ class ApiHandler():
         if not u is None:
             self.g_data.dbmgr.InsertUser(u)
             return u
-        else:
+        elif self.errno != 131: # internal error
             affliction = LKD({ 63 : d.AFFLICT_SUSPENDED,
                                34 : d.AFFLICT_DEACTIVATED },
                              self.errno, None)
@@ -66,6 +66,8 @@ class ApiHandler():
             elif affliction is None:
                 g_data.TraceWarn("Unrecognized affliction!")
             return None 
+        else:
+            return None
 
     def Tweet(self, status, in_reply_to_status=None):
         if (not in_reply_to_status is None) and in_reply_to_status.GetUser().GetScreenName() == self.g_data.myName:
@@ -82,7 +84,7 @@ class ApiHandler():
         
         if not result is None:
             if not in_reply_to_status is None:
-                assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId()) is None
+                assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId()) is None, (in_reply_to_status.AsDict(),in_reply_to_status.GetId())
             result.GetUser().following = False #not following myself!
             self.g_data.dbmgr.InsertTweet(result)
         return result
