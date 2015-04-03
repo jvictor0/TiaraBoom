@@ -7,7 +7,6 @@ import logging.handlers
 import api_handler
 import random
 import social_logic
-import socialbot
 import string
 import data_gatherer
 import enchant

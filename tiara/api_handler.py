@@ -57,7 +57,7 @@ class ApiHandler():
         if not u is None:
             self.g_data.dbmgr.InsertUser(u)
             return u
-        elif self.errno != 131: # internal error
+        elif not self.errno in [131]: # internal error
             affliction = LKD({ 63 : d.AFFLICT_SUSPENDED,
                                34 : d.AFFLICT_DEACTIVATED },
                              self.errno, None)

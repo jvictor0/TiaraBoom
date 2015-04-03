@@ -26,13 +26,13 @@ class FakeGData:
     def __init__(self, name):
         self.myName = name
 
-    def TraceWarn(a):
+    def TraceWarn(self,a):
         print a
 
-    def TraceInfo(a):
+    def TraceInfo(self,a):
         print a
 
-    def ApiHandler():
+    def ApiHandler(self,):
         assert False, "Dont twitter ops with FakeGData"
 
 def MakeFakeDataMgr(name, dbname):
@@ -55,8 +55,8 @@ class DataManager:
             else:
                 self.apiHandler = g_data.ApiHandler()
             self.DDL()
-
-    def ApiHandler():
+            
+    def ApiHandler(self):
         return self.apiHandler
         
     def DDL(self):
@@ -100,7 +100,8 @@ class DataManager:
                         "num_followers bigint,"
                         "num_friends bigint,"
                         "language varchar(200) default null,"
-                        "updated timestamp default current_timestamp on update current_timestamp)"))
+                        "updated timestamp default current_timestamp on update current_timestamp,"
+                        "key (screen_name))"))
         self.con.query(("create table if not exists user_following_status("
                         "id bigint,"
                         "my_name varchar(100) character set utf8mb4 default null,"
@@ -348,7 +349,6 @@ class DataManager:
     def EntireConversation(self, tweet, considered = set([])):
         result = []
         while not tweet is None:
-            print considered, tweet.GetId()
             if tweet.GetId() in considered:
                 break
             result.append(tweet)
@@ -359,13 +359,13 @@ class DataManager:
                 result.extend(self.EntireConversation(s, considered))
             if not tweet.GetInReplyToStatusId() is None:
                 tweet = self.LookupStatus(tweet.GetInReplyToStatusId())
-                if tweet is None:
             else:
                 break
         return result
 
     def RecentConversations(self, limit):
-        q = "select * from tweets where parent_name = '%s' order by id desc limit %d" % (self.g_data.myName, limit)
+        user_id = self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"]
+        q = "select * from tweets where parent_id = '%s' order by id desc limit %d" % (user_id, limit)
         statuses = [self.RowToStatus(s) for s in self.con.query(q)]
         considered = set([])
         result = []
