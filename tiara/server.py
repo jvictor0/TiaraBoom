@@ -10,6 +10,8 @@ from input_handler import HandleUserInput
 import random
 import hashlib
 import json
+import artrat_utils as au
+import multiprocessing
 
 class Connection:
     def __init__(self, g_data):
@@ -41,6 +43,13 @@ if __name__ == '__main__':
         assert len(g_datas) != 0
 
     sys.excepthook = exceptionTrace
+
+    artrat_personalities = [(gd.SocialLogic().params['reply']['personality'],src)
+                            for gd in g_datas if gd.SocialLogic().params["reply"]["mode"] == 'artrat'
+                            for src in gd.SocialLogic().params['reply']['sources']]
+    refreshProcess = multiprocessing.Process(target = au.ArticleRat, args=(artrat_personalities,g_datas[0].TraceRefreshThread))
+    refreshProcess.start()
+
                 
     server_address = (host, port)
     server.bind(server_address)
@@ -55,8 +64,10 @@ if __name__ == '__main__':
 
     while inputs:
 
-        for g_data in g_datas:
-            g_data.SocialLogic().Act()
+        if not "artrat_only" in conf or not conf["artrat_only"]:
+            for g_data in g_datas:
+                g_data.SocialLogic().Act()
+        assert refreshProcess.is_alive()
         
         ############# Begin server stuff ##################
         readable, writable, exceptional = select.select(inputs, outputs, inputs, 60)

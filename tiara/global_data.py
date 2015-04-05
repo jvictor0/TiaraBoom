@@ -32,12 +32,15 @@ class GlobalData:
         self.invalid = False
         
         if not g_data is None:
+            self.g_datas = g_data.g_datas
             self.englishFamilies = g_data.englishFamilies
             self.englishPos = g_data.englishPos
             self.cooccuring = g_data.cooccuring
             self.similar = g_data.similar
             self.logger = g_data.logger
-        else:            
+        else:
+            self.g_datas = [self]
+            self.g_datas.append(self)
             with open(abs_prefix + '/english_families.json',"r") as f:
                 self.englishFamilies = DictToSortedTuple(json.load(f))
             with open(abs_prefix + '/english_pos.json',"r") as f:
@@ -92,7 +95,9 @@ class GlobalData:
         self.logger.warn( ("(%s)" % self.myName) + Indentation() + msg)
     def TraceError(self, msg):
         self.logger.error(("(%s)" % self.myName) + Indentation() + msg)
-
+    def TraceRefreshThread(self, msg):
+        self.logger.info("(RefreshThread)  " + msg)
+        
     def ApiHandler(self):
         return self.apiHandler
 

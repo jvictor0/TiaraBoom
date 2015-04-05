@@ -27,7 +27,7 @@ class SocialLogic:
         SKD("gravitation_targets",       self.params, [])
         SKD("friend_score_coefficients", self.params, {})
         if len(self.params["gravitation_targets"]) == 0:
-            self.param["gravitation_parameter"] = 0.0
+            self.params["gravitation_parameter"] = 0.0
 
         SKD("practice-mode", self.params["reply"], False)
 
@@ -334,7 +334,10 @@ class SocialLogic:
         coefs = self.params["friend_score_coefficients"]
         features = self.ScoreFriendFeatures(user)
         return sum([coefs[k] * features[k] for k in features.keys()])
-                
+
+    def FriendBotLogics(self):
+        return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
+
     def Act(self):
         self.Reply()
         for t in self.tickers:

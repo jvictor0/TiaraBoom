@@ -1,3 +1,4 @@
+
 import artrat.public as ar
 import artrat.article_rat as atc
 import os
@@ -40,13 +41,13 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
     return None
 
 def RefreshArticles(g_data):
-    assert False, "NO REFRESH!"
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     sl = g_data.SocialLogic()
     directory = os.path.join(abs_prefix, sl.params["reply"]["personality"])
     if not os.path.isdir(directory):
         os.makedirs(directory)
     for source in sl.params["reply"]["sources"]:
+        print directory
         atc.RefreshArticles(source, directory, sl.params["reply"]["personality"], g_data.TraceInfo)
         
 def ResetArticles(g_data):
@@ -56,3 +57,11 @@ def ResetArticles(g_data):
     if not os.path.isdir(directory):
         os.makedirs(directory)
     atc.Reset(directory, sl.params["reply"]["personality"], g_data.TraceInfo)
+
+def ArticleRat(personalities, logfn):
+    abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
+    for p,_ in personalities:
+        directory = os.path.join(abs_prefix, p)
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+    atc.ArticleRat(abs_prefix, personalities, log=logfn)
