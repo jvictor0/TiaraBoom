@@ -1,8 +1,11 @@
-
+import random,time 
+import global_data
 import artrat.public as ar
 import artrat.article_rat as atc
-import os
+import os, signal
 import os.path
+import database
+import sys, json
 
 def GetConversationSymbols(g_data, tweet=None, user=None):
     symbols = {}
@@ -65,3 +68,13 @@ def ArticleRat(personalities, logfn):
         if not os.path.isdir(directory):
             os.makedirs(directory)
     atc.ArticleRat(abs_prefix, personalities, log=logfn)
+
+if __name__ == "__main__":
+    if sys.argv[1] == "reset":
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        with open(abs_prefix + '/config.json','r') as f:
+            conf = json.load(f)
+            for b in conf["bots"]:
+                if b["social_logic"]["reply"]["mode"] == "artrat"            :
+                    ResetArticles(global_data.GlobalData(name=b["twitter_name"]))
+    

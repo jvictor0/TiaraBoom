@@ -174,14 +174,15 @@ class DataManager:
         updates = ["num_followers = %s" % folls,
                    "num_friends = %s" % friens,
                    "screen_name = %s" % sn,
-                   "language = %s" % language]
+                   "language = %s" % language,
+                   "updated = NOW()"]
         q = "insert into users values (%s) on duplicate key update %s" % (values, ",".join(updates))
         self.con.query(q)
 
         following = "1" if user.following else "0"
         has_followed = following
 
-        updates = ["following = %s" % following]
+        updates = ["following = %s" % following, "updated = NOW()"]
         if following == "1":
             updates.append("has_followed = 1")
         
@@ -247,15 +248,14 @@ class DataManager:
         self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
 
     def GetUnprocessed(self, user=None):
+        uid = self.GetUserId()
         query = ("select tl.id, tl.parent, tl.parent_name, tl.parent_id "
                  "from tweets tl left join tweets tr "
                  "on tr.id = tl.parent "
-                 "where tr.id is null and tl.parent is not null and (tl.user_name = '%s' or tl.parent_name = '%s') " 
+                 "where tr.id is null and tl.parent is not null and (tl.user_id = %s or tl.parent_id = %s) " 
                  "and not exists(select * from ungettable_tweets where id = tl.parent) "
                  "limit 90")
-        query = query % (self.g_data.myName,self.g_data.myName)
-        if not user is None:
-            query = query + " and tl.parent_id = %d" % user
+        query = query % (uid, uid)
         return self.con.query(query)
 
     def Lookup(self, tid, field = "id"):
@@ -364,7 +364,7 @@ class DataManager:
         return result
 
     def RecentConversations(self, limit):
-        user_id = self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"]
+        user_id = self.GetUserId()
         q = "select * from tweets where parent_id = '%s' order by id desc limit %d" % (user_id, limit)
         statuses = [self.RowToStatus(s) for s in self.con.query(q)]
         considered = set([])
@@ -374,6 +374,9 @@ class DataManager:
             if len(nx) != 0:
                 result.append(nx)
         return result               
+
+    def GetUserId(self):
+        return int(self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"])
             
     def UpdateUsers(self):
         q = "select id from users order by updated limit 30"

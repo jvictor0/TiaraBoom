@@ -180,17 +180,19 @@ class ApiHandler():
     def ApiCallInternal(self, url, data, request="GET"):
         url = "%s/%s" % (self.api.base_url, url)
         json_data = self.api._RequestUrl(url, request, data=data)
+        if "x-rate-limit-remaining" in json_data.headers:
+            self.g_data.TraceDebug("rate limit remaining = %s" % json_data.headers["x-rate-limit-remaining"])
+            assert int(json_data.headers["x-rate-limit-remaining"]) > 0, "lets just not cause ourselves problems"
         data = self.api._ParseAndCheckTwitter(json_data.content)
         return data
         
     def ShowUserInternal(self, user_id, screen_name):
-        parameters = {}
         if user_id:
-            parameters["user_id"] = user_id
+            param = str(user_id)
         else:
-            parameters["screen_name"] = screen_name
-        data = self.ApiCallInternal("users/show.json",parameters)
-        return self.UserFromJson(data)
+            param = screen_name
+        data = self.ApiCallInternal("users/show/%s.json" % param, {})
+        return self.UserFromJson(data) 
 
     def GetRelatedInternal(self, relation, user_id, screen_name, count):
         parameters = {"count":count, "include_user_entities":True}
@@ -209,7 +211,7 @@ class ApiHandler():
         return [self.StatusFromJson(s) for s in data["statuses"]]
 
     def ShowStatusInternal(self, status_id):
-        s = self.ApiCallInternal("statuses/show.json", {"id" : status_id})
+        s = self.ApiCallInternal("statuses/show/%s.json" % status_id, {})
         return self.StatusFromJson(s)
 
     def GetUserTimelineInternal(self, screen_name,user_id,count,max_id):

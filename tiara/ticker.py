@@ -28,13 +28,9 @@ class Ticker(object):
         self.time += (t - self.last_time)
         self.last_time = t
         while self.time > self.limit:
-            self.Tock()
             self.time -= self.limit
             self.SetLimit()
             if self.verbose:
                 self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
+            self.fun()
             return
-
-    def Tock(self):
-        self.fun()
-
