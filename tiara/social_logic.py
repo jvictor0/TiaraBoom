@@ -64,6 +64,8 @@ class SocialLogic:
         self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.BotherRandom(), "BotherRandom"))
         self.tickers.append(t.Ticker(g_data, 16, lambda: self.StalkTwitter(), "StalkTwitter", exponential=False))
         self.tickers.append(t.Ticker(g_data, 16, lambda: self.g_data.dbmgr.Act(), "ManageDb", exponential=False))
+        if self.params["reply"]["mode"] == "artrat":
+            self.tickers.append(t.Ticker(g_data, 16, lambda: self.GatherSources(), "GatherSources", exponential=False))
 
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -338,6 +340,15 @@ class SocialLogic:
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
 
+    def GatherSources(self):
+        src = random.choice(self.params["reply"]["sources"])
+        ss = self.g_data.ApiHandler().ShowStatuses(screen_name=src)
+        if ss is None:
+            return None
+        for s in ss:
+            for url in (s.urls if not s.urls is None else []):
+                self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"])
+    
     def Act(self):
         self.Reply()
         for t in self.tickers:

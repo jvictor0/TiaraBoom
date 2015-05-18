@@ -32,10 +32,10 @@ class FakeGData:
     def TraceInfo(self,a):
         print a
 
-    def ApiHandler(self,):
+    def ApiHandler(self):
         assert False, "Dont twitter ops with FakeGData"
 
-def MakeFakeDataMgr(name, dbname):
+def MakeFakeDataMgr(name = "", dbname="tiaraboom"):
     return DataManager(FakeGData(name), { "database" : dbname}, no_ddl = True)
 
 class DataManager:
@@ -115,8 +115,15 @@ class DataManager:
                         "key (user_id, tweet_id),"
                         "token varchar(100) character set utf8mb4 default null,"
                         "primary key(token, user_id, tweet_id))"))
-                        
-
+        self.con.query(("create table if not exists articles("
+                        "tweet_id bigint not null,"
+                        "inserted datetime not null,"
+                        "processed datetime,"
+                        "personality varchar(100) not null,"
+                        "url text not null,"
+                        "primary key(tweet_id, personality),"
+                        "key(personality, url(1000)),"
+                        "key (inserted))"))
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -433,6 +440,35 @@ class DataManager:
             print "   ", r["id"]
             self.InsertTweetTokens(int(r["user_id"]),int(r["id"]),r["body"])
 
+    def PushArticle(self, url, tweet_id, personality):
+        q = "select * from articles where personality = %s and url = %s"
+        arts = self.con.query(q, personality, url)
+        if len(arts) == 0:
+            q = ("insert into articles values(%d, NOW(), NULL, '%s', %%s)" % (tweet_id, personality))
+            self.con.query(q,url)
+        else:
+            assert len(arts) == 1, arts
+            updates = []
+            if tweet_id < int(arts[0]['tweet_id']):
+                updates.append("tweet_id = %d" % tweet_id)
+            if arts[0]['processed'] is None:
+                updates.append("inserted = NOW()")
+            if len(updates) > 0:
+                q = "update articles set %s where personality = %%s and url = %%s" % (",".join(updates))
+                self.con.query(q, personality, url)
+
+    def PopArticle(self):
+        q = "select * from articles where processed is null order by inserted desc limit 1"
+        arts = self.con.query(q)
+        if len(arts) == 0:
+            return None
+        assert len(arts) == 1, arts
+        return arts[0]['url'], arts[0]['personality']
+
+    def FinishArticle(self, url, personality):
+        q = "update articles set processed = NOW() where personality = %s and url = %s"
+        self.con.query(q, personality, url)
+
     def Act(self):
         if self.shard % MODES == 0:
             self.UpdateTweets()
@@ -441,3 +477,4 @@ class DataManager:
         elif self.shard % MODES == 2:
             self.UpdateUsers()
         self.shard += 1
+        

@@ -6,6 +6,7 @@ import os, signal
 import os.path
 import database
 import sys, json
+import data_gatherer
 
 def GetConversationSymbols(g_data, tweet=None, user=None):
     symbols = {}
@@ -68,6 +69,26 @@ def ArticleRat(personalities, logfn):
         if not os.path.isdir(directory):
             os.makedirs(directory)
     atc.ArticleRat(abs_prefix, personalities, log=logfn)
+
+def InsertArticle(url, personality, logfn):
+    abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
+    directory = os.path.join(abs_prefix, personality)
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+    atc.DownloadAndProcess(url,
+                           directory,
+                           personality,
+                           log=logfn)
+
+def ArticleInsertionThread(logfn):
+    dbmgr = data_gatherer.MakeFakeDataMgr()
+    while True:
+        nxt = dbmgr.PopArticle()
+        if nxt is None:
+            time.sleep(60 * 60)
+            continue
+        InsertArticle(nxt[0], nxt[1], logfn)
+        dbmgr.FinishArticle(nxt[0], nxt[1])
 
 if __name__ == "__main__":
     if sys.argv[1] == "reset":

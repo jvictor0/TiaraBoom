@@ -18,6 +18,7 @@ import itertools
 import time
 import sys
 import collections
+from unidecode import unidecode
 
 def ConnectToMySQL(host=None, user='root', database='', **kwargs):
     if not host:
@@ -27,6 +28,8 @@ def ConnectToMySQL(host=None, user='root', database='', **kwargs):
 
 class Connection(object):
     def __init__(self, host, user, database):
+
+        self.print_queries = True
 
         sys_vars = dict(
                 character_set_server =  "utf8mb4",
@@ -128,11 +131,13 @@ class Connection(object):
         return self._result.num_rows()
 
     def _execute(self, query, *parameters):
+        parameters = [unidecode(p) if isinstance(p,unicode) else p for p in parameters]
         if parameters != None and parameters != ():
             query = query % tuple([self._db.escape(p, self.encoders) for p in parameters])
         if isinstance(query, unicode):
             query = query.encode(self._db.character_set_name())
-
+        if self.print_queries:
+            print query
         self._db.query(query)
         self._rowcount = self._db.affected_rows()
 

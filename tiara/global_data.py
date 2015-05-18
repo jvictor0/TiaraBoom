@@ -95,8 +95,8 @@ class GlobalData:
         self.logger.warn( ("(%s)" % self.myName) + Indentation() + msg)
     def TraceError(self, msg):
         self.logger.error(("(%s)" % self.myName) + Indentation() + msg)
-    def TraceRefreshThread(self, msg):
-        self.logger.info("(RefreshThread)  " + msg)
+    def TraceArticleThread(self, msg):
+        self.logger.info("(ArticleThread)  " + msg)
         
     def ApiHandler(self):
         return self.apiHandler
