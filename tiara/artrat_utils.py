@@ -82,11 +82,15 @@ def InsertArticle(url, personality, logfn):
 
 def ArticleInsertionThread(logfn):
     dbmgr = data_gatherer.MakeFakeDataMgr()
+    count = 0
     while True:
         nxt = dbmgr.PopArticle()
         if nxt is None:
+            count += 1
+            logfn("Queue empty?  Thats %d times in a row! Going to sleep until it fills" % count)
             time.sleep(60 * 60)
             continue
+        count = 0
         InsertArticle(nxt[0], nxt[1], logfn)
         dbmgr.FinishArticle(nxt[0], nxt[1])
 
