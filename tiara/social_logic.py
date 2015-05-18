@@ -163,9 +163,10 @@ class SocialLogic:
                 continue
             score = self.ScoreUser(user)
             if score > 0 and float(score)/(score + self.bestNewFriendScore) > random.uniform(0,1):
-                self.g_data.TraceInfo("Interested in new friend @%s with score %d" % (user.GetScreenName(), score))
                 self.bestNewFriendScore = score
                 self.bestNewFriend = user
+        self.g_data.TraceInfo("Interested in new friend @%s with score %d" % (self.bestNewFriend.GetScreenName(), self.bestNewFriendScore))
+
 
     # we shall eventually replace this with a learning machine
     #

@@ -11,7 +11,7 @@ import random
 import hashlib
 import json
 import artrat_utils as au
-import multiprocessing
+import threading
 import atexit, signal
 
 class Connection:
@@ -48,10 +48,10 @@ if __name__ == '__main__':
     artrat_personalities = [(gd.SocialLogic().params['reply']['personality'],src)
                             for gd in g_datas if gd.SocialLogic().params["reply"]["mode"] == 'artrat'
                             for src in gd.SocialLogic().params['reply']['sources']]
-    refreshProcess = multiprocessing.Process(target = au.ArticleInsertionThread,
-                                             args=(g_datas[0].TraceArticleThread,))
+    refreshProcess = threading.Thread(target = au.ArticleInsertionThread,
+                                      args=(g_datas[0].TraceArticleThread,))
+    refreshProcess.setDaemon(True)
     refreshProcess.start()
-    atexit.register(lambda : os.kill(refreshProcess.pid, signal.SIGKILL))
                 
     server_address = (host, port)
     server.bind(server_address)
