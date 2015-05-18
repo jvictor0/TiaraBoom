@@ -29,7 +29,7 @@ def ConnectToMySQL(host=None, user='root', database='', **kwargs):
 class Connection(object):
     def __init__(self, host, user, database):
 
-        self.print_queries = True
+        self.print_queries = False
 
         sys_vars = dict(
                 character_set_server =  "utf8mb4",
