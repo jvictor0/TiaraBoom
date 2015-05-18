@@ -238,6 +238,10 @@ class SocialLogic:
             assert False, self.params["reply"]
 
         if not response is None:
+            if self.params["reply"]["practice-mode"]:
+                self.g_data.TraceInfo("(PRACTICE) %s" % response)
+                self.g_data.TraceInfo("(PRACTICE) %s" % GetURL(tweet))
+                return tweet
             result = self.g_data.ApiHandler().Tweet(response)
             if not result is None:
                 return result
