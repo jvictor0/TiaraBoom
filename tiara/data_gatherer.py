@@ -4,6 +4,7 @@ import ticker as t
 import vocab as v
 
 import random
+import time
 import json
 import datetime
 
@@ -121,7 +122,7 @@ class DataManager:
                         "processed datetime,"
                         "personality varchar(100) not null,"
                         "url text not null,"
-                        "primary key(tweet_id, personality),"
+                        "key(tweet_id, personality),"
                         "key(personality, url(1000)),"
                         "key (inserted))"))
                 
@@ -418,7 +419,10 @@ class DataManager:
              "from (%s) termfreq join (%s) docfreq "
              "on termfreq.token = docfreq.token")
         q = q % (numDocsQuery, tfQuery, dfQuery)
+        self.g_data.TraceInfo("Starting TFIDF")
+        t0 = time.time()
         rows = self.con.query(q)
+        self.g_data.TraceInfo("TFIDF took %f secs" % (time.time() - t0))
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def InsertTweetTokens(self, uid, tid, tweet):
@@ -458,7 +462,7 @@ class DataManager:
                 self.con.query(q, personality, url)
 
     def PopArticle(self):
-        q = "select * from articles where processed is null order by inserted desc limit 1"
+        q = "select * from articles where processed is null order by tweet_id desc limit 1"
         arts = self.con.query(q)
         if len(arts) == 0:
             return None

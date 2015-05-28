@@ -57,14 +57,14 @@ class ApiHandler():
         if not u is None:
             self.g_data.dbmgr.InsertUser(u)
             return u
-        elif not self.errno in [131]: # internal error
-            affliction = LKD({ 63 : d.AFFLICT_SUSPENDED,
-                               34 : d.AFFLICT_DEACTIVATED },
+        elif not self.errno in [130, 131]: # over capacity, internal error
+            affliction = LKD({ 63  : d.AFFLICT_SUSPENDED,
+                               34  : d.AFFLICT_DEACTIVATED},
                              self.errno, None)
             if not affliction is None and not user_id is None:
                 self.g_data.dbmgr.InsertAfflicted(user_id, affliction)
             elif affliction is None:
-                g_data.TraceWarn("Unrecognized affliction!")
+                self.g_data.TraceWarn("Unrecognized affliction!")
             return None 
         else:
             return None
