@@ -45,7 +45,7 @@ class DataManager:
         self.g_data = g_data
         self.shard = 0
         if 'database' in config:
-            self.con = db.ConnectToMySQL()
+            self.con = db.ConnectToMySQL(port=3307)
             self.con.query("create database if not exists %s" % config["database"])
             self.con.query("use %s" % config["database"])
             self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
@@ -66,20 +66,20 @@ class DataManager:
                         "id bigint primary key not null,"
                         "parent bigint default null,"
                         
-                        "user_name varchar(200) character set utf8mb4 not null ,"
+                        "user_name varbinary(200),"
                         "user_id bigint not null,"
                         
-                        "parent_name varchar(200) character set utf8mb4 default null,"
+                        "parent_name varbinary(200),"
                         "parent_id bigint default null,"
                         
-                        "body text character set utf8mb4 not null,"
+                        "body blob, "
                         
                         "retweets bigint not null,"
                         "favorites bigint not null,"
                         
                         "ts datetime not null,"
 
-                        "json text character set utf8mb4 default null,"
+                        "json json,"
                         
                         "index(user_id),"
                         "index(parent),"
@@ -97,15 +97,15 @@ class DataManager:
         
         self.con.query(("create table if not exists users("
                         "id bigint primary key,"
-                        "screen_name varchar(200) character set utf8mb4 default null,"
+                        "screen_name varbinary(200),"
                         "num_followers bigint,"
                         "num_friends bigint,"
-                        "language varchar(200) default null,"
+                        "language varbinary(200),"
                         "updated timestamp default current_timestamp on update current_timestamp,"
                         "key (screen_name))"))
         self.con.query(("create table if not exists user_following_status("
                         "id bigint,"
-                        "my_name varchar(100) character set utf8mb4 default null,"
+                        "my_name varbinary(100),"
                         "following tinyint,"
                         "has_followed tinyint,"
                         "updated timestamp default current_timestamp on update current_timestamp,"
@@ -114,16 +114,16 @@ class DataManager:
                         "user_id bigint,"
                         "tweet_id bigint,"
                         "key (user_id, tweet_id),"
-                        "token varchar(100) character set utf8mb4 default null,"
+                        "token varbinary(100),"
                         "primary key(token, user_id, tweet_id))"))
         self.con.query(("create table if not exists articles("
                         "tweet_id bigint not null,"
                         "inserted datetime not null,"
                         "processed datetime,"
-                        "personality varchar(100) not null,"
-                        "url text not null,"
+                        "personality varbinary(100) not null,"
+                        "url blob not null, "
                         "key(tweet_id, personality),"
-                        "key(personality, url(1000)),"
+                        "key(personality, url),"
                         "key (inserted))"))
                 
     def UpdateTweets(self):
@@ -143,8 +143,6 @@ class DataManager:
                 break
             max_id = min([s.GetId() for s in statuses]) - 1
                        
-            for s in statuses:
-                assert not self.LookupStatus(s.GetId()) is None
 
     def ProcessUnprocessedTweets(self):
         if self.con is None:
@@ -387,7 +385,8 @@ class DataManager:
         return int(self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"])
             
     def UpdateUsers(self):
-        q = "select id from users order by updated limit 30"
+        q = "select id from users where id not in (select id from user_afflictions where affliction in (%d,%d)) order by updated limit 30"
+        q = q % (AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
         result = self.con.query(q)
         for r in result:
             self.ApiHandler().ShowUser(user_id=int(r["id"]), cache=False)

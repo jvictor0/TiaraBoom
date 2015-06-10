@@ -33,8 +33,9 @@ def GetConversationSymbols(g_data, tweet=None, user=None):
 def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
     symbols = GetConversationSymbols(g_data, tweet=tweet,user=user)
     for i in xrange(retries):
-        result = ar.Generate(personality, symbols)
+        result = ar.Generate(personality, symbols, requireSymbols = tweet is not None)
         if result["success"]:
+            g_data.TraceInfo("The symbol we used is %s" % result["symbols"])
             result = result["body"]
             if not tweet is None:
                 result = '@' + tweet.GetUser().GetScreenName() + " " + result
@@ -42,6 +43,8 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
                 return result
             else:
                 g_data.TraceWarn("Failing long tweet \"%s\"" % result)
+        else:
+            g_data.TraceWarn(result["error"])
     return None
 
 def RefreshArticles(g_data):

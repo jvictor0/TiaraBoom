@@ -56,10 +56,18 @@ readDict :: IO [DictEntry]
 readDict = do
   sw <- fmap lines $ readFile "stopwords"
   f <- fmap lines $ readFile "dict.txt"
-  return 
+  preresult <- return 
     $ concatMap (\poses -> filter (\(_,_,_,r) -> r == (maximum $ map (\(_,_,_,r) -> r) poses)) poses)
     $ groupBy (\(a,_,_,_) (b,_,_,_) -> a == b)
     $ concatMap (readDE sw) f
+  let keyset = Set.fromList $ map (\(x,_,_,_) -> map toLower x) preresult
+  names <- fmap (filter (\x -> not $ Set.member x keyset) 
+                 . map (map toLower) 
+                 . lines) 
+           $ readFile "names.txt"
+  let namesEntries = map (\(a:as) -> (a:(map toLower as),N,'n','%')) names
+  return $ preresult ++ namesEntries
+
   
 char x = head $ show x
   

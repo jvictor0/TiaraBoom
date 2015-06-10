@@ -59,11 +59,11 @@ class GlobalData:
             self.logger = logging.getLogger('TiaraBoom')
             self.logger.setLevel(logging.DEBUG)
             
-            two_fifty_six_meg = 256000000
+            two_fifty_six_meg = 1000000 # actually 1 mg
         
             handler = logging.handlers.RotatingFileHandler(abs_prefix + "/tiaraboom_log", 
                                                            maxBytes=two_fifty_six_meg, 
-                                                           backupCount=4)
+                                                           backupCount=10)
             handler.setFormatter(logging.Formatter(log_format,"%Y-%m-%d %H:%M:%S"))
             self.logger.addHandler(handler)
             

@@ -213,6 +213,8 @@ class SocialLogic:
         random.shuffle(result)
         for uid in result[:min(30,len(result))]:
             u = self.g_data.ApiHandler().ShowUser(user_id = uid)
+            if u is None:
+                return None
             if self.BotherUserAppropriate(u):
                 if self.Bother(user_id=uid):
                     return True
@@ -223,9 +225,10 @@ class SocialLogic:
         else:
             self.g_data.TraceInfo("Bothering id = %s" % user_id)
         tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = screen_name, user_id=user_id)
-        if tweets is None or tweets == []:
+        if tweets is None or len(tweets) == 0:
             return None
         for t in tweets:
+            assert not t is None, tweets
             if self.BotherAppropriate(t):
                 return self.ReplyTo(t)
         self.g_data.TraceWarn("No tweet by @%s was found botherable!" % tweets[0].GetUser().GetScreenName())
