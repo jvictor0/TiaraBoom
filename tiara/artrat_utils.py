@@ -1,7 +1,5 @@
 import random,time 
 import global_data
-import artrat.public as ar
-import artrat.article_rat as atc
 import os, signal
 import os.path
 import database
@@ -31,6 +29,7 @@ def GetConversationSymbols(g_data, tweet=None, user=None):
     return symbols
 
 def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
+    import artrat.public as ar
     symbols = GetConversationSymbols(g_data, tweet=tweet,user=user)
     for i in xrange(retries):
         result = ar.Generate(personality, symbols, requireSymbols = tweet is not None)
@@ -48,6 +47,7 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
     return None
 
 def RefreshArticles(g_data):
+    import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     sl = g_data.SocialLogic()
     directory = os.path.join(abs_prefix, sl.params["reply"]["personality"])
@@ -58,6 +58,7 @@ def RefreshArticles(g_data):
         atc.RefreshArticles(source, directory, sl.params["reply"]["personality"], g_data.TraceInfo)
         
 def ResetArticles(g_data):
+    import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     sl = g_data.SocialLogic()
     directory = os.path.join(abs_prefix, sl.params["reply"]["personality"])
@@ -66,6 +67,7 @@ def ResetArticles(g_data):
     atc.Reset(directory, sl.params["reply"]["personality"], g_data.TraceInfo)
 
 def ArticleRat(personalities, logfn):
+    import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     for p,_ in personalities:
         directory = os.path.join(abs_prefix, p)
@@ -74,6 +76,7 @@ def ArticleRat(personalities, logfn):
     atc.ArticleRat(abs_prefix, personalities, log=logfn)
 
 def InsertArticle(url, personality, logfn):
+    import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     directory = os.path.join(abs_prefix, personality)
     if not os.path.isdir(directory):

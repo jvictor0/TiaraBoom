@@ -91,7 +91,7 @@ class DataManager:
                         
                         "ts datetime not null,"
 
-                        "json json,"
+                        "json blob,"
                         
                         "index(user_id),"
                         "index(parent),"
@@ -135,7 +135,7 @@ class DataManager:
                         "personality varbinary(100) not null,"
                         "url blob not null, "
                         "key(tweet_id, personality),"
-                        "key(personality, url),"
+                        "key(personality, url(3600)),"
                         "key (inserted))"))
                 
     def UpdateTweets(self):
