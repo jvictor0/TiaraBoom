@@ -7,6 +7,7 @@ import random
 import time
 import json
 import datetime
+import os
 
 from twitter.status import Status
 from twitter.user import User
@@ -36,26 +37,37 @@ class FakeGData:
     def ApiHandler(self):
         assert False, "Dont twitter ops with FakeGData"
 
-def MakeFakeDataMgr(name = "", dbname="tiaraboom"):
-    return DataManager(FakeGData(name), { "database" : dbname}, no_ddl = True)
+def MakeFakeDataMgr(name = ""):
+    abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+    with open(abs_prefix + '/config.json','r') as f:
+        confs = json.load(f)["bots"][0]
+        dbname = confs["database"]
+        dbhost = confs["dbhost"]
+    return DataManager(FakeGData(name), { "database" : dbname, "dbhost" : dbhost}, no_ddl = True)
 
 class DataManager:
     def __init__(self, g_data, config, no_ddl=False):
         self.con = None
         self.g_data = g_data
         self.shard = 0
-        if 'database' in config:
-            self.con = db.ConnectToMySQL(port=3307)
-            self.con.query("create database if not exists %s" % config["database"])
-            self.con.query("use %s" % config["database"])
-            self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
-            if no_ddl:
-                return
-            if "gatherer_authentication" in config:
-                self.apiHandler = api_handler.ApiHandler(config["gatherer_authentication"])
-            else:
-                self.apiHandler = g_data.ApiHandler()
-            self.DDL()
+        self.con = db.ConnectToMySQL(host=config["dbhost"])
+        self.con.query("create database if not exists %s" % config["database"])
+        self.con.query("use %s" % config["database"])
+        self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
+        if no_ddl:
+            return
+        if "gatherer_authentication" in config:
+            self.apiHandler = api_handler.ApiHandler(config["gatherer_authentication"])
+        else:
+            self.apiHandler = g_data.ApiHandler()
+        self.DDL()
+
+    def TimedQuery(self, q, name, *largs):
+        t0 = time.time()
+        self.g_data.TraceInfo("Starting %s" % name)
+        result = self.con.query(q, *largs)
+        self.g_data.TraceInfo("%s took %f secs" % (name, time.time() - t0))
+        return result
             
     def ApiHandler(self):
         return self.apiHandler
@@ -262,7 +274,7 @@ class DataManager:
                  "and not exists(select * from ungettable_tweets where id = tl.parent) "
                  "limit 90")
         query = query % (uid, uid)
-        return self.con.query(query)
+        return self.TimedQuery(query, "GetUnprocessed")
 
     def Lookup(self, tid, field = "id"):
         if self.con is None:
@@ -344,7 +356,7 @@ class DataManager:
              "where (ch.user_id = %d and pa.user_name = '%s') "
              " or (ch.parent_id = %d and ch.user_name = '%s')")
         q = q % (uid, self.g_data.myName, uid, self.g_data.myName)
-        rows = self.con.query(q)
+        rows = self.TimedQuery(q, "TweetHistory")
         result = []
         for r in rows:
             left = self.LookupStatus(int(r["chid"]))
@@ -387,7 +399,8 @@ class DataManager:
     def UpdateUsers(self):
         q = "select id from users where id not in (select id from user_afflictions where affliction in (%d,%d)) order by updated limit 30"
         q = q % (AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
-        result = self.con.query(q)
+        t0 = time.time()
+        result = self.TimedQuery(q, "UpdateUsers")
         for r in result:
             self.ApiHandler().ShowUser(user_id=int(r["id"]), cache=False)
 
@@ -418,10 +431,7 @@ class DataManager:
              "from (%s) termfreq join (%s) docfreq "
              "on termfreq.token = docfreq.token")
         q = q % (numDocsQuery, tfQuery, dfQuery)
-        self.g_data.TraceInfo("Starting TFIDF")
-        t0 = time.time()
-        rows = self.con.query(q)
-        self.g_data.TraceInfo("TFIDF took %f secs" % (time.time() - t0))
+        rows = self.TimedQuery(q, "TFIDF")
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def InsertTweetTokens(self, uid, tid, tweet):
@@ -462,7 +472,7 @@ class DataManager:
 
     def PopArticle(self):
         q = "select * from articles where processed is null order by tweet_id desc limit 1"
-        arts = self.con.query(q)
+        arts = self.TimedQuery(q,"PopArticle")
         if len(arts) == 0:
             return None
         assert len(arts) == 1, arts
@@ -470,7 +480,7 @@ class DataManager:
 
     def FinishArticle(self, url, personality):
         q = "update articles set processed = NOW() where personality = %s and url = %s"
-        self.con.query(q, personality, url)
+        self.TimedQuery(q, "FinishArticles", personality, url)
 
     def Act(self):
         if self.shard % MODES == 0:

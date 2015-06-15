@@ -41,18 +41,19 @@ class Connection(object):
         from MySQLdb.converters import conversions
 
         args["user"] = user
-
-        self.socket = None
-        pair = host.split(":")
-        if len(pair) == 2:
-            args["host"] = pair[0]
-            args["port"] = int(pair[1])
+        if "/" in host:
+            args['unix_socket'] = host
         else:
-            args["host"] = host
-            args["port"] = 3306
-        self.port = args["port"]
+            pair = host.split(":")
+            if len(pair) == 2:
+                args["host"] = pair[0]
+                args["port"] = int(pair[1])
+            else:
+                args["host"] = host
+                args["port"] = 3306
+            self.port = args["port"]
 
-        args["connect_timeout"] = 10
+        args["connect_timeout"] = 100
         args["init_command"] = 'set names "utf8mb4" collate "utf8mb4_bin"' + ''.join([', @@%s = "%s"' % t for t in sys_vars.items()])
 
         self._db = None
