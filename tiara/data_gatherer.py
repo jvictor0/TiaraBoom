@@ -61,6 +61,7 @@ class DataManager:
         else:
             self.apiHandler = g_data.ApiHandler()
         self.DDL()
+        self.user_id = None
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
@@ -91,7 +92,7 @@ class DataManager:
                         
                         "ts datetime not null,"
 
-                        "json blob,"
+                        "json /*!90618 json */ /*50509 blob */ ,"
                         
                         "index(user_id),"
                         "index(parent),"
@@ -135,8 +136,12 @@ class DataManager:
                         "personality varbinary(100) not null,"
                         "url blob not null, "
                         "key(tweet_id, personality),"
-                        "key(personality, url(3600)),"
+                        "key(personality, url /*50509 (3600) */),"
                         "key (inserted))"))
+        self.con.query(("create table if not exists feature_id("
+                        "id bigint primary key auto_increment,"
+                        "feature varbinary(200),"
+                        "unique key(feature))"))
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -260,10 +265,12 @@ class DataManager:
         jsdict = s.AsDict()
         if "user" in jsdict:
             del jsdict["user"]
+        self.con.query("begin")
         self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
         assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
         self.InsertUser(s.GetUser())
         self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
+        self.con.query("commit")
 
     def GetUnprocessed(self, user=None):
         uid = self.GetUserId()
@@ -394,17 +401,21 @@ class DataManager:
         return result               
 
     def GetUserId(self):
-        return int(self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"])
+        if self.user_id is None:
+            self.user_id = int(self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"])
+        return self.user_id
             
+    def GetBotIds(self):
+        return [g.GetUserId() for g in self.g_data.g_datas]
+
     def UpdateUsers(self):
         q = "select id from users where id not in (select id from user_afflictions where affliction in (%d,%d)) order by updated limit 30"
         q = q % (AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
-        t0 = time.time()
         result = self.TimedQuery(q, "UpdateUsers")
         for r in result:
             self.ApiHandler().ShowUser(user_id=int(r["id"]), cache=False)
 
-    def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
+    def NormalizeArgs(self, uid, tid, tweet, user):
         if not tweet is None:
             assert uid is None
             assert tid is None
@@ -416,6 +427,10 @@ class DataManager:
             assert tid is None
             assert tweet is None
             uid = user.GetId()
+        return uid, tid, tweet, user
+
+    def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
+        uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
         dfQuery = ("select token, count(distinct %s) as df "
                    "from tweet_tokens "
                    "group by token")
@@ -445,7 +460,7 @@ class DataManager:
                 return
 
     def InsertAllTweetTokens(self):
-        self.con.query("delete from tweet_tokens") # because fuck you thats why!
+        self.con.query("truncate table tweet_tokens") # because fuck you thats why!
         tweets = self.con.query("select user_id, id, body from tweets")
         for i,r in enumerate(tweets): # am i insane or genious?
             if i % 100 == 0:
@@ -481,6 +496,84 @@ class DataManager:
     def FinishArticle(self, url, personality):
         q = "update articles set processed = NOW() where personality = %s and url = %s"
         self.TimedQuery(q, "FinishArticles", personality, url)
+
+    def Feat2Id(self, feature, allow_insert=True):
+        q = "select id from feature_id where feature=%s"
+        feat = self.con.query(q, feature)
+        if len(feat) == 0:
+            assert allow_insert, feature
+            return int(self.con.execute("insert into feature_id (feature) values (%s)", feature))
+        return int(feat[0]['id'])
+    
+    def Id2Feat(self, fid):
+        return con.query("select feature from feature_id where id = %d" % fid)[0]['feature']
+    
+    def SetupTargetAnalysisViews(self):
+        views = ["mtok_feats","mtoks","mtweets","musers"]
+        for v in views:
+            self.con.query("drop view if exists %s" % v)
+        botids = self.GetBotIds()
+        self.con.query("create view musers as select distinct parent_id as user_id from tweets where parent_id in (%s)" % ",".join(["%d" % b for b in botids]))
+        self.con.query("create view mtweets as select tweets.user_id, tweets.id "
+                       "from musers join tweets on musers.user_id = tweets.user_id "
+                       "where parent_id not in (%s) or parent_id is null" %  ",".join(["%d" % b for b in botids]))
+        o2_toks = ("select t1.user_id as user_id, t1.tweet_id as tweet_id, concat(t1.token, '$_$', t2.token) as token "
+                   "from tokens t1 join tokens t2 "
+                   "on t1.user_id = t2.user_id and t1.token_id = t2.token_id")
+        self.con.query("create view mtoks as select tokens.user_id, tokens.token, log(1+count(*)) as val "
+                       "from (%s) tokens join mtweets "
+                       "on tokens.user_id = mtweets.user_id and tokens.tweet_id = mtweets.id "
+                       "group by 1" % o2_toks)
+        
+    def InsertFeatures(self, dump = False):        
+        if dump:
+            self.con.query("truncate table feature_id")
+        self.Feat2Id("avg_retweet")
+        self.Feat2Id("avg_favorite")
+        self.Feat2Id("num_followers")
+        self.Feat2Id("num_friends")
+        self.Feat2Id("num_replies")
+        self.Feat2Id("tweet_freq")
+        self.TimedQuery("insert ignore into feature_id (feature) select concat('token_',token) from mtokens", "inserting features into feat_id")
+        
+    def ExtractFeatures(self):
+        self.SetupTargetAnalysisView()
+        self.InsertFeatures()
+        tok_feats = self.TimedQuery("select mtoks.user_id, feature_id.id, mtoks.val "
+                                    "from mtoks join feature_id "
+                                    "on feature_id.feature=mtoks.token",
+                                    "tok feats")
+        user_feats = self.TimedQuery("select users.id, user.num_friends, user.num_followers "
+                                     "from musers join users "
+                                     "on users.id = musers.user_id",
+                                     "user feats")
+        tweet_feats = self.TimedQuery("select tweets.user_id, "
+                                      "avg(retweets) as rts, "
+                                      "avg(favorites) as favs, "
+                                      "avg(parent is not null) as reps, "
+                                      "unix_timestamp(NOW()) - unix_timestamp(min(ts)) as oldest, "
+                                      "count(*) as count"
+                                      "from musers join tweets "
+                                      "on musers.user_id = tweets.user_id "
+                                      "group by 1",
+                                      "tweet feats")
+        
+
+        avg_retweets = self.Feat2Id("avg_retweet")
+        avg_favorites = self.Feat2Id("avg_favorite")
+        num_followers = self.Feat2Id("num_followers")
+        num_friends = self.Feat2Id("num_friends")
+        num_replies = self.Feat2Id("num_replies")
+        tweet_freq = self.Feat2Id("tweet_freq")
+
+        result =  [(int(r["user_id"]), int(r["id"]), float(r["val"])) for r in tok_feats]
+        result += [(int(r["id"]), num_followers, float(r["num_followers"])) for r in user_feats]
+        result += [(int(r["id"]), num_friends, float(r["num_friends"])) for r in user_feats]
+        result += [(int(r["user_id"]), avg_retweets, float(r["rts"])) for r in tweet_feats]
+        result += [(int(r["user_id"]), avg_favorites, float(r["favs"])) for r in tweet_feats]
+        result += [(int(r["user_id"]), num_replies, float(r["reps"])) for r in tweet_feats]
+        result += [(int(r["user_id"]), tweet_freq, float(r["count"])/float(r["oldest"])) for r in tweet_feats]
+        return result
 
     def Act(self):
         if self.shard % MODES == 0:
