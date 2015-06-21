@@ -409,11 +409,21 @@ class DataManager:
         return [g.GetUserId() for g in self.g_data.g_datas]
 
     def UpdateUsers(self):
-        q = "select id from users where id not in (select id from user_afflictions where affliction in (%d,%d)) order by updated limit 30"
-        q = q % (AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
+        q = ("select id from user_following_status "
+             "where has_followed = 1 and my_name = '%s' and "
+             "id not in (select id from user_afflictions where affliction in (%d,%d)) "
+             "order by updated limit 75")
+        q = q % (self.g_data.myName, AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
         result = self.TimedQuery(q, "UpdateUsers")
+        count = 0
         for r in result:
             self.ApiHandler().ShowUser(user_id=int(r["id"]), cache=False)
+            stats = self.ApiHandler().ShowStatuses(user_id=int(r["id"]))
+            if stats is not None:
+                count += len(stats)
+        self.g_data.TraceInfo("Added %d tweets" % count)
+        
+        
 
     def NormalizeArgs(self, uid, tid, tweet, user):
         if not tweet is None:
@@ -577,10 +587,10 @@ class DataManager:
 
     def Act(self):
         if self.shard % MODES == 0:
-            self.UpdateTweets()
-        elif self.shard % MODES == 1:
-            self.ProcessUnprocessedTweets()
-        elif self.shard % MODES == 2:
             self.UpdateUsers()
+        elif self.shard % MODES == 1:
+            self.UpdateTweets()
+        elif self.shard % MODES == 2:
+            self.ProcessUnprocessedTweets()
         self.shard += 1
         
