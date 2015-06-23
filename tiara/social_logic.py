@@ -297,8 +297,10 @@ class SocialLogic:
         return fn()
         
 
-    def HistoryStatistics(self, user):
-        tweets = self.g_data.dbmgr.TweetHistory(user.GetId())
+    def HistoryStatistics(self, user=None, uid=None):
+        if uid is None:
+            uid = user.GetId()
+        tweets = self.g_data.dbmgr.TweetHistory(uid)
         ids = set([t.GetId() for t,s in tweets] + [s.GetId() for t,s in tweets])
         roots = set([])
         rootUrls = []
@@ -306,13 +308,13 @@ class SocialLogic:
         initiates = 0
         for c,p in tweets:
             if not p.GetInReplyToStatusId() in ids:
-                if p.GetUser().GetId() == user.GetId() and p.GetInReplyToScreenName() != self.g_data.myName:
+                if p.GetUser().GetId() == uid and p.GetInReplyToScreenName() != self.g_data.myName:
                     rootUrls.append(GetURL(p))
                     roots.add(c.GetId())
                 else:
                     initiatesUrls.append(GetURL(p))
                     initiates = initiates + 1
-        responses = len([t for t,s in tweets if t.GetUser().GetId() == user.GetId()])
+        responses = len([t for t,s in tweets if t.GetUser().GetId() == uid])
         favs = sum([t.GetFavoriteCount() for t,s in tweets if t.GetUser().GetScreenName() == self.g_data.myName])
         rts =  sum([t.GetRetweetCount()  for t,s in tweets if t.GetUser().GetScreenName() == self.g_data.myName])
         conversations = initiates
@@ -330,7 +332,7 @@ class SocialLogic:
                  }
 
     def ScoreFriendFeatures(self, user):
-        stats = self.HistoryStatistics(user)
+        stats = self.HistoryStatistics(user=user)
         return {
             "favorites"     : stats["favorites"],
             "retweets"      : stats["retweets"],

@@ -235,4 +235,6 @@ class ApiHandler():
         s = twitter.status.Status.NewFromJsonDict(json)
         if "user" in json:
             s.SetUser(self.UserFromJson(json["user"]))
+        if "retweeted_status" in json:
+            s.SetRetweeted_status(self.StatusFromJson(json["retweeted_status"]))
         return s

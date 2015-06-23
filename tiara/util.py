@@ -116,11 +116,32 @@ def TwitterTimestampToMySQL(ts):
     ts = ts.split()
     assert ts[0] in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], ts
     mon = str(1 + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].index(ts[1]))
+    if len(mon) == 1:
+        mon = "0" + mon
     day = ts[2]
     time = ts[3]
     assert ts[4] == "+0000", ts
     year = ts[5]
     return "%s-%s-%s %s" % (year,mon,day,time)
+
+# looks like 2008-09-15 00:15:03
+def MySQLTimestampToTwitter(msts):
+    ts = MySQLTimestampToPython(msts)
+    dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][ts.weekday()]
+    mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][ts.month-1]
+    def pad(a):
+        if len(a) == 1:
+            return "0" + a
+        return a
+
+    day = pad("%d" % ts.day)
+    hour= pad("%d" % ts.hour)
+    minute = pad("%d" % ts.minute)
+    second = pad("%d" % ts.second)    
+    year = "%d" % ts.year
+    result = "%s %s %s %s:%s:%s +0000 %s" % (dow,mon,day,hour,minute,second,year)
+    assert TwitterTimestampToMySQL(result) == msts, (result,msts,TwitterTimestampToMySQL(result))
+    return msts
 
 def MySQLTimestampToPython(ts):
     return datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")

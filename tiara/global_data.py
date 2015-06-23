@@ -11,6 +11,9 @@ import string
 import data_gatherer
 import enchant
 
+reload(data_gatherer)
+reload(social_logic)
+
 class EmptySocialLogic:
     def Act(self):
         pass
@@ -33,6 +36,7 @@ class GlobalData:
         
         if not g_data is None:
             self.g_datas = g_data.g_datas
+            self.g_datas.append(self)
             self.englishFamilies = g_data.englishFamilies
             self.englishPos = g_data.englishPos
             self.cooccuring = g_data.cooccuring
@@ -40,7 +44,6 @@ class GlobalData:
             self.logger = g_data.logger
         else:
             self.g_datas = [self]
-            self.g_datas.append(self)
             with open(abs_prefix + '/english_families.json',"r") as f:
                 self.englishFamilies = DictToSortedTuple(json.load(f))
             with open(abs_prefix + '/english_pos.json',"r") as f:
@@ -81,12 +84,6 @@ class GlobalData:
         if self.socialLogic.invalid:
             self.invalid = True
         
-        self.TraceDebug("size of english_famlies.json in memory is %d, len = %d" % (sys.getsizeof(self.englishFamilies),len(self.englishFamilies)))
-        self.TraceDebug("size of english_pos.json in memory is %d, len = %d" % (sys.getsizeof(self.englishPos),len(self.englishPos)))
-        self.TraceDebug("size of coocurring.json in memory is %d, len = %d" % (sys.getsizeof(self.cooccuring),len(self.cooccuring)))
-        self.TraceDebug("size of similar.json in memory is %d, len = %d" % (sys.getsizeof(self.similar),len(self.similar)))
-
-
     def TraceDebug(self, msg):
         self.logger.debug(("(%s)" % self.myName) + Indentation() + msg)
     def TraceInfo(self, msg):
@@ -145,7 +142,7 @@ class GlobalData:
         if res:
             if not isinstance(res, list):
                 return res
-            return word
+            return word.lower()
         return None
 
     def WordFamily(self, word):

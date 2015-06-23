@@ -8,6 +8,7 @@ import time
 import json
 import datetime
 import os
+import math
 
 from twitter.status import Status
 from twitter.user import User
@@ -92,13 +93,11 @@ class DataManager:
                         
                         "ts datetime not null,"
 
-                        "json /*!90618 json */ /*50509 blob */ ,"
+                        "json /*!90619 json */ /*50509 blob */ ,"
                         
                         "index(user_id),"
                         "index(parent),"
-                        "index(parent_id))"
-                        "default charset = utf8mb4"))
-        
+                        "index(parent_id))"))
         self.con.query(("create table if not exists ungettable_tweets("
                         "id bigint primary key,"
                         "errorcode int)"))
@@ -142,6 +141,8 @@ class DataManager:
                         "id bigint primary key auto_increment,"
                         "feature varbinary(200),"
                         "unique key(feature))"))
+        self.con.query(("create table if not exists ignored_users("
+                        "id bigint primary key)"))
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -236,9 +237,9 @@ class DataManager:
             self.con.query("delete from user_afflictions where id = %d and affliction = %d" % (uid, AFFLICT_BLOCKER))
         return [r["affliction"] for r in self.con.query("select * from user_afflictions where id = %d" % uid)]
 
-    def InsertTweet(self, s):
-        if self.con is None:
-            return
+    def InsertTweet(self, s, ignore_user=False):
+        if s.GetRetweeted_status() is not None:
+            self.InsertTweet(s.GetRetweeted_status())
         parent = "null"
         parent_name = "null"
         parent_id  = "null"
@@ -265,10 +266,22 @@ class DataManager:
         jsdict = s.AsDict()
         if "user" in jsdict:
             del jsdict["user"]
+        del jsdict["created_at"]
+        del jsdict["text"]
+        if "retweet_count" in jsdict:
+            del jsdict["retweet_count"]
+        if "favorite_count" in jsdict:
+            del jsdict["favorite_count"]
+        del jsdict["favorited"] # our bots dont favorite or retweet, and this is a shared table, so this data doesnt even make sense!
+        del jsdict["retweeted"]
+        del jsdict["id"]
+        if s.GetRetweeted_status() is not None:
+            jsdict["retweeted_status"] = s.GetRetweeted_status().GetId()
         self.con.query("begin")
         self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
         assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
-        self.InsertUser(s.GetUser())
+        if not ignore_user:
+            self.InsertUser(s.GetUser())
         self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
         self.con.query("commit")
 
@@ -292,7 +305,19 @@ class DataManager:
     def RowToStatus(self, row):
         if row["json"] is None:
             return None
-        s = Status.NewFromJsonDict(json.loads(row["json"]))
+        jsdict = json.loads(row["json"])
+        jsdict["text"] = row["body"]
+        jsdict["id"] = int(row["id"])
+        jsdict["created_at"] = MySQLTimestampToTwitter(row["ts"])
+        jsdict["favorited"] = False
+        jsdict["retweeted"] = False
+        if "retweeted_status" in jsdict:
+            jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"])
+            if jsdict["retweeted_status"] is None:
+                return None
+            else:
+                jsdict["retweeted_status"] = jsdict["retweeted_status"].AsDict()
+        s = Status.NewFromJsonDict(jsdict)
         s.SetRetweetCount(int(row["retweets"]))
         s.SetFavoriteCount(int(row["favorites"]))
         if s.urls is None:
@@ -406,7 +431,7 @@ class DataManager:
         return self.user_id
             
     def GetBotIds(self):
-        return [g.GetUserId() for g in self.g_data.g_datas]
+        return [g.dbmgr.GetUserId() for g in self.g_data.g_datas]
 
     def UpdateUsers(self):
         q = ("select id from user_following_status "
@@ -439,25 +464,55 @@ class DataManager:
             uid = user.GetId()
         return uid, tid, tweet, user
 
-    def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
+    def TFIDF(self, uid=None, tid=None, tweet=None, user=None, viewName=None):
         uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
         dfQuery = ("select token, count(distinct %s) as df "
                    "from tweet_tokens "
                    "group by token")
         dfQuery = dfQuery % ("user_id" if tid is None else "user_id, tweet_id")
-        tfQuery = ("select token, count(*) as tf "
+        tfWhere = "" if uid is None \
+                  else ("where user_id = %d %s" 
+                        % (uid, ("and tweet_id = %d" % tid) if not tid is None else ""))
+        tfQuery = ("select token, user_id, count(*) as tf "
                    "from tweet_tokens "
-                   "where user_id = %d %s "
-                   "group by token")
-        tfQuery = tfQuery % (uid, ("and tweet_id = %d" % tid) if not tid is None else "")
+                   "%s "
+                   "group by token, user_id")
+        tfQuery = tfQuery % (tfWhere)
         numDocsQuery = "select count(distinct %s) from tweet_tokens" % ("user_id" if tid is None else "user_id, tweet_id")
-        q = ("select termfreq.token, termfreq.tf as tf, docfreq.df as df, "
+        q = ("select termfreq.token, termfreq.user_id, termfreq.tf as tf, docfreq.df as df, "
              "(1+log(tf)) * log((%s)/df) as tfidf "
              "from (%s) termfreq join (%s) docfreq "
              "on termfreq.token = docfreq.token")
         q = q % (numDocsQuery, tfQuery, dfQuery)
-        rows = self.TimedQuery(q, "TFIDF")
-        return [(r["token"], float(r["tfidf"])) for r in rows]
+        if viewName is None:
+            rows = self.TimedQuery(q, "TFIDF")
+            return [(r["token"], float(r["tfidf"])) for r in rows]
+        else:
+            self.con.query("drop view if exists %s" % viewName)
+            self.con.query("create view %s as %s" % (viewName, q))
+
+    def TFIDFDistance(self, uid=None, user=None, viewName=None):
+        if not viewName is None:
+            self.con.query("drop view if exists %s" % viewName)
+        if user is not None:
+            uid = user.GetId()
+        viewName1 = "tfidf_view_%s" % self.g_data.myName
+        self.TFIDF(uid=self.GetUserId(), viewName=viewName1)
+        if uid is not None:
+            viewName2 = "tfidf_view_%d" % uid
+        else:
+            viewName2 = "tfidf_view"
+        self.TFIDF(uid=uid, viewName=viewName2)
+        normTable = "select user_id, sum(tfidf * tfidf) as norm from %s group by 1" % viewName2
+        q = ("select v2.user_id, sum(v1.tfidf * v2.tfidf) / "
+             "sqrt((select sum(tfidf * tfidf) from %s) * v3.norm) "
+             "as dist "
+             "from %s v1 join %s v2 join (%s) v3 "
+             "on v1.token = v2.token and v2.user_id = v3.user_id "
+             "group by 1" % (viewName1, viewName1, viewName2, normTable))
+        assert viewName is not None
+        if viewName is not None:
+            self.con.query("create view %s as %s" % (viewName,q))
 
     def InsertTweetTokens(self, uid, tid, tweet):
         tokens = v.Vocab(self.g_data).Tokenize(tweet)
@@ -466,8 +521,8 @@ class DataManager:
             try:                
                 self.con.query(q,t.encode("utf8"))
             except Exception as e:
-                assert e[0] == 1062 #dup key
-                return
+                assert e[0] == 1062, e #dup key
+                
 
     def InsertAllTweetTokens(self):
         self.con.query("truncate table tweet_tokens") # because fuck you thats why!
@@ -475,8 +530,18 @@ class DataManager:
         for i,r in enumerate(tweets): # am i insane or genious?
             if i % 100 == 0:
                 print float(i)/len(tweets)
-            print "   ", r["id"]
             self.InsertTweetTokens(int(r["user_id"]),int(r["id"]),r["body"])
+
+    def FixRetweets(self):
+        rts = self.con.query("select json::retweeted_status as rt from tweets where json_length(json::retweeted_status) is not null")
+        for i,r in enumerate(rts):
+            print float(i)/len(rts)
+            s = Status.NewFromJsonDict(json.loads(r["rt"]))
+            try:
+                self.InsertTweet(s,ignore_user=True)        
+            except Exception as e:
+                print e
+                print r["rt"]
 
     def PushArticle(self, url, tweet_id, personality):
         q = "select * from articles where personality = %s and url = %s"
@@ -516,59 +581,71 @@ class DataManager:
         return int(feat[0]['id'])
     
     def Id2Feat(self, fid):
-        return con.query("select feature from feature_id where id = %d" % fid)[0]['feature']
+        return self.con.query("select feature from feature_id where id = %d" % fid)[0]['feature']
+
+    def IgnoreUser(self, user_name):
+        self.con.query("insert into ignored_users select id from users where screen_name like '%s'" % user_name)
     
-    def SetupTargetAnalysisViews(self):
+    def SetupTargetAnalysisViews(self, tok_order=1, min_num_tweets=10):
         views = ["mtok_feats","mtoks","mtweets","musers"]
         for v in views:
             self.con.query("drop view if exists %s" % v)
         botids = self.GetBotIds()
-        self.con.query("create view musers as select distinct parent_id as user_id from tweets where parent_id in (%s)" % ",".join(["%d" % b for b in botids]))
+        self.con.query("create view musers as select * from (select distinct parent_id as user_id "
+                       "from tweets "
+                       "where parent_id is not null and user_id in (%s) and parent_id not in (select id from ignored_users)) t_outer "
+                       "where (select count(*) from tweets t_inner where t_outer.user_id = t_inner.user_id) > %d" % (",".join(["%d" % b for b in botids]),min_num_tweets))
         self.con.query("create view mtweets as select tweets.user_id, tweets.id "
                        "from musers join tweets on musers.user_id = tweets.user_id "
                        "where parent_id not in (%s) or parent_id is null" %  ",".join(["%d" % b for b in botids]))
-        o2_toks = ("select t1.user_id as user_id, t1.tweet_id as tweet_id, concat(t1.token, '$_$', t2.token) as token "
-                   "from tokens t1 join tokens t2 "
-                   "on t1.user_id = t2.user_id and t1.token_id = t2.token_id")
+        if tok_order == 1:
+            print "tok_order ought to be 1"
+            toks_q = "select * from tweet_tokens"
+        else:
+            print "tok_order = ", tok_order
+            toks_q = ("select t1.user_id as user_id, t1.tweet_id as tweet_id, concat(t1.token, '$_$', t2.token) as token "
+                      "from tweet_tokens t1 join tweet_tokens t2 "
+                      "on t1.user_id = t2.user_id and t1.tweet_id = t2.tweet_id")
+        print toks_q
         self.con.query("create view mtoks as select tokens.user_id, tokens.token, log(1+count(*)) as val "
                        "from (%s) tokens join mtweets "
                        "on tokens.user_id = mtweets.user_id and tokens.tweet_id = mtweets.id "
-                       "group by 1" % o2_toks)
+                       "group by 1, 2" % toks_q)
         
     def InsertFeatures(self, dump = False):        
         if dump:
-            self.con.query("truncate table feature_id")
+            self.con.query("drop table feature_id")
+            self.DDL()
         self.Feat2Id("avg_retweet")
         self.Feat2Id("avg_favorite")
         self.Feat2Id("num_followers")
         self.Feat2Id("num_friends")
         self.Feat2Id("num_replies")
         self.Feat2Id("tweet_freq")
-        self.TimedQuery("insert ignore into feature_id (feature) select concat('token_',token) from mtokens", "inserting features into feat_id")
+        self.TimedQuery("insert ignore into feature_id (feature) select concat('token_',token) from mtoks", "inserting features into feat_id")
         
-    def ExtractFeatures(self):
-        self.SetupTargetAnalysisView()
-        self.InsertFeatures()
+    def ComputeFeatureMatrix(self):
+        import nlp_learning as nm
+        reload(nm)
         tok_feats = self.TimedQuery("select mtoks.user_id, feature_id.id, mtoks.val "
                                     "from mtoks join feature_id "
-                                    "on feature_id.feature=mtoks.token",
+                                    "on feature_id.feature=concat('token_',mtoks.token)",
                                     "tok feats")
-        user_feats = self.TimedQuery("select users.id, user.num_friends, user.num_followers "
+        user_feats = self.TimedQuery("select users.id, users.num_friends, users.num_followers "
                                      "from musers join users "
                                      "on users.id = musers.user_id",
                                      "user feats")
         tweet_feats = self.TimedQuery("select tweets.user_id, "
-                                      "avg(retweets) as rts, "
-                                      "avg(favorites) as favs, "
+                                      "log(1 + avg(retweets)) as rts, "
+                                      "log(1 + avg(favorites)) as favs, "
                                       "avg(parent is not null) as reps, "
                                       "unix_timestamp(NOW()) - unix_timestamp(min(ts)) as oldest, "
-                                      "count(*) as count"
+                                      "count(*) as count "
                                       "from musers join tweets "
                                       "on musers.user_id = tweets.user_id "
                                       "group by 1",
                                       "tweet feats")
         
-
         avg_retweets = self.Feat2Id("avg_retweet")
         avg_favorites = self.Feat2Id("avg_favorite")
         num_followers = self.Feat2Id("num_followers")
@@ -576,15 +653,48 @@ class DataManager:
         num_replies = self.Feat2Id("num_replies")
         tweet_freq = self.Feat2Id("tweet_freq")
 
-        result =  [(int(r["user_id"]), int(r["id"]), float(r["val"])) for r in tok_feats]
-        result += [(int(r["id"]), num_followers, float(r["num_followers"])) for r in user_feats]
-        result += [(int(r["id"]), num_friends, float(r["num_friends"])) for r in user_feats]
-        result += [(int(r["user_id"]), avg_retweets, float(r["rts"])) for r in tweet_feats]
-        result += [(int(r["user_id"]), avg_favorites, float(r["favs"])) for r in tweet_feats]
-        result += [(int(r["user_id"]), num_replies, float(r["reps"])) for r in tweet_feats]
-        result += [(int(r["user_id"]), tweet_freq, float(r["count"])/float(r["oldest"])) for r in tweet_feats]
-        return result
+        result = [(int(r["user_id"]), int(r["id"]), float(r["val"])) for r in tok_feats]
+        result.extend([(int(r["id"]), num_followers, float(r["num_followers"])) for r in user_feats])
+        result.extend([(int(r["id"]), num_friends, float(r["num_friends"])) for r in user_feats])
+        result.extend([(int(r["user_id"]), avg_retweets, float(r["rts"])) for r in tweet_feats])
+        result.extend([(int(r["user_id"]), avg_favorites, float(r["favs"])) for r in tweet_feats])
+        result.extend([(int(r["user_id"]), num_replies, float(r["reps"])) for r in tweet_feats])
+        result.extend([(int(r["user_id"]), tweet_freq, float(r["count"])/float(r["oldest"])) for r in tweet_feats])
+        return nm.NLPMatrix(result)
 
+    def ComputeResponseVector(self):
+        rows = {}
+        for gd in self.g_data.g_datas:
+            us = self.con.query(("select musers.user_id, us.following from musers join user_following_status us "
+                                 "on us.id = musers.user_id "
+                                 "where us.my_name='%s' and us.has_followed = 1") % gd.myName)
+            for i,u in enumerate(us):
+                if i % 100 == 0:
+                    print float(i)/len(us)
+                uid = int(u["user_id"])
+                if uid not in rows:
+                    rows[uid] = 0.0
+                if int(u["following"]) != 1:
+                    rows[uid] = -1
+                if rows[uid] < 0:
+                    continue
+                stats = gd.SocialLogic().HistoryStatistics(uid=uid)
+                if stats["attempts"] == 0:
+                    continue
+                rows[uid] += math.log(1 + (stats["responses"] + stats["favorites"] * 0.125 + stats["retweets"] * 0.25)/stats["attempts"])
+        for u in self.con.query("select * from musers"):
+            uid = int(u["user_id"])
+            if uid not in rows:
+                rows[uid] = -1
+        return rows
+            
+        
+    def ExtractForTargetTraining(self, tok_order=1, min_num_tweets=10):
+        self.SetupTargetAnalysisViews(tok_order=tok_order,min_num_tweets=min_num_tweets)
+        self.InsertFeatures(dump=True)
+        mat = self.ComputeFeatureMatrix()
+        return mat, mat.ToVector(self.ComputeResponseVector())
+        
     def Act(self):
         if self.shard % MODES == 0:
             self.UpdateUsers()
