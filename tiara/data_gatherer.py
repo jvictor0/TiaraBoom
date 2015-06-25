@@ -52,8 +52,8 @@ class DataManager:
         self.g_data = g_data
         self.shard = 0
         self.con = db.ConnectToMySQL(host=config["dbhost"])
-        self.con.query("create database if not exists %s" % config["database"])
-        self.con.query("use %s" % config["database"])
+        self.con.query("create database if not exists tiaraboom")
+        self.con.query("use tiaraboom")
         self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
         if no_ddl:
             return
@@ -214,6 +214,8 @@ class DataManager:
              "on duplicate key update %s")
         q = q % (uid, self.g_data.myName, following, has_followed, ",".join(updates))
         self.con.query(q)
+        if user.GetProtected():
+            self.InsertAfflicted(user.GetId(), AFFLICT_PROTECTED)
         
     def InsertUngettable(self, tid, errno):
         if self.con is None:
@@ -510,9 +512,11 @@ class DataManager:
              "from %s v1 join %s v2 join (%s) v3 "
              "on v1.token = v2.token and v2.user_id = v3.user_id "
              "group by 1" % (viewName1, viewName1, viewName2, normTable))
-        assert viewName is not None
         if viewName is not None:
             self.con.query("create view %s as %s" % (viewName,q))
+        else:
+            assert uid, "dont be a nub"
+            return { int(r["user_id"]) : float(r["dist"]) for r in self.con.query(q) }
 
     def InsertTweetTokens(self, uid, tid, tweet):
         tokens = v.Vocab(self.g_data).Tokenize(tweet)
@@ -694,6 +698,22 @@ class DataManager:
         self.InsertFeatures(dump=True)
         mat = self.ComputeFeatureMatrix()
         return mat, mat.ToVector(self.ComputeResponseVector())
+
+    def GarbageCollectTweets(self):
+        while True:
+            usg = self.con.query("show databases extended like %s")["Memory (MBs)"]
+            if int(usg) < 10000: # ten gigs is a lot
+                return
+            q = ("delete from tweets "
+                 "where user_id not in (select id from user_following_status where has_followed = 1) "
+                 "and (parent_id not in (%s) or parent_id is null) "
+                 "limit 200" % ",".join(["%d" % b for b in botids]))
+            deld = self.con.execute(q)
+            self.con.query("delete from tweet_tokens where (user_id,tweet_id) not in (select user_id, id from tweets)")
+            self.g_data.TraceInfo("Deleted %s rows" % deld)
+            if int(deld) < 200:
+                return
+        
         
     def Act(self):
         if self.shard % MODES == 0:

@@ -187,6 +187,13 @@ class SocialLogic:
             return -1 # I don't want to talk to you anyways!
         if numFriends < 100 or numFollowers < 100:
             return -1 # stay away from people with very few friends!
+        statuses = self.g_data.ApiHandler().ShowStatuses(user_id=user.GetId())
+        if statuses is None or len(statuses) < 10:
+            return -1 # either there was a problem or he dont tweet much
+        both = len([t for t in statuses if self.BotherAppropriate(t)])
+        if both == 0:
+            return -1
+        result += 3 * (float(both) / len(statuses))
         if 400 < numFriends <= 600:
             result += 3
         elif 600 < numFriends <= 1000:
@@ -203,7 +210,8 @@ class SocialLogic:
             result += 2
         elif 100 < numFollowers <= 200:
             result += 1
-
+        if self.params["reply"]["mode"] == "artrat":
+            result += 100 * self.g_data.dbmgr.TFIDFDistance(user=user)[user.GetId()]
         return result
 
     def BotherRandom(self):
@@ -273,8 +281,7 @@ class SocialLogic:
         return True
 
     def BotherUserAppropriate(self, user):
-        ts = self.g_data.dbmgr.MostRecentTweet(user.GetId())
-        if not ts is None and not OlderThan(ts, 7):
+        if self.UserInactive(user):
             return False
         if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
             return False
@@ -283,6 +290,10 @@ class SocialLogic:
             return False
         return True
 
+    def UserInactive(self, user):
+        ts = self.g_data.dbmgr.MostRecentTweet(user.GetId())
+        return ts is None or OlderThan(ts, 7)
+    
     def Follow(self):
         if self.bestNewFriend is None:
             return None
