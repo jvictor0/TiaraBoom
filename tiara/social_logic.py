@@ -158,6 +158,8 @@ class SocialLogic:
         self.UpdateNewBestFriend(followers)
 
     def UpdateNewBestFriend(self, user_list):
+        random.shuffle(user_list)
+        user_list = user_list[0:75]
         for user in user_list:
             if user.GetProtected():
                 continue
@@ -211,7 +213,7 @@ class SocialLogic:
         elif 100 < numFollowers <= 200:
             result += 1
         if self.params["reply"]["mode"] == "artrat":
-            result += 100 * self.g_data.dbmgr.TFIDFDistance(user=user)[user.GetId()]
+            result += 100 * self.g_data.dbmgr.TFIDFDistance([user.GetId()])[user.GetId()]
         return result
 
     def BotherRandom(self):
@@ -364,15 +366,19 @@ class SocialLogic:
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
 
-    def GatherSources(self):
-        src = random.choice(self.params["reply"]["sources"])
+    def GatherSources(self, src=None):
+        if src is None:
+            src = random.choice(self.params["reply"]["sources"])
         ss = self.g_data.ApiHandler().ShowStatuses(screen_name=src)
         if ss is None:
             return None
         for s in ss:
             for url in (s.urls if not s.urls is None else []):
                 self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"])
-    
+                
+    def IsArtRat(self):
+        return self.params["reply"]["mode"] == "artrat"
+                
     def Act(self):
         self.Reply()
         for t in self.tickers:

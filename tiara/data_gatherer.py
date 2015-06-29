@@ -28,12 +28,13 @@ AFFLICT_NON_ENGLISH = 7
 class FakeGData:
     def __init__(self, name):
         self.myName = name
+        self.logger = logging.getLogger('TiaraBoom')
 
     def TraceWarn(self,a):
-        print a
+        self.logger.warn("(FakeGData) %s" % a)
 
     def TraceInfo(self,a):
-        print a
+        self.logger.info("(FakeGData) %s" % a)
 
     def ApiHandler(self):
         assert False, "Dont twitter ops with FakeGData"
@@ -63,10 +64,11 @@ class DataManager:
             self.apiHandler = g_data.ApiHandler()
         self.DDL()
         self.user_id = None
+        self.cache = {}
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
-        self.g_data.TraceInfo("Starting %s" % name)
+        self.g_data.TraceInfo("Starting %s with con %s" % (name, self.con))
         result = self.con.query(q, *largs)
         self.g_data.TraceInfo("%s took %f secs" % (name, time.time() - t0))
         return result
@@ -126,7 +128,8 @@ class DataManager:
                         "user_id bigint,"
                         "tweet_id bigint,"
                         "key (user_id, tweet_id),"
-                        "token varbinary(100),"
+                        "token bigint,"
+                        "key (user_id, token),"
                         "primary key(token, user_id, tweet_id))"))
         self.con.query(("create table if not exists articles("
                         "tweet_id bigint not null,"
@@ -141,8 +144,14 @@ class DataManager:
                         "id bigint primary key auto_increment,"
                         "feature varbinary(200),"
                         "unique key(feature))"))
+        self.con.query(("create table if not exists token_id("
+                        "id bigint primary key auto_increment,"
+                        "token varbinary(200),"
+                        "unique key(feature))"))
         self.con.query(("create table if not exists ignored_users("
                         "id bigint primary key)"))
+
+        self.MakeTFIDFViews()
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -466,64 +475,135 @@ class DataManager:
             uid = user.GetId()
         return uid, tid, tweet, user
 
-    def TFIDF(self, uid=None, tid=None, tweet=None, user=None, viewName=None):
+    def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
+        uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
+        if tid is None:
+            q = "select * from tfidf_view where user_id = %d" % uid
+        else:
+            q = "select * from tfidf_tweet_view where user_id = %d and tweet_id = %d" % (uid,tid)
+        rows = self.TimedQuery(q,"TFIDF")
+        return [(r["token"], float(r["tfidf"])) for r in rows]
+
+    def TFIDFLegacy(self, uid=None, tid=None, tweet=None, user=None, viewName=None, queryString=False):
         uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
         dfQuery = ("select token, count(distinct %s) as df "
                    "from tweet_tokens "
                    "group by token")
         dfQuery = dfQuery % ("user_id" if tid is None else "user_id, tweet_id")
-        tfWhere = "" if uid is None \
-                  else ("where user_id = %d %s" 
-                        % (uid, ("and tweet_id = %d" % tid) if not tid is None else ""))
+        tfWhere = "" if uid is None else ("where user_id = %d %s" % (uid, ("and tweet_id = %d" % tid) if not tid is None else ""))
         tfQuery = ("select token, user_id, count(*) as tf "
                    "from tweet_tokens "
                    "%s "
                    "group by token, user_id")
         tfQuery = tfQuery % (tfWhere)
-        numDocsQuery = "select count(distinct %s) from tweet_tokens" % ("user_id" if tid is None else "user_id, tweet_id")
+        numDocsQuery = "select count(distinct %s) as val from tweet_tokens" % ("user_id" if tid is None else "user_id, tweet_id")
         q = ("select termfreq.token, termfreq.user_id, termfreq.tf as tf, docfreq.df as df, "
              "(1+log(tf)) * log((%s)/df) as tfidf "
              "from (%s) termfreq join (%s) docfreq "
              "on termfreq.token = docfreq.token")
         q = q % (numDocsQuery, tfQuery, dfQuery)
-        if viewName is None:
+        if queryString:
+            assert viewName is None
+            return q
+        elif viewName is None:            
             rows = self.TimedQuery(q, "TFIDF")
-            return [(r["token"], float(r["tfidf"])) for r in rows]
+            return [(self.Id2Feat(int(r["token"]), "token_id"), float(r["tfidf"])) for r in rows]
         else:
             self.con.query("drop view if exists %s" % viewName)
             self.con.query("create view %s as %s" % (viewName, q))
 
-    def TFIDFDistance(self, uid=None, user=None, viewName=None):
-        if not viewName is None:
-            self.con.query("drop view if exists %s" % viewName)
-        if user is not None:
-            uid = user.GetId()
-        viewName1 = "tfidf_view_%s" % self.g_data.myName
-        self.TFIDF(uid=self.GetUserId(), viewName=viewName1)
-        if uid is not None:
-            viewName2 = "tfidf_view_%d" % uid
+    def MakeTFIDFViews(self):
+        for v in ["tfidf_distance_view",
+                  "tfidf_norm_view","tfidf_user_norm_view",
+                  "tfidf_tweet_view","tfidf_view", 
+                  "tfidf_tweet_view_internal","tfidf_view_internal", 
+                  "num_docs_view", "num_docs_tweet_view", "tf_view", "df_view","df_tweet_view"]:
+            self.con.query("drop view if exists %s" % v)
+        self.con.query("create view df_view as "
+                       "select token, count(distinct user_id) as df "
+                       "from tweet_tokens "
+                       "group by token")
+        self.con.query("create view df_tweet_view as "
+                       "select token, count(distinct user_id, tweet_id) as df "
+                       "from tweet_tokens "
+                       "group by token")
+
+        self.con.query("create view tf_view as "
+                       "select token, user_id, count(*) as tf "
+                       "from tweet_tokens "
+                       "group by token, user_id")     
+   
+        self.con.query("create view num_docs_view as "
+                       "select count(distinct user_id) as val from tweet_tokens")
+        self.con.query("create view num_docs_tweet_view as "
+                       "select count(distinct user_id, tweet_id) as val from tweet_tokens")
+
+        self.con.query("create view tfidf_view_internal as "
+                       "select termfreq.token, termfreq.user_id, termfreq.tf as tf, docfreq.df as df, "
+                       "(1+log(tf)) * log((select val from num_docs_view)/df) as tfidf "
+                       "from tf_view termfreq join df_view docfreq "
+                       "on termfreq.token = docfreq.token")
+        self.con.query("create view tfidf_tweet_view_internal as "
+                       "select termfreq.token, termfreq.user_id, termfreq.tweet_id, 1 as tf, docfreq.df as df, "
+                       "log((select val from num_docs_tweet_view)/df) as tfidf "
+                       "from tweet_tokens termfreq join df_tweet_view docfreq "
+                       "on termfreq.token = docfreq.token")
+
+        self.con.query("create view tfidf_view as "
+                       "select tid.token, tf.user_id, tf.tf, tf.df, tf.tfidf "
+                       "from tfidf_view_internal tf join token_id tid "
+                       "on tf.token = tid.id")
+        self.con.query("create view tfidf_tweet_view as "
+                       "select tid.token, tf.user_id, tf.tweet_id, tf.tf, tf.df, tf.tfidf "
+                       "from tfidf_tweet_view_internal tf join token_id tid "
+                       "on tf.token = tid.id")
+
+        self.con.query("create view tfidf_user_norm_view as "
+                       "select user_id, sqrt(sum(tfidf * tfidf)) as norm "
+                       "from tfidf_view_internal "
+                       "group by user_id")
+        self.con.query("create view tfidf_norm_view as select t.token, t.user_id, t.tfidf/u.norm as tfidf_norm "
+                       "from tfidf_view_internal t join tfidf_user_norm_view u "
+                       "on t.user_id = u.user_id")
+
+        self.con.query("create view tfidf_distance_view as "
+                       "select t1.user_id u1, t2.user_id u2, sum(t1.tfidf_norm * t2.tfidf_norm) as dist "
+                       "from tfidf_norm_view t1 join tfidf_norm_view t2 "
+                       "on t1.token = t2.token "
+                       "group by t1.user_id, t2.user_id")
+
+    def TFIDFNormQuery(self, uids=None):
+        if uids is None:
+            return "select * from tfidf_norm_view"
+        uids = ",".join(["%d" % u for u in uids])
+        return ("select t.token, t.user_id, t.tfidf/u.norm as tfidf_norm "
+                "from (select * from tfidf_view_internal  where user_id in (%s)) t "
+                "join (select * from tfidf_user_norm_view where user_id in (%s)) u "
+                "on t.user_id = u.user_id") % (uids,uids)
+
+    def TFIDFDistance(self, uids=None):
+        q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf_norm) as dist "
+             "from (%s) t1 join (%s) t2 "
+             "on t1.token = t2.token "
+             "group by t2.user_id ") % (self.TFIDFNormQuery([self.GetUserId()]),self.TFIDFNormQuery(uids))
+        if uids is None:
+            self.con.query("drop view if exists tfidf_distance_%s" % self.g_data.myName)
+            self.con.query("drop view if exists tfidf_distance_%s_internal" % self.g_data.myName)
+            self.con.query("create view tfidf_distance_%s_internal as %s" % (self.g_data.myName, q))
+            self.con.query("create view tfidf_distance_%s as "
+                           "select users.screen_name, td.dist "
+                           "from users join tfidf_distance_%s td "
+                           "on users.id = td.user_id " % (self.g_data.myName, self.g_data.myName))
         else:
-            viewName2 = "tfidf_view"
-        self.TFIDF(uid=uid, viewName=viewName2)
-        normTable = "select user_id, sum(tfidf * tfidf) as norm from %s group by 1" % viewName2
-        q = ("select v2.user_id, sum(v1.tfidf * v2.tfidf) / "
-             "sqrt((select sum(tfidf * tfidf) from %s) * v3.norm) "
-             "as dist "
-             "from %s v1 join %s v2 join (%s) v3 "
-             "on v1.token = v2.token and v2.user_id = v3.user_id "
-             "group by 1" % (viewName1, viewName1, viewName2, normTable))
-        if viewName is not None:
-            self.con.query("create view %s as %s" % (viewName,q))
-        else:
-            assert uid, "dont be a nub"
-            return { int(r["user_id"]) : float(r["dist"]) for r in self.con.query(q) }
+            return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
 
     def InsertTweetTokens(self, uid, tid, tweet):
         tokens = v.Vocab(self.g_data).Tokenize(tweet)
         q = "insert into tweet_tokens (user_id, tweet_id, token) values (%d,%d,%%s)" % (uid, tid)
         for t in tokens:
+            tokid = self.Feat2Id(t.encode("utf8"),table_name="token_id")
             try:                
-                self.con.query(q,t.encode("utf8"))
+                self.con.query(q,tokid)
             except Exception as e:
                 assert e[0] == 1062, e #dup key
                 
@@ -576,16 +656,16 @@ class DataManager:
         q = "update articles set processed = NOW() where personality = %s and url = %s"
         self.TimedQuery(q, "FinishArticles", personality, url)
 
-    def Feat2Id(self, feature, allow_insert=True):
-        q = "select id from feature_id where feature=%s"
+    def Feat2Id(self, feature, allow_insert=True, table_name="token_id"):
+        q = "select id from %s where token=%%s" % (table_name)
         feat = self.con.query(q, feature)
         if len(feat) == 0:
             assert allow_insert, feature
-            return int(self.con.execute("insert into feature_id (feature) values (%s)", feature))
+            return int(self.con.execute("insert into %s (token) values (%%s)" % table_name,feature))
         return int(feat[0]['id'])
     
-    def Id2Feat(self, fid):
-        return self.con.query("select feature from feature_id where id = %d" % fid)[0]['feature']
+    def Id2Feat(self, fid, table_name="token_id"):
+        return self.con.query("select token from %s where id = %d" % (table_name, fid))[0]['token']
 
     def IgnoreUser(self, user_name):
         self.con.query("insert into ignored_users select id from users where screen_name like '%s'" % user_name)

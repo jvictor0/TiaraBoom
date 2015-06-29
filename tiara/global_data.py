@@ -70,6 +70,9 @@ class GlobalData:
             handler.setFormatter(logging.Formatter(log_format,"%Y-%m-%d %H:%M:%S"))
             self.logger.addHandler(handler)
             
+        self.logger = logging.getLogger('TiaraBoom')
+        self.logger2 =  logging.getLogger('TiaraBoom')
+
             
         self.password       = conf['password']
         self.myName         = conf['twitter_name']
@@ -93,7 +96,7 @@ class GlobalData:
     def TraceError(self, msg):
         self.logger.error(("(%s)" % self.myName) + Indentation() + msg)
     def TraceArticleThread(self, msg):
-        self.logger.info("(ArticleThread)  " + msg)
+        self.logger2.info("(ArticleThread)  " + msg)
         
     def ApiHandler(self):
         return self.apiHandler
