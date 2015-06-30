@@ -22,15 +22,18 @@ class Ticker(object):
         if not new_avg is None:
             self.avg_limit = new_avg * 60
         self.limit =  max(self.min_time, random.expovariate(1.0/self.avg_limit) if self.exponential else float(self.avg_limit))
+        self.time = 0
+        self.last_time = time.time()
     
     def Tick(self):
         t = time.time()
         self.time += (t - self.last_time)
         self.last_time = t
-        while self.time > self.limit:
-            self.time -= self.limit
+        if self.time > self.limit:
+            if self.verbose:
+                self.g_data.TraceInfo("Performing %s." % (self.name))
+            self.fun()
             self.SetLimit()
             if self.verbose:
                 self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
-            self.fun()
-            return
+
