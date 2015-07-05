@@ -182,6 +182,8 @@ class SocialLogic:
             return -1 
         numFriends = user.GetFriendsCount()
         numFollowers = user.GetFollowersCount()
+        if numFriends > 5000 or numFollowers > 5000:
+            return -1
         result = 0
         if 'follow' in user.GetScreenName().lower():
             return -1 # because fuck you, thats why
@@ -213,7 +215,11 @@ class SocialLogic:
         elif 100 < numFollowers <= 200:
             result += 1
         if self.params["reply"]["mode"] == "artrat":
-            result += 100 * self.g_data.dbmgr.TFIDFDistance([user.GetId()])[user.GetId()]
+            dist = self.g_data.dbmgr.TFIDFDistance([user.GetId()])
+            if user.GetId() in dist:
+                result += 100 * dist[user.GetId()]
+            else:
+                return -1 # nothing in common with us!
         return result
 
     def BotherRandom(self):
