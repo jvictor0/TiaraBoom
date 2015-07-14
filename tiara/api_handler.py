@@ -33,9 +33,11 @@ class ApiHandler():
                 pass
             return None
 
-    def ShowStatus(self, status_id, cache=True):
+    def ShowStatus(self, status_id, user_id=None, cache=True):
+        if user_id is None:
+            assert not cache
         if cache:
-            cached = self.g_data.dbmgr.LookupStatus(status_id)
+            cached = self.g_data.dbmgr.LookupStatus(status_id, user_id)
             if not cached is None:
                 self.g_data.TraceDebug("Cache hit!")
                 return cached

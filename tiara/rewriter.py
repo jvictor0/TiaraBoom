@@ -53,14 +53,17 @@ class TweetsIterator:
         self.g_data = g_data
         self.userTweets = None
         self.reply_id = None
+        self.user_reply_id = None
         self.original = None
         if not original is None:
             self.original = original
             self.user_id = original.GetUser().GetScreenName()
             self.reply_id = original.GetInReplyToStatusId()
+            self.user_reply_id = original.GetInReplyToUserId()
         else:
             self.user_id = user.GetScreenName()
         self.original_reply_id = self.reply_id
+        self.original_user_reply_id = self.user_reply_id
 
     def Next(self, allowUserTweets):
         if self.ix == -1:
@@ -71,12 +74,14 @@ class TweetsIterator:
                 return self.original
         if not self.reply_id is None:
             assert self.ix == 1
-            nextTweet = self.g_data.ApiHandler().ShowStatus(self.reply_id)
+            nextTweet = self.g_data.ApiHandler().ShowStatus(self.reply_id,self.user_reply_id)
             if not nextTweet is None:
                 self.reply_id = nextTweet.GetInReplyToStatusId()
+                self.user_reply_id = nextTweet.GetInReplyToUserId()
                 return nextTweet
             else:
                 self.reply_id = None
+                self.user_reply_id = None
                 self.g_data.TraceWarn("Unable to get reply, resorting to getting all user tweets")
         if allowUserTweets and self.userTweets is None:
             assert self.ix == 1
@@ -99,6 +104,7 @@ class TweetsIterator:
     def Reset(self):
         self.ix = 0
         self.reply_id = self.original_reply_id
+        self.user_reply_id = self.original_user_reply_id
 
 
 class Rewriter:

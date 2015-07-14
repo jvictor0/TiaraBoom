@@ -327,7 +327,7 @@ class SocialLogic:
         initiates = 0
         for c,p in tweets:
             if not p.GetInReplyToStatusId() in ids:
-                if p.GetUser().GetId() == uid and p.GetInReplyToScreenName() != self.g_data.myName:
+                if p.GetUser().GetId() == uid and p.GetInReplyToUserId() != self.g_data.dbmgr.GetUserId():
                     rootUrls.append(GetURL(p))
                     roots.add(c.GetId())
                 else:

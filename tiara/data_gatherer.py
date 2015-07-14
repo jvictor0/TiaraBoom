@@ -77,29 +77,24 @@ class DataManager:
         return self.apiHandler
         
     def DDL(self):
-        self.con.query(("create table if not exists tweets("
-                        
-                        "id bigint primary key not null,"
-                        "parent bigint default null,"
-                        
-                        "user_name varbinary(200),"
-                        "user_id bigint not null,"
-                        
-                        "parent_name varbinary(200),"
-                        "parent_id bigint default null,"
-                        
-                        "body blob, "
-                        
+        self.con.query(("create table if not exists tweets("                        
+                        "id bigint not null,"
+                        "user_id bigint not null,"                        
                         "retweets bigint not null,"
                         "favorites bigint not null,"
-                        
-                        "ts datetime not null,"
+                        "primary key(user_id, id))"))
 
-                        "json /*!90619 json */ /*50509 blob */ ,"
-                        
-                        "index(user_id),"
-                        "index(parent),"
-                        "index(parent_id))"))
+        self.con.query(("create columnar table if not exists tweets_storage("                        
+                        "id bigint not null,"
+                        "parent bigint default null,"                        
+                        "user_id bigint not null,"                        
+                        "parent_id bigint default null,"                        
+                        "body blob, "                        
+                        "ts datetime not null,"
+                        "json json ,"                        
+                        "shard key(user_id, id),"
+                        "index(user_id, id) using clustered columnar)"))
+
         self.con.query(("create table if not exists ungettable_tweets("
                         "id bigint primary key,"
                         "errorcode int)"))
@@ -139,15 +134,12 @@ class DataManager:
                         "url blob not null, "
                         "key(tweet_id, personality),"
                         "key(personality, url /*50509 (3600) */),"
-                        "key (inserted))"))
-        self.con.query(("create table if not exists feature_id("
-                        "id bigint primary key auto_increment,"
-                        "feature varbinary(200),"
-                        "unique key(feature))"))
-        self.con.query(("create table if not exists token_id("
+                        "key (inserted),"                    
+                        "shard())"))
+        self.con.query(("create reference table if not exists token_id("
                         "id bigint primary key auto_increment,"
                         "token varbinary(200),"
-                        "unique key(feature))"))
+                        "unique key(token))"))
         self.con.query(("create table if not exists ignored_users("
                         "id bigint primary key)"))
 
@@ -252,28 +244,24 @@ class DataManager:
         if s.GetRetweeted_status() is not None:
             self.InsertTweet(s.GetRetweeted_status())
         parent = "null"
-        parent_name = "null"
         parent_id  = "null"
         if not s.GetInReplyToStatusId() is None:
             parent = str(s.GetInReplyToStatusId())
             if not s.GetInReplyToUserId() is None:
-                parent_name = "'%s'" % s.GetInReplyToScreenName()
                 parent_id = str(s.GetInReplyToUserId())
-        sid = str(s.GetId())
+        sid = s.GetId()
         name = "'%s'" % s.GetUser().GetScreenName()
-        uid = str(s.GetUser().GetId())
+        uid = s.GetUser().GetId()
         body = s.GetText()
         timestamp = "'%s'" % TwitterTimestampToMySQL(s.GetCreatedAt())
-        likes = str(s.GetFavoriteCount())
-        retweets = str(s.GetRetweetCount())
-        values = [sid, parent, name.encode("utf8"), uid,
-                  parent_name.encode("utf8"), parent_id,
+        likes = s.GetFavoriteCount()
+        retweets = s.GetRetweetCount()
+        values = [str(sid), parent, str(uid), parent_id,
                   "%s",
-                  retweets, likes,
                   timestamp.encode("utf8"),
                   "%s"]
         values = " , ".join(values)
-        query = "insert into tweets values (%s) on duplicate key update favorites = %s, retweets = %s" % (values, likes, retweets)
+        query = "insert into tweets_storage values (%s)" % (values)
         jsdict = s.AsDict()
         if "user" in jsdict:
             del jsdict["user"]
@@ -288,29 +276,39 @@ class DataManager:
         del jsdict["id"]
         if s.GetRetweeted_status() is not None:
             jsdict["retweeted_status"] = s.GetRetweeted_status().GetId()
-        self.con.query("begin")
-        self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
-        assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
-        if not ignore_user:
-            self.InsertUser(s.GetUser())
-        self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
-        self.con.query("commit")
+        try:
+            self.con.query("begin")
+            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites) values (%d,%d,%d,%d) "
+                                      "on duplicate key update "
+                                      "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes))
+            assert inserted in [0,1,2], (inserted, sid)
+            if inserted == 1:
+                self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
+            assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
+            if not ignore_user:
+                self.InsertUser(s.GetUser())
+            self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
+            self.con.query("commit")
+        except Exception:
+            self.con.query("rollback")
+            raise
 
     def GetUnprocessed(self, user=None):
         uid = self.GetUserId()
-        query = ("select tl.id, tl.parent, tl.parent_name, tl.parent_id "
-                 "from tweets tl left join tweets tr "
-                 "on tr.id = tl.parent "
+        query = ("select tl.id "
+                 "from tweets_storage tl left join tweets tr "
+                 "on tr.id = tl.parent and tr.user_id = tl.parent_id " 
                  "where tr.id is null and tl.parent is not null and (tl.user_id = %s or tl.parent_id = %s) " 
                  "and not exists(select * from ungettable_tweets where id = tl.parent) "
                  "limit 90")
         query = query % (uid, uid)
         return self.TimedQuery(query, "GetUnprocessed")
 
-    def Lookup(self, tid, field = "id"):
+    def Lookup(self, tid, uid=None):
+        assert not uid is None, uid
         if self.con is None:
             return []
-        res = self.con.query("select * from tweets where %s = %d" % (field,tid))
+        res = self.con.query("select * from tweets_storage where id = %d and user_id = %d" % (tid, uid))
         return res
 
     def RowToStatus(self, row):
@@ -322,6 +320,9 @@ class DataManager:
         jsdict["created_at"] = MySQLTimestampToTwitter(row["ts"])
         jsdict["favorited"] = False
         jsdict["retweeted"] = False
+        if row["parent"] is not None:
+            jsdict["in_reply_to_status_id"] = int(row["parent"])
+            jsdict["in_reply_to_user_id"] = int(row["parent_id"])
         if "retweeted_status" in jsdict:
             jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"])
             if jsdict["retweeted_status"] is None:
@@ -329,8 +330,11 @@ class DataManager:
             else:
                 jsdict["retweeted_status"] = jsdict["retweeted_status"].AsDict()
         s = Status.NewFromJsonDict(jsdict)
-        s.SetRetweetCount(int(row["retweets"]))
-        s.SetFavoriteCount(int(row["favorites"]))
+        rts_favs = self.con.query("select retweets,favorites from tweets where user_id=%s and id=%s" % (row["user_id"], row["id"]))
+        assert len(rts_favs) == 1
+        rts_favs = rts_favs[0]
+        s.SetRetweetCount(int(rts_favs["retweets"]))
+        s.SetFavoriteCount(int(rts_favs["favorites"]))
         if s.urls is None:
             s.urls = []
         assert s.GetUser() is None, row
@@ -341,13 +345,14 @@ class DataManager:
             s.SetUser(u)
         return s
 
-    def LookupStatuses(self, tid, field = "id"):
-        rows = self.Lookup(tid,field)
+    def LookupStatuses(self, tid, uid = None):
+        assert not uid is None, uid
+        rows = self.Lookup(tid,uid)
         return filter(lambda x: not x is None,
                       [self.RowToStatus(r) for r in rows])
 
-    def LookupStatus(self, tid, field = "id"):
-        statuses = self.LookupStatuses(tid, field)
+    def LookupStatus(self, tid, uid=None):
+        statuses = self.LookupStatuses(tid, uid)
         if len(statuses) == 0:
             return None
         return statuses[0]
@@ -386,7 +391,8 @@ class DataManager:
         return res[0]["has_followed"] == "1"
            
     def MostRecentTweet(self, uid):
-        q = "select max(ts) as a from tweets where parent_id = %d and user_name = '%s'" % (uid, self.g_data.myName)
+        uid = self.GetUserId()
+        q = "select max(ts) as a from tweets_storage where parent_id = %d and user_id = '%s'" % (uid, uid)
         result = self.con.query(q)
         if result[0]["a"] is None:
             return None
@@ -394,16 +400,16 @@ class DataManager:
         return MySQLTimestampToPython(result[0]["a"])
 
     def TweetHistory(self, uid):
-        q = ("select ch.id as chid, pa.id as paid from tweets ch join tweets pa "
-             "on ch.parent = pa.id "
-             "where (ch.user_id = %d and pa.user_name = '%s') "
-             " or (ch.parent_id = %d and ch.user_name = '%s')")
-        q = q % (uid, self.g_data.myName, uid, self.g_data.myName)
+        myuid = self.GetUserId()
+        q = ("select id as chid, parent as paid, user_id as chu, parent_id as pau from tweets_storage "
+             "where (user_id = %d and parent_id = %d) "
+             " or (parent_id = %d and   user_id = %d)")
+        q = q % (uid, myuid, uid, myuid)
         rows = self.TimedQuery(q, "TweetHistory")
         result = []
         for r in rows:
-            left = self.LookupStatus(int(r["chid"]))
-            right = self.LookupStatus(int(r["paid"]))
+            left = self.LookupStatus(int(r["chid"]),int(r["chu"]))
+            right = self.LookupStatus(int(r["paid"]),int(r["pau"]))
             result.append((left,right))
         return result
 
@@ -414,19 +420,20 @@ class DataManager:
                 break
             result.append(tweet)
             considered.add(tweet.GetId())
-            q = "select * from tweets where parent = %d" % tweet.GetId()
+            q = "select %s from tweets_storage where parent = %d" % (self.skimp_tweets_storage,tweet.GetId())
             statuses = [self.RowToStatus(s) for s in self.con.query(q)]
             for s in statuses:
                 result.extend(self.EntireConversation(s, considered))
             if not tweet.GetInReplyToStatusId() is None:
-                tweet = self.LookupStatus(tweet.GetInReplyToStatusId())
+                tweet = self.LookupStatus(tweet.GetInReplyToStatusId(), tweet.GetInReplyToUserId())
             else:
                 break
         return result
 
     def RecentConversations(self, limit):
         user_id = self.GetUserId()
-        q = "select * from tweets where parent_id = '%s' order by id desc limit %d" % (user_id, limit)
+        self.skimp_tweets_storage = "id, user_id, body, parent, parent_id, ts, '{}' as json"
+        q = "select %s from tweets_storage where parent_id = '%s' order by id desc limit %d" % (self.skimp_tweets_storage, user_id, limit)
         statuses = [self.RowToStatus(s) for s in self.con.query(q)]
         considered = set([])
         result = []
@@ -610,22 +617,11 @@ class DataManager:
 
     def InsertAllTweetTokens(self):
         self.con.query("truncate table tweet_tokens") # because fuck you thats why!
-        tweets = self.con.query("select user_id, id, body from tweets")
+        tweets = self.con.query("select user_id, id, body from tweets_storage")
         for i,r in enumerate(tweets): # am i insane or genious?
             if i % 100 == 0:
                 print float(i)/len(tweets)
             self.InsertTweetTokens(int(r["user_id"]),int(r["id"]),r["body"])
-
-    def FixRetweets(self):
-        rts = self.con.query("select json::retweeted_status as rt from tweets where json_length(json::retweeted_status) is not null")
-        for i,r in enumerate(rts):
-            print float(i)/len(rts)
-            s = Status.NewFromJsonDict(json.loads(r["rt"]))
-            try:
-                self.InsertTweet(s,ignore_user=True)        
-            except Exception as e:
-                print e
-                print r["rt"]
 
     def PushArticle(self, url, tweet_id, personality):
         q = "select * from articles where personality = %s and url = %s"
@@ -668,133 +664,8 @@ class DataManager:
         return self.con.query("select token from %s where id = %d" % (table_name, fid))[0]['token']
 
     def IgnoreUser(self, user_name):
-        self.con.query("insert into ignored_users select id from users where screen_name like '%s'" % user_name)
+        self.con.query("insert into ignored_users select id from users where screen_name = '%s'" % user_name)
     
-    def SetupTargetAnalysisViews(self, tok_order=1, min_num_tweets=10):
-        views = ["mtok_feats","mtoks","mtweets","musers"]
-        for v in views:
-            self.con.query("drop view if exists %s" % v)
-        botids = self.GetBotIds()
-        self.con.query("create view musers as select * from (select distinct parent_id as user_id "
-                       "from tweets "
-                       "where parent_id is not null and user_id in (%s) and parent_id not in (select id from ignored_users)) t_outer "
-                       "where (select count(*) from tweets t_inner where t_outer.user_id = t_inner.user_id) > %d" % (",".join(["%d" % b for b in botids]),min_num_tweets))
-        self.con.query("create view mtweets as select tweets.user_id, tweets.id "
-                       "from musers join tweets on musers.user_id = tweets.user_id "
-                       "where parent_id not in (%s) or parent_id is null" %  ",".join(["%d" % b for b in botids]))
-        if tok_order == 1:
-            print "tok_order ought to be 1"
-            toks_q = "select * from tweet_tokens"
-        else:
-            print "tok_order = ", tok_order
-            toks_q = ("select t1.user_id as user_id, t1.tweet_id as tweet_id, concat(t1.token, '$_$', t2.token) as token "
-                      "from tweet_tokens t1 join tweet_tokens t2 "
-                      "on t1.user_id = t2.user_id and t1.tweet_id = t2.tweet_id")
-        print toks_q
-        self.con.query("create view mtoks as select tokens.user_id, tokens.token, log(1+count(*)) as val "
-                       "from (%s) tokens join mtweets "
-                       "on tokens.user_id = mtweets.user_id and tokens.tweet_id = mtweets.id "
-                       "group by 1, 2" % toks_q)
-        
-    def InsertFeatures(self, dump = False):        
-        if dump:
-            self.con.query("drop table feature_id")
-            self.DDL()
-        self.Feat2Id("avg_retweet")
-        self.Feat2Id("avg_favorite")
-        self.Feat2Id("num_followers")
-        self.Feat2Id("num_friends")
-        self.Feat2Id("num_replies")
-        self.Feat2Id("tweet_freq")
-        self.TimedQuery("insert ignore into feature_id (feature) select concat('token_',token) from mtoks", "inserting features into feat_id")
-        
-    def ComputeFeatureMatrix(self):
-        import nlp_learning as nm
-        reload(nm)
-        tok_feats = self.TimedQuery("select mtoks.user_id, feature_id.id, mtoks.val "
-                                    "from mtoks join feature_id "
-                                    "on feature_id.feature=concat('token_',mtoks.token)",
-                                    "tok feats")
-        user_feats = self.TimedQuery("select users.id, users.num_friends, users.num_followers "
-                                     "from musers join users "
-                                     "on users.id = musers.user_id",
-                                     "user feats")
-        tweet_feats = self.TimedQuery("select tweets.user_id, "
-                                      "log(1 + avg(retweets)) as rts, "
-                                      "log(1 + avg(favorites)) as favs, "
-                                      "avg(parent is not null) as reps, "
-                                      "unix_timestamp(NOW()) - unix_timestamp(min(ts)) as oldest, "
-                                      "count(*) as count "
-                                      "from musers join tweets "
-                                      "on musers.user_id = tweets.user_id "
-                                      "group by 1",
-                                      "tweet feats")
-        
-        avg_retweets = self.Feat2Id("avg_retweet")
-        avg_favorites = self.Feat2Id("avg_favorite")
-        num_followers = self.Feat2Id("num_followers")
-        num_friends = self.Feat2Id("num_friends")
-        num_replies = self.Feat2Id("num_replies")
-        tweet_freq = self.Feat2Id("tweet_freq")
-
-        result = [(int(r["user_id"]), int(r["id"]), float(r["val"])) for r in tok_feats]
-        result.extend([(int(r["id"]), num_followers, float(r["num_followers"])) for r in user_feats])
-        result.extend([(int(r["id"]), num_friends, float(r["num_friends"])) for r in user_feats])
-        result.extend([(int(r["user_id"]), avg_retweets, float(r["rts"])) for r in tweet_feats])
-        result.extend([(int(r["user_id"]), avg_favorites, float(r["favs"])) for r in tweet_feats])
-        result.extend([(int(r["user_id"]), num_replies, float(r["reps"])) for r in tweet_feats])
-        result.extend([(int(r["user_id"]), tweet_freq, float(r["count"])/float(r["oldest"])) for r in tweet_feats])
-        return nm.NLPMatrix(result)
-
-    def ComputeResponseVector(self):
-        rows = {}
-        for gd in self.g_data.g_datas:
-            us = self.con.query(("select musers.user_id, us.following from musers join user_following_status us "
-                                 "on us.id = musers.user_id "
-                                 "where us.my_name='%s' and us.has_followed = 1") % gd.myName)
-            for i,u in enumerate(us):
-                if i % 100 == 0:
-                    print float(i)/len(us)
-                uid = int(u["user_id"])
-                if uid not in rows:
-                    rows[uid] = 0.0
-                if int(u["following"]) != 1:
-                    rows[uid] = -1
-                if rows[uid] < 0:
-                    continue
-                stats = gd.SocialLogic().HistoryStatistics(uid=uid)
-                if stats["attempts"] == 0:
-                    continue
-                rows[uid] += math.log(1 + (stats["responses"] + stats["favorites"] * 0.125 + stats["retweets"] * 0.25)/stats["attempts"])
-        for u in self.con.query("select * from musers"):
-            uid = int(u["user_id"])
-            if uid not in rows:
-                rows[uid] = -1
-        return rows
-            
-        
-    def ExtractForTargetTraining(self, tok_order=1, min_num_tweets=10):
-        self.SetupTargetAnalysisViews(tok_order=tok_order,min_num_tweets=min_num_tweets)
-        self.InsertFeatures(dump=True)
-        mat = self.ComputeFeatureMatrix()
-        return mat, mat.ToVector(self.ComputeResponseVector())
-
-    def GarbageCollectTweets(self):
-        while True:
-            usg = self.con.query("show databases extended like %s")["Memory (MBs)"]
-            if int(usg) < 10000: # ten gigs is a lot
-                return
-            q = ("delete from tweets "
-                 "where user_id not in (select id from user_following_status where has_followed = 1) "
-                 "and (parent_id not in (%s) or parent_id is null) "
-                 "limit 200" % ",".join(["%d" % b for b in botids]))
-            deld = self.con.execute(q)
-            self.con.query("delete from tweet_tokens where (user_id,tweet_id) not in (select user_id, id from tweets)")
-            self.g_data.TraceInfo("Deleted %s rows" % deld)
-            if int(deld) < 200:
-                return
-        
-        
     def Act(self):
         if self.shard % MODES == 0:
             self.UpdateUsers()

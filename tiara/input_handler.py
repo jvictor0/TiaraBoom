@@ -57,7 +57,7 @@ def HandleReply(g_data, input):
         tid = int(arg)
     except Exception as e:
         return "please use either @username or numerical tweet_id"
-    tweet = g_data.ApiHandler().ShowStatus(tid)
+    tweet = g_data.ApiHandler().ShowStatus(tid, cache=False)
     if tweet == None:
         return "could not find tweet %s" % input[0]
     result = g_data.SocialLogic().ReplyTo(tweet)

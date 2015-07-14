@@ -21,7 +21,7 @@ def GetConversationSymbols(g_data, tweet=None, user=None):
         if tweet.GetInReplyToStatusId() is None:
             break
         multiplier = multiplier * 0.5
-        tweet = g_data.ApiHandler().ShowStatus(tweet.GetInReplyToStatusId())
+        tweet = g_data.ApiHandler().ShowStatus(tweet.GetInReplyToStatusId(), tweet.GetInReplyToUserId())
     for k in symbols.keys():
         for w2 in g_data.WordFamily(k):
             if not w2 in symbols:
