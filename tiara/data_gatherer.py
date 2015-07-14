@@ -1,6 +1,4 @@
 import database as db
-import persisted as p
-import ticker as t
 import vocab as v
 
 import random
@@ -119,13 +117,19 @@ class DataManager:
                         "has_followed tinyint,"
                         "updated timestamp default current_timestamp on update current_timestamp,"
                         "primary key(id, my_name))"))
-        self.con.query(("create table if not exists tweet_tokens("
+        self.con.query(("create table if not exists user_token_frequency("
                         "user_id bigint,"
-                        "tweet_id bigint,"
-                        "key (user_id, tweet_id),"
                         "token bigint,"
-                        "key (user_id, token),"
-                        "primary key(token, user_id, tweet_id))"))
+                        "count bigint,"
+                        "primary key(user_id, token))"))
+        self.con.query(("create table if not exists user_document_frequency("
+                        "token bigint,"
+                        "count bigint,"
+                        "primary key(token))"))
+        self.con.query(("create table if not exists tweet_document_frequency("
+                        "token bigint,"
+                        "count bigint,"
+                        "primary key(token))"))
         self.con.query(("create table if not exists articles("
                         "tweet_id bigint not null,"
                         "inserted datetime not null,"
@@ -284,10 +288,10 @@ class DataManager:
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
                 self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
+                self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
             assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
             if not ignore_user:
                 self.InsertUser(s.GetUser())
-            self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
             self.con.query("commit")
         except Exception:
             self.con.query("rollback")
@@ -485,84 +489,36 @@ class DataManager:
     def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
         uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
         if tid is None:
-            q = "select * from tfidf_view where user_id = %d" % uid
+            q = "select token, tfidf from tfidf_view where user_id = %d" % uid
+            params = []
         else:
-            q = "select * from tfidf_tweet_view where user_id = %d and tweet_id = %d" % (uid,tid)
-        rows = self.TimedQuery(q,"TFIDF")
+            params = list(set(v.Vocab(self.g_data).Tokenize(tweet)))
+            q = ("select token_id.token, log((select count(*) from tweets)/tdf.count) as tfidf "
+                 "from tweet_document_frequency tdf join token_id "
+                 "on token_id.id = tdf.token "
+                 "where token_id.token in %s") 
+        rows = self.TimedQuery(q, "TFIDF", *params)
         return [(r["token"], float(r["tfidf"])) for r in rows]
-
-    def TFIDFLegacy(self, uid=None, tid=None, tweet=None, user=None, viewName=None, queryString=False):
-        uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
-        dfQuery = ("select token, count(distinct %s) as df "
-                   "from tweet_tokens "
-                   "group by token")
-        dfQuery = dfQuery % ("user_id" if tid is None else "user_id, tweet_id")
-        tfWhere = "" if uid is None else ("where user_id = %d %s" % (uid, ("and tweet_id = %d" % tid) if not tid is None else ""))
-        tfQuery = ("select token, user_id, count(*) as tf "
-                   "from tweet_tokens "
-                   "%s "
-                   "group by token, user_id")
-        tfQuery = tfQuery % (tfWhere)
-        numDocsQuery = "select count(distinct %s) as val from tweet_tokens" % ("user_id" if tid is None else "user_id, tweet_id")
-        q = ("select termfreq.token, termfreq.user_id, termfreq.tf as tf, docfreq.df as df, "
-             "(1+log(tf)) * log((%s)/df) as tfidf "
-             "from (%s) termfreq join (%s) docfreq "
-             "on termfreq.token = docfreq.token")
-        q = q % (numDocsQuery, tfQuery, dfQuery)
-        if queryString:
-            assert viewName is None
-            return q
-        elif viewName is None:            
-            rows = self.TimedQuery(q, "TFIDF")
-            return [(self.Id2Feat(int(r["token"]), "token_id"), float(r["tfidf"])) for r in rows]
-        else:
-            self.con.query("drop view if exists %s" % viewName)
-            self.con.query("create view %s as %s" % (viewName, q))
 
     def MakeTFIDFViews(self):
         for v in ["tfidf_distance_view",
                   "tfidf_norm_view","tfidf_user_norm_view",
-                  "tfidf_tweet_view","tfidf_view", 
-                  "tfidf_tweet_view_internal","tfidf_view_internal", 
-                  "num_docs_view", "num_docs_tweet_view", "tf_view", "df_view","df_tweet_view"]:
+                  "tfidf_view", 
+                  "tfidf_view_internal", 
+                  "num_docs_view", "tf_view", "df_view"]:
             self.con.query("drop view if exists %s" % v)
-        self.con.query("create view df_view as "
-                       "select token, count(distinct user_id) as df "
-                       "from tweet_tokens "
-                       "group by token")
-        self.con.query("create view df_tweet_view as "
-                       "select token, count(distinct user_id, tweet_id) as df "
-                       "from tweet_tokens "
-                       "group by token")
-
-        self.con.query("create view tf_view as "
-                       "select token, user_id, count(*) as tf "
-                       "from tweet_tokens "
-                       "group by token, user_id")     
-   
         self.con.query("create view num_docs_view as "
-                       "select count(distinct user_id) as val from tweet_tokens")
-        self.con.query("create view num_docs_tweet_view as "
-                       "select count(distinct user_id, tweet_id) as val from tweet_tokens")
+                       "select count(distinct user_id) as val from user_token_frequency")
 
         self.con.query("create view tfidf_view_internal as "
                        "select termfreq.token, termfreq.user_id, termfreq.tf as tf, docfreq.df as df, "
                        "(1+log(tf)) * log((select val from num_docs_view)/df) as tfidf "
-                       "from tf_view termfreq join df_view docfreq "
-                       "on termfreq.token = docfreq.token")
-        self.con.query("create view tfidf_tweet_view_internal as "
-                       "select termfreq.token, termfreq.user_id, termfreq.tweet_id, 1 as tf, docfreq.df as df, "
-                       "log((select val from num_docs_tweet_view)/df) as tfidf "
-                       "from tweet_tokens termfreq join df_tweet_view docfreq "
+                       "from user_token_frequency termfreq join user_document_frequency docfreq "
                        "on termfreq.token = docfreq.token")
 
         self.con.query("create view tfidf_view as "
                        "select tid.token, tf.user_id, tf.tf, tf.df, tf.tfidf "
                        "from tfidf_view_internal tf join token_id tid "
-                       "on tf.token = tid.id")
-        self.con.query("create view tfidf_tweet_view as "
-                       "select tid.token, tf.user_id, tf.tweet_id, tf.tf, tf.df, tf.tfidf "
-                       "from tfidf_tweet_view_internal tf join token_id tid "
                        "on tf.token = tid.id")
 
         self.con.query("create view tfidf_user_norm_view as "
@@ -605,18 +561,26 @@ class DataManager:
             return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
 
     def InsertTweetTokens(self, uid, tid, tweet):
-        tokens = v.Vocab(self.g_data).Tokenize(tweet)
-        q = "insert into tweet_tokens (user_id, tweet_id, token) values (%d,%d,%%s)" % (uid, tid)
+        tokens = set(v.Vocab(self.g_data).Tokenize(tweet))
+        q = "insert into user_token_frequency (user_id, token, count) values (%d,%%s,1) on duplicate key update count = count + 1" % (uid)
+        q2 = "insert into user_document_frequency (token, count) values (%s,1) on duplicate key update count = count + 1"
+        q3 = "insert into tweet_document_frequency (token,count) values (%s,1) on duplicate key update count = count + 1"
         for t in tokens:
             tokid = self.Feat2Id(t.encode("utf8"),table_name="token_id")
             try:                
-                self.con.query(q,tokid)
+                rc = self.con.query(q,tokid)
+                assert rc in [1,2], rc
+                if rc == 1:
+                    self.con.query(q2,tokid)
+                self.con.query(q3)
             except Exception as e:
                 assert e[0] == 1062, e #dup key
                 
 
     def InsertAllTweetTokens(self):
-        self.con.query("truncate table tweet_tokens") # because fuck you thats why!
+        self.con.query("truncate table user_token_frequency") # because fuck you thats why!
+        self.con.query("truncate table user_document_frequency")
+        self.con.query("truncate table tweet_document_frequency")
         tweets = self.con.query("select user_id, id, body from tweets_storage")
         for i,r in enumerate(tweets): # am i insane or genious?
             if i % 100 == 0:
