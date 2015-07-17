@@ -13,6 +13,8 @@ from twitter.user import User
 
 from util import *
 
+import threading
+
 MODES=3
 
 AFFLICT_FOLLOWBACK = 1
@@ -288,7 +290,7 @@ class DataManager:
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
                 self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
-                self.InsertTweetTokens(s.GetUser().GetId(), s.GetId(), s.GetText())
+                self.InsertTweetTokens(s.GetUser().GetId(), s.GetText())
             assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
             if not ignore_user:
                 self.InsertUser(s.GetUser())
@@ -511,8 +513,8 @@ class DataManager:
                        "select count(distinct user_id) as val from user_token_frequency")
 
         self.con.query("create view tfidf_view_internal as "
-                       "select termfreq.token, termfreq.user_id, termfreq.tf as tf, docfreq.df as df, "
-                       "(1+log(tf)) * log((select val from num_docs_view)/df) as tfidf "
+                       "select termfreq.token, termfreq.user_id, termfreq.count as tf, docfreq.count as df, "
+                       "(1+log(tf.count)) * log((select val from num_docs_view)/df.count) as tfidf "
                        "from user_token_frequency termfreq join user_document_frequency docfreq "
                        "on termfreq.token = docfreq.token")
 
@@ -560,32 +562,56 @@ class DataManager:
         else:
             return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
 
-    def InsertTweetTokens(self, uid, tid, tweet):
-        tokens = set(v.Vocab(self.g_data).Tokenize(tweet))
+    def InsertTweetTokens(self, uid, tweet):
+        tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
+        self.InsertTweetTokensById(uid, tokens)
+
+    def InsertTweetTokensById(self, uid, tokens):
         q = "insert into user_token_frequency (user_id, token, count) values (%d,%%s,1) on duplicate key update count = count + 1" % (uid)
         q2 = "insert into user_document_frequency (token, count) values (%s,1) on duplicate key update count = count + 1"
         q3 = "insert into tweet_document_frequency (token,count) values (%s,1) on duplicate key update count = count + 1"
         for t in tokens:
-            tokid = self.Feat2Id(t.encode("utf8"),table_name="token_id")
-            try:                
-                rc = self.con.query(q,tokid)
-                assert rc in [1,2], rc
-                if rc == 1:
-                    self.con.query(q2,tokid)
-                self.con.query(q3)
-            except Exception as e:
-                assert e[0] == 1062, e #dup key
+            rc = self.con.query(q % tokid)
+            if rc == 1:
+                self.con.query(q2 % tokid)
+            self.con.query(q3 % tokid)
                 
-
-    def InsertAllTweetTokens(self):
+    def InsertAllTweetTokens(self, threads=4, blocksize = 1000, dbhost="127.0.0.1:3307"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
         self.con.query("truncate table user_document_frequency")
         self.con.query("truncate table tweet_document_frequency")
-        tweets = self.con.query("select user_id, id, body from tweets_storage")
-        for i,r in enumerate(tweets): # am i insane or genious?
-            if i % 100 == 0:
-                print float(i)/len(tweets)
-            self.InsertTweetTokens(int(r["user_id"]),int(r["id"]),r["body"])
+        lkt = { r["token"] : r["id"] for r in self.con.query("select * from token_id") }
+        voc = v.Vocab(self.g_data)
+        total_size = int(self.con.query("select max(user_id) as a from tweet_storage")[0]["a"])
+        max_user = 0
+        lock = threading.Lock()
+        def InsertAllTweetTokensWorker():
+            mycon =  db.ConnectToMySQL(host=dbhost)
+            mycon.query("use tiaraboom")
+            while True:
+                lock.acquire()
+                users = [int(r['id']) for r in self.con.query("select id from users where id > %d limit %d order by id" % (max_user,blocksize))]
+                if len(users) == 0:
+                    return
+                new_max_user = max(users)
+                tweets = self.con.query("select user_id, body from tweets_storage where user_id > %d and user_id <= %d " % (max_user, new_max_user))
+                max_user = new_max_user
+                print float(max_user)/total_size
+                print "processing %d tweets" % len(tweets)
+                lock.release()
+                for i,r in enumerate(tweets): # am i insane or genious?
+                    tokens = [lkt[a] for a in set(voc.Tokenize(r["body"]))]
+                    q = "insert into user_token_frequency (user_id, token, count) values (%s,%%s,1) on duplicate key update count = count + 1" % (r["user_id"])
+                    for t in tokens:
+                        mycon.query(q,t)
+        threads = [threading.Thread(target=InsertAllTweetTokensWorker) for i in xrange(threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+            print "thread completed"
+        self.con.query("insert into user_document_frequency select token, count(*) from user_token_frequency group by 1")
+        self.con.query("insert into user_document_frequency select token, sum(count) from user_token_frequency group by 1")
 
     def PushArticle(self, url, tweet_id, personality):
         q = "select * from articles where personality = %s and url = %s"
@@ -616,13 +642,13 @@ class DataManager:
         q = "update articles set processed = NOW() where personality = %s and url = %s"
         self.TimedQuery(q, "FinishArticles", personality, url)
 
-    def Feat2Id(self, feature, allow_insert=True, table_name="token_id"):
-        q = "select id from %s where token=%%s" % (table_name)
+    def Feat2Id(self, feature, allow_insert=True):
+        q = "select id from token_id where token=%s"
         feat = self.con.query(q, feature)
         if len(feat) == 0:
             assert allow_insert, feature
-            return int(self.con.execute("insert into %s (token) values (%%s)" % table_name,feature))
-        return int(feat[0]['id'])
+            return int(self.con.execute("insert into token_id (token) values (%%s)" % feature))
+        return feat[0]['id']
     
     def Id2Feat(self, fid, table_name="token_id"):
         return self.con.query("select token from %s where id = %d" % (table_name, fid))[0]['token']
