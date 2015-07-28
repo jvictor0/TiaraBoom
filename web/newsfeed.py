@@ -12,7 +12,7 @@ class NewsFeedGenerator(object):
     def GetConversations(self):
         convos = []
         for b in self.bots:
-            convos.extend(dg.MakeFakeDataMgr(b, self.database).RecentConversations(100))
+            convos.extend(dg.MakeFakeDataMgr(b).RecentConversations(100))
         for c in convos:
             c.sort(key = lambda b: b.GetId())
         convos.sort(key = lambda c: -c[-1].GetId())

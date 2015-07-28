@@ -56,6 +56,7 @@ class DataManager:
         self.con.query("create database if not exists tiaraboom")
         self.con.query("use tiaraboom")
         self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
+        self.user_id = None
         if no_ddl:
             return
         if "gatherer_authentication" in config:
@@ -63,8 +64,40 @@ class DataManager:
         else:
             self.apiHandler = g_data.ApiHandler()
         self.DDL()
-        self.user_id = None
-        self.cache = {}
+        self.horde = {}
+        self.xact = False
+
+    def Begin(self):
+        assert not self.xact
+        self.xact = True
+        self.con.query("begin")
+
+    def Commit(self):
+        assert self.xact
+        self.xact = False        
+        try:
+            for k,v in self.horde.iteritems():
+                q = "insert into %s values %s" % (k,",".join(v))
+                self.con.query(q)            
+            self.con.query("commit")
+            self.horde = {}
+        except Exception as e:
+            self.con.query("rollback")
+            raise e
+
+    def Rollback(self):
+        assert self.xact
+        self.xact = False        
+        self.horde = {}
+        self.con.query("rollback")
+    
+    def Horde(self, table, values, *parameters):
+        parameters = [unidecode(p) if isinstance(p,unicode) else p for p in parameters]
+        if parameters != None and parameters != ():
+            values = values % tuple([self.con._db.escape(p, self.con.encoders) for p in parameters])
+        if table not in self.horde:
+            self.horde[table] = []
+        self.horde[table].append(values)
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
@@ -123,6 +156,7 @@ class DataManager:
                         "user_id bigint,"
                         "token bigint,"
                         "count bigint,"
+                        "shard(token),"
                         "primary key(user_id, token))"))
         self.con.query(("create table if not exists user_document_frequency("
                         "token bigint,"
@@ -170,17 +204,12 @@ class DataManager:
                        
 
     def ProcessUnprocessedTweets(self):
-        if self.con is None:
-            return
-        count = 30
-        if count == 0:
-            return
         tweets = self.GetUnprocessed()
         self.g_data.TraceInfo("There are currently %d unprocessed tweets" % len(tweets))
+        count = min(30,len(tweets))
+        random.shuffle(tweets)
         for i in xrange(count):
-            if len(tweets) == 0:
-                return
-            self.InsertTweetById(long(random.choice(tweets)["parent"]))
+            self.InsertTweetById(tweets[i]["parent"])
             
     def InsertTweetById(self, tid):
         s = self.ApiHandler().ShowStatus(tid, cache=False)
@@ -227,12 +256,18 @@ class DataManager:
     def InsertUngettable(self, tid, errno):
         if self.con is None:
             return
-        self.con.query("insert into ungettable_tweets values (%d,%d) on duplicate key update errorcode=errorcode" % (tid,errno))
+        try:
+            self.con.query("insert into ungettable_tweets values (%d,%d)" % (tid,errno))
+        except Exception as e:
+            assert e[0] == 1062, e # dup key        
 
     def InsertAfflicted(self, uid, errno):
         if self.con is None:
             return
-        self.con.query("insert into user_afflictions values (%d,%d) on duplicate key update affliction=affliction" % (uid,errno))
+        try:
+            self.con.query("insert into user_afflictions values (%d,%d)" % (uid,errno))
+        except Exception as e:
+            assert e[0] == 1062, e # dup key
 
     def GetAffliction(self, uid):
         if self.con is None:
@@ -246,9 +281,9 @@ class DataManager:
             self.con.query("delete from user_afflictions where id = %d and affliction = %d" % (uid, AFFLICT_BLOCKER))
         return [r["affliction"] for r in self.con.query("select * from user_afflictions where id = %d" % uid)]
 
-    def InsertTweet(self, s, ignore_user=False):
+    def InsertTweet(self, s, single_xact=True):
         if s.GetRetweeted_status() is not None:
-            self.InsertTweet(s.GetRetweeted_status())
+            self.InsertTweet(s.GetRetweeted_status(), single_xact=single_xact)
         parent = "null"
         parent_id  = "null"
         if not s.GetInReplyToStatusId() is None:
@@ -267,7 +302,7 @@ class DataManager:
                   timestamp.encode("utf8"),
                   "%s"]
         values = " , ".join(values)
-        query = "insert into tweets_storage values (%s)" % (values)
+        values = "(%s)" % (values)
         jsdict = s.AsDict()
         if "user" in jsdict:
             del jsdict["user"]
@@ -283,25 +318,25 @@ class DataManager:
         if s.GetRetweeted_status() is not None:
             jsdict["retweeted_status"] = s.GetRetweeted_status().GetId()
         try:
-            self.con.query("begin")
+            if single_xact:
+                self.Begin()
             inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites) values (%d,%d,%d,%d) "
                                       "on duplicate key update "
                                       "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes))
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
-                self.con.query(query, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
+                self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
                 self.InsertTweetTokens(s.GetUser().GetId(), s.GetText())
-            assert len(self.con.query("show warnings")) == 0, self.con.query("show warnings")
-            if not ignore_user:
-                self.InsertUser(s.GetUser())
-            self.con.query("commit")
+            self.InsertUser(s.GetUser())
+            if single_xact:
+                self.Commit()
         except Exception:
-            self.con.query("rollback")
+            self.Rollback()
             raise
 
     def GetUnprocessed(self, user=None):
         uid = self.GetUserId()
-        query = ("select tl.id "
+        query = ("select tl.parent "
                  "from tweets_storage tl left join tweets tr "
                  "on tr.id = tl.parent and tr.user_id = tl.parent_id " 
                  "where tr.id is null and tl.parent is not null and (tl.user_id = %s or tl.parent_id = %s) " 
@@ -397,8 +432,16 @@ class DataManager:
         return res[0]["has_followed"] == "1"
            
     def MostRecentTweet(self, uid):
-        uid = self.GetUserId()
-        q = "select max(ts) as a from tweets_storage where parent_id = %d and user_id = '%s'" % (uid, uid)
+        q = "select max(ts) as a from tweets_storage where user_id = %s" % (uid)
+        result = self.con.query(q)
+        if result[0]["a"] is None:
+            return None
+        assert len(result) == 1
+        return MySQLTimestampToPython(result[0]["a"])
+
+    def MostRecentTweetAt(self, uid):
+        myuid = self.GetUserId()
+        q = "select max(ts) as a from tweets_storage where user_id = %s and parent_id=%s" % (myuid, uid)
         result = self.con.query(q)
         if result[0]["a"] is None:
             return None
@@ -416,6 +459,8 @@ class DataManager:
         for r in rows:
             left = self.LookupStatus(int(r["chid"]),int(r["chu"]))
             right = self.LookupStatus(int(r["paid"]),int(r["pau"]))
+            assert left is not None, r
+            assert right is not None, r
             result.append((left,right))
         return result
 
@@ -439,7 +484,7 @@ class DataManager:
     def RecentConversations(self, limit):
         user_id = self.GetUserId()
         self.skimp_tweets_storage = "id, user_id, body, parent, parent_id, ts, '{}' as json"
-        q = "select %s from tweets_storage where parent_id = '%s' order by id desc limit %d" % (self.skimp_tweets_storage, user_id, limit)
+        q = "select %s from tweets_storage where parent_id = %s order by id desc limit %d" % (self.skimp_tweets_storage, user_id, limit)
         statuses = [self.RowToStatus(s) for s in self.con.query(q)]
         considered = set([])
         result = []
@@ -492,29 +537,42 @@ class DataManager:
         uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
         if tid is None:
             q = "select token, tfidf from tfidf_view where user_id = %d" % uid
-            params = []
+            rows = self.TimedQuery(q,"TFIDF_user")
         else:
-            params = list(set(v.Vocab(self.g_data).Tokenize(tweet)))
-            q = ("select token_id.token, log((select count(*) from tweets)/tdf.count) as tfidf "
+            params = list(set(v.Vocab(self.g_data).Tokenize(tweet.GetText())))
+            q = ("select token_id.token, log((select max(count) from tweet_document_frequency)/(1+tdf.count)) as tfidf "
                  "from tweet_document_frequency tdf join token_id "
                  "on token_id.id = tdf.token "
-                 "where token_id.token in %s") 
-        rows = self.TimedQuery(q, "TFIDF", *params)
+                 "where token_id.token in (%s)")
+            if len(params) == 0:
+                return []
+            try:
+                rows = self.TimedQuery(q % ",".join(["%s" for _ in params]), 
+                                       "TFIDF_tweet", *params)                
+            except Exception as e:
+                print e
+                print q
+                print params
+                raise e
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def MakeTFIDFViews(self):
         for v in ["tfidf_distance_view",
+                  "tfidf_important_word_view","tfidf_important_word_view_internal",
+                  "tfidf_distance_numerator_view",
                   "tfidf_norm_view","tfidf_user_norm_view",
                   "tfidf_view", 
                   "tfidf_view_internal", 
-                  "num_docs_view", "tf_view", "df_view"]:
+                  "num_docs_view","max_df_view"]:
             self.con.query("drop view if exists %s" % v)
         self.con.query("create view num_docs_view as "
                        "select count(distinct user_id) as val from user_token_frequency")
+        self.con.query("create view max_df_view as "
+                       "select max(count) as val from user_document_frequency")
 
         self.con.query("create view tfidf_view_internal as "
                        "select termfreq.token, termfreq.user_id, termfreq.count as tf, docfreq.count as df, "
-                       "(1+log(tf.count)) * log((select val from num_docs_view)/df.count) as tfidf "
+                       "log(1+termfreq.count) * log((select val from max_df_view)/(1+docfreq.count)) as tfidf "
                        "from user_token_frequency termfreq join user_document_frequency docfreq "
                        "on termfreq.token = docfreq.token")
 
@@ -527,15 +585,32 @@ class DataManager:
                        "select user_id, sqrt(sum(tfidf * tfidf)) as norm "
                        "from tfidf_view_internal "
                        "group by user_id")
-        self.con.query("create view tfidf_norm_view as select t.token, t.user_id, t.tfidf/u.norm as tfidf_norm "
+        self.con.query("create view tfidf_norm_view as select t.token, t.user_id, t.tf, t.df, t.tfidf, t.tfidf/u.norm as tfidf_norm "
                        "from tfidf_view_internal t join tfidf_user_norm_view u "
                        "on t.user_id = u.user_id")
+
+        self.con.query("create view tfidf_distance_numerator_view as "
+                       "select t1.user_id u1, t2.user_id u2, sum(t1.tfidf * t2.tfidf) as dist "
+                       "from tfidf_view t1 join tfidf_view t2 "
+                       "on t1.token = t2.token "
+                       "group by t1.user_id, t2.user_id")
 
         self.con.query("create view tfidf_distance_view as "
                        "select t1.user_id u1, t2.user_id u2, sum(t1.tfidf_norm * t2.tfidf_norm) as dist "
                        "from tfidf_norm_view t1 join tfidf_norm_view t2 "
                        "on t1.token = t2.token "
                        "group by t1.user_id, t2.user_id")
+        self.con.query("create view tfidf_important_word_view_internal as "
+                       "select t1.user_id u1, t2.user_id u2, t1.token, t1.tfidf_norm * t2.tfidf_norm as dist, t1.df as df, "
+                       "t1.tf as u1_tf, t1.tfidf as u1_tfidf, "
+                       "t2.tf as u2_tf, t2.tfidf as u2_tfidf "
+                       "from tfidf_norm_view t1 join tfidf_norm_view t2 "
+                       "on t1.token = t2.token")
+        self.con.query("create view tfidf_important_word_view as "
+                       "select u1.screen_name u1, u2.screen_name u2, ti.token, f.dist, f.df, f.u1_tf, f.u1_tfidf, f.u2_tf, f.u2_tfidf "
+                       "from tfidf_important_word_view_internal f join users u1 join users u2 join token_id ti "
+                       "on f.u1 = u1.id and f.u2 = u2.id and f.token = ti.id")
+
 
     def TFIDFNormQuery(self, uids=None):
         if uids is None:
@@ -571,32 +646,32 @@ class DataManager:
         q2 = "insert into user_document_frequency (token, count) values (%s,1) on duplicate key update count = count + 1"
         q3 = "insert into tweet_document_frequency (token,count) values (%s,1) on duplicate key update count = count + 1"
         for t in tokens:
-            rc = self.con.query(q % tokid)
+            rc = self.con.query(q % t)
             if rc == 1:
-                self.con.query(q2 % tokid)
-            self.con.query(q3 % tokid)
+                self.con.query(q2 % t)
+            self.con.query(q3 % t)
                 
-    def InsertAllTweetTokens(self, threads=4, blocksize = 1000, dbhost="127.0.0.1:3307"):
+    def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3307"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
         self.con.query("truncate table user_document_frequency")
         self.con.query("truncate table tweet_document_frequency")
         lkt = { r["token"] : r["id"] for r in self.con.query("select * from token_id") }
         voc = v.Vocab(self.g_data)
-        total_size = int(self.con.query("select max(user_id) as a from tweet_storage")[0]["a"])
-        max_user = 0
+        total_size = int(self.con.query("select max(user_id) as a from tweets_storage")[0]["a"])
+        max_user = [0]
         lock = threading.Lock()
         def InsertAllTweetTokensWorker():
             mycon =  db.ConnectToMySQL(host=dbhost)
             mycon.query("use tiaraboom")
             while True:
                 lock.acquire()
-                users = [int(r['id']) for r in self.con.query("select id from users where id > %d limit %d order by id" % (max_user,blocksize))]
+                users = [int(r['id']) for r in self.con.query("select id from users where id > %d order by id limit %d" % (max_user[0],blocksize))]
                 if len(users) == 0:
                     return
                 new_max_user = max(users)
-                tweets = self.con.query("select user_id, body from tweets_storage where user_id > %d and user_id <= %d " % (max_user, new_max_user))
-                max_user = new_max_user
-                print float(max_user)/total_size
+                tweets = self.con.query("select user_id, body from tweets_storage where user_id > %d and user_id <= %d " % (max_user[0], new_max_user))
+                max_user[0] = new_max_user
+                print float(max_user[0])/total_size
                 print "processing %d tweets" % len(tweets)
                 lock.release()
                 for i,r in enumerate(tweets): # am i insane or genious?
@@ -604,14 +679,15 @@ class DataManager:
                     q = "insert into user_token_frequency (user_id, token, count) values (%s,%%s,1) on duplicate key update count = count + 1" % (r["user_id"])
                     for t in tokens:
                         mycon.query(q,t)
-        threads = [threading.Thread(target=InsertAllTweetTokensWorker) for i in xrange(threads)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-            print "thread completed"
+        InsertAllTweetTokensWorker()
+        self.RepairDocFreq()
+
+
+    def RepairDocFreq(self):
+        self.con.query("truncate table user_document_frequency")
+        self.con.query("truncate table tweet_document_frequency")
         self.con.query("insert into user_document_frequency select token, count(*) from user_token_frequency group by 1")
-        self.con.query("insert into user_document_frequency select token, sum(count) from user_token_frequency group by 1")
+        self.con.query("insert into tweet_document_frequency select token, sum(count) from user_token_frequency group by 1")
 
     def PushArticle(self, url, tweet_id, personality):
         q = "select * from articles where personality = %s and url = %s"
@@ -647,7 +723,7 @@ class DataManager:
         feat = self.con.query(q, feature)
         if len(feat) == 0:
             assert allow_insert, feature
-            return int(self.con.execute("insert into token_id (token) values (%%s)" % feature))
+            return int(self.con.execute("insert into token_id (token) values (%s)", feature))
         return feat[0]['id']
     
     def Id2Feat(self, fid, table_name="token_id"):
@@ -664,4 +740,5 @@ class DataManager:
         elif self.shard % MODES == 2:
             self.ProcessUnprocessedTweets()
         self.shard += 1
-        
+       
+ 

@@ -18,8 +18,10 @@ class ApiHandler():
             result = fun()
             self.g_data.TraceInfo("%s(%s) success!" % (name,args))
             if tp == "LOT":
+                self.g_data.dbmgr.Begin()
                 for t in result:
-                    self.g_data.dbmgr.InsertTweet(t)
+                    self.g_data.dbmgr.InsertTweet(t, single_xact=False)
+                self.g_data.dbmgr.Commit()
             if tp == "LOU":
                 for u in result:
                     self.g_data.dbmgr.InsertUser(u)
@@ -86,7 +88,7 @@ class ApiHandler():
         
         if not result is None:
             if not in_reply_to_status is None:
-                assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId()) is None, (in_reply_to_status.AsDict(),in_reply_to_status.GetId())
+                assert not self.g_data.dbmgr.LookupStatus(in_reply_to_status.GetId(), in_reply_to_status.GetUser().GetId()) is None, (in_reply_to_status.AsDict(),in_reply_to_status.GetId())
             result.GetUser().following = False #not following myself!
             self.g_data.dbmgr.InsertTweet(result)
         return result

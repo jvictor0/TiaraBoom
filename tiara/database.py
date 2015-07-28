@@ -132,7 +132,7 @@ class Connection(object):
         return self._result.num_rows()
 
     def _execute(self, query, *parameters):
-        parameters = [unidecode(p) if isinstance(p,unicode) else p for p in parameters]
+        parameters = tuple([unidecode(p) if isinstance(p,unicode) else p for p in parameters])
         if parameters != None and parameters != ():
             query = query % tuple([self._db.escape(p, self.encoders) for p in parameters])
         if isinstance(query, unicode):
