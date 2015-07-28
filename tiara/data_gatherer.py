@@ -173,7 +173,7 @@ class DataManager:
                         "personality varbinary(100) not null,"
                         "url blob not null, "
                         "key(tweet_id, personality),"
-                        "key(personality, url /*50509 (3600) */),"
+                        "key(personality, url),"
                         "key (inserted),"                    
                         "shard())"))
         self.con.query(("create reference table if not exists token_id("
@@ -182,7 +182,12 @@ class DataManager:
                         "unique key(token))"))
         self.con.query(("create table if not exists ignored_users("
                         "id bigint primary key)"))
-
+        self.con.query(("create table if not exists sources("
+                        "personality varbinary(100),"
+                        "user_id bigint,"
+                        "primary key(personality, user_id),"
+                        "confirmed tinyint,"
+                        "updated timestamp default current_timestamp on update current_timestamp)"))
         self.MakeTFIDFViews()
                 
     def UpdateTweets(self):
@@ -365,6 +370,7 @@ class DataManager:
             jsdict["in_reply_to_status_id"] = int(row["parent"])
             jsdict["in_reply_to_user_id"] = int(row["parent_id"])
         if "retweeted_status" in jsdict:
+            print jsdict
             jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"])
             if jsdict["retweeted_status"] is None:
                 return None
@@ -695,6 +701,7 @@ class DataManager:
         if len(arts) == 0:
             q = ("insert into articles values(%d, NOW(), NULL, '%s', %%s)" % (tweet_id, personality))
             self.con.query(q,url)
+            return True
         else:
             assert len(arts) == 1, arts
             updates = []
@@ -705,6 +712,7 @@ class DataManager:
             if len(updates) > 0:
                 q = "update articles set %s where personality = %%s and url = %%s" % (",".join(updates))
                 self.con.query(q, personality, url)
+            return False
 
     def PopArticle(self):
         q = "select * from articles where processed is null order by tweet_id desc limit 1"
@@ -717,6 +725,26 @@ class DataManager:
     def FinishArticle(self, url, personality):
         q = "update articles set processed = NOW() where personality = %s and url = %s"
         self.TimedQuery(q, "FinishArticles", personality, url)
+
+    def GetSource(self, personality, confirmed=True):
+        confirmed = int(confirmed)
+        q = "select user_id from sources where confirmed = %d and personality = '%s' order by updated limit 1" % (confirmed,personality)
+        result = int(self.con.query(q)[0]['user_id'])
+        self.con.query("update sources set updated=now() where user_id=%d and personality='%s'" % (result,personality))
+        return result
+
+    def AddSource(self, personality, user_id, confirmed=False):
+        confirmed = int(confirmed)
+        q = "insert into sources values ('%s', %d, %d, now())" % (personality, user_id, confirmed)
+        try:
+            self.con.query(q)
+        except Exception as e:
+            assert e[0] == 1062, e # dup key                    
+        
+    def ConfirmSource(self, personality, user_id, confirm=True):
+        confirm = 1 if confirm else -1
+        q = "update sources set confirmed = %d where personality = '%s' and user_id = %d" % (confirm,personality,user_id)
+        self.con.query(q)
 
     def Feat2Id(self, feature, allow_insert=True):
         q = "select id from token_id where token=%s"

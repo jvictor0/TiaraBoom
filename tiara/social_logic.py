@@ -374,13 +374,19 @@ class SocialLogic:
 
     def GatherSources(self, src=None):
         if src is None:
-            src = random.choice(self.params["reply"]["sources"])
-        ss = self.g_data.ApiHandler().ShowStatuses(screen_name=src)
+            src = self.g_data.dbmgr.GetSource(self.params["reply"]["personality"])
+        ss = self.g_data.ApiHandler().ShowStatuses(user_id=src)
         if ss is None:
             return None
         for s in ss:
+            used = False
             for url in (s.urls if not s.urls is None else []):
-                self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"])
+                used = self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"]) or used
+            if used:
+                if ss.GetRetweetCount() > 0:
+                    retweeted = self.g_data.ApiHandler().GetRetweets(ss.GetId())
+                    for u in retweeted:
+                        self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetId())
                 
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"

@@ -139,6 +139,9 @@ class ApiHandler():
 
     def Search(self, term, count=100, result_type="recent"):
         return self.ApiCall("Search",term,lambda : self.GetSearchInternal(term=term,count=count), tp="LOT")
+
+    def GetRetweets(self, tweet_id):
+        return self.ApiCall("GetRetweets",tweet_id,lambda : self.GetRetweetsInternal(tweet_id), tp="LOT")
     
     def Follow(self, screen_name=None, user_id=None):
         if self.g_data.read_only_mode:
@@ -227,6 +230,11 @@ class ApiHandler():
         if max_id:
             parameters['max_id'] = long(max_id)
         data = self.ApiCallInternal("statuses/user_timeline.json",parameters)
+        return [self.StatusFromJson(s) for s in data]
+
+    def GetRetweetsInternal(self, tweet_id):
+        parameters = {"trim_user" : False}
+        data = self.ApiCallInternal("statuses/retweets/%d.json" % tweet_id, parameters)
         return [self.StatusFromJson(s) for s in data]
 
     def UserFromJson(self, json):
