@@ -76,12 +76,13 @@ class DataManager:
         assert self.xact
         self.xact = False        
         try:
-            for k,v in self.horde.iteritems():
-                q = "insert into %s values %s" % (k,",".join(v))
+            for k,val in self.horde.iteritems():
+                q = "insert into %s values %s" % (k,",".join(val))
                 self.con.query(q)            
             self.con.query("commit")
             self.horde = {}
         except Exception as e:
+            self.horde = {}
             self.con.query("rollback")
             raise e
 
@@ -296,7 +297,6 @@ class DataManager:
             if not s.GetInReplyToUserId() is None:
                 parent_id = str(s.GetInReplyToUserId())
         sid = s.GetId()
-        name = "'%s'" % s.GetUser().GetScreenName()
         uid = s.GetUser().GetId()
         body = s.GetText()
         timestamp = "'%s'" % TwitterTimestampToMySQL(s.GetCreatedAt())
@@ -321,6 +321,7 @@ class DataManager:
         del jsdict["retweeted"]
         del jsdict["id"]
         if s.GetRetweeted_status() is not None:
+            jsdict["retweeted_user_id"] = s.GetRetweeted_status().GetUser().GetId()
             jsdict["retweeted_status"] = s.GetRetweeted_status().GetId()
         try:
             if single_xact:
@@ -356,7 +357,7 @@ class DataManager:
             return []
         res = self.con.query("select * from tweets_storage where id = %d and user_id = %d" % (tid, uid))
         return res
-
+    
     def RowToStatus(self, row):
         if row["json"] is None:
             return None
@@ -370,8 +371,17 @@ class DataManager:
             jsdict["in_reply_to_status_id"] = int(row["parent"])
             jsdict["in_reply_to_user_id"] = int(row["parent_id"])
         if "retweeted_status" in jsdict:
-            print jsdict
-            jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"])
+            if "retweeted_user_id" not in jsdict:
+                the_id = self.con.query("select user_id from tweets_storage where id = %d" % int(jsdict["retweeted_status"]))
+                if len(the_id) == 0:
+                    return None
+                assert len(the_id) == 1
+                the_id = int(the_id[0]['user_id'])
+                jsdict["retweeted_user_id"] = the_id
+                rows = self.con.query("update tweets_storage set json = json_set_double(json,'retweeted_user_id',%d) where user_id = %d and id = %d" % (the_id, int(row["user_id"]), jsdict["id"]))
+                assert rows == 1, (jsdict,rows)
+            jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"], jsdict["retweeted_user_id"])
+            del jsdict["retweeted_user_id"]
             if jsdict["retweeted_status"] is None:
                 return None
             else:
@@ -552,14 +562,8 @@ class DataManager:
                  "where token_id.token in (%s)")
             if len(params) == 0:
                 return []
-            try:
-                rows = self.TimedQuery(q % ",".join(["%s" for _ in params]), 
-                                       "TFIDF_tweet", *params)                
-            except Exception as e:
-                print e
-                print q
-                print params
-                raise e
+            rows = self.TimedQuery(q % ",".join(["%s" for _ in params]), 
+                                   "TFIDF_tweet", *params)                
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def MakeTFIDFViews(self):
