@@ -217,6 +217,21 @@ class DataManager:
         for i in xrange(count):
             self.InsertTweetById(tweets[i]["parent"])
             
+    # NOTE: this requires running RepareDocFreq eventually
+    #
+    def PurgeTweet(self, uid, tid, body):
+        self.Begin()
+        try:
+            assert self.con.query("delete from tweets where user_id = %d and id = %d" % (uid,tid)) == 1
+            assert self.con.query("delete from tweets_storage where user_id = %d and id = %d" % (uid,tid)) == 1
+            tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
+            for t in tokens:
+                assert self.con.query("update user_token_frequency set count = count - 1 where user_id = %d and token = %d" % (uid, t)) == 1
+        except Exception as e:
+            self.Rollback()
+            raise e
+        self.Commit()
+
     def InsertTweetById(self, tid):
         s = self.ApiHandler().ShowStatus(tid, cache=False)
         if not s is None:
@@ -725,6 +740,11 @@ class DataManager:
             return None
         assert len(arts) == 1, arts
         return arts[0]['url'], arts[0]['personality']
+
+    def PopAllArticles(self):
+        q = "select * from articles where processed is null"
+        arts = self.TimedQuery(q,"PopAllArticles")
+        return [(a["url"], a["personality"]) for a in arts]
 
     def FinishArticle(self, url, personality):
         q = "update articles set processed = NOW() where personality = %s and url = %s"

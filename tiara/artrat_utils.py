@@ -5,6 +5,8 @@ import os.path
 import database
 import sys, json
 import data_gatherer
+import Queue
+import threading
 
 def GetConversationSymbols(g_data, tweet=None, user=None):
     symbols = {}
@@ -100,6 +102,30 @@ def ArticleInsertionThread(logfn):
         InsertArticle(nxt[0], nxt[1], logfn)
         dbmgr.FinishArticle(nxt[0], nxt[1])
 
+def ArticleInsertionMultiThreaded(num_threads):
+    queue = Queue.Queue()
+    def worker():        
+        worker_dbmgr = data_gatherer.MakeFakeDataMgr()
+        while True:
+            try:
+                nxt = queue.get(False)
+            except Queue.Empty:
+                return
+            InsertArticle(nxt[0], nxt[1])
+            worker_dbmgr.FinishArticle(nxt[0], nxt[1])
+    dbmgr = data_gatherer.MakeFakeDataMgr()
+    while True:
+        arts = dbmgr.PopAllArticles()
+        for a in arts:
+            queue.put(a[0],a[1])
+        if queue.empty():
+            print "queue empty...  sleeping for 5 minutes"
+            time.sleep(5 * 60)
+        threads = [threading.Thread(target=worker) for _ in xrange(num_threads)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        assert queue.empty()
+        
 if __name__ == "__main__":
     if sys.argv[1] == "reset":
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
@@ -108,4 +134,7 @@ if __name__ == "__main__":
             for b in conf["bots"]:
                 if b["social_logic"]["reply"]["mode"] == "artrat"            :
                     ResetArticles(global_data.GlobalData(name=b["twitter_name"]))
-    
+    if sys.argv[1] == "article_rat":
+        num_threads = 4 if len(sys.argv) == 2 else int(sys.argv[2])
+        print "Article Rat with %d threads" % num_threads 
+        ArticleInsertionMultiThreaded(num_threads)
