@@ -393,7 +393,7 @@ class DataManager:
                 assert len(the_id) == 1
                 the_id = int(the_id[0]['user_id'])
                 jsdict["retweeted_user_id"] = the_id
-                rows = self.con.query("update tweets_storage set json = json_set_double(json,'retweeted_user_id',%d) where user_id = %d and id = %d" % (the_id, int(row["user_id"]), jsdict["id"]))
+                rows = self.con.query("update tweets_storage set json = json_set_string(json,'retweeted_user_id',%d) where user_id = %d and id = %d" % (the_id, int(row["user_id"]), jsdict["id"]))
                 assert rows == 1, (jsdict,rows)
             jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"], jsdict["retweeted_user_id"])
             del jsdict["retweeted_user_id"]
