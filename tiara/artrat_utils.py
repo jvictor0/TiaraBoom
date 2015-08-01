@@ -2,10 +2,11 @@ import random,time
 import global_data
 import os, signal
 import os.path
-import database
 import sys, json
 import data_gatherer
 import Queue
+import chat
+import twitter
 import threading
 
 def GetConversationSymbols(g_data, tweet=None, user=None):
@@ -14,7 +15,6 @@ def GetConversationSymbols(g_data, tweet=None, user=None):
         g_data.dbmgr.TFIDF(user=user)
     multiplier = 1.0
     while not tweet is None:
-        print tweet.GetId()
         tfidfs = g_data.dbmgr.TFIDF(tweet = tweet)
         for t, sc in tfidfs:
             if not t in symbols:
@@ -47,6 +47,15 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
         else:
             g_data.TraceWarn("ArtRatReplyTo error: %s" % result["error"])
     return None
+
+def ArtRatChat(personality):
+    g_data = global_data.GlobalData()
+    class ArtRatChat(chat.Chat):
+        def response(self, line):
+            t = twitter.Status()
+            t.SetText(line)
+            return str(ArtRatReplyTo(g_data, personality, tweet=t))
+    ArtRatChat().cmdloop()
 
 def RefreshArticles(g_data):
     import artrat.article_rat as atc
@@ -138,3 +147,5 @@ if __name__ == "__main__":
         num_threads = 4 if len(sys.argv) == 2 else int(sys.argv[2])
         print "Article Rat with %d threads" % num_threads 
         ArticleInsertionMultiThreaded(num_threads)
+    if sys.argv[1] == "chat":
+        ArtRatChat(sys.argv[2])

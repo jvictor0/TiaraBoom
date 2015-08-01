@@ -550,23 +550,10 @@ class DataManager:
         
         
 
-    def NormalizeArgs(self, uid, tid, tweet, user):
-        if not tweet is None:
-            assert uid is None
-            assert tid is None
-            assert user is None
-            uid = tweet.GetUser().GetId()
-            tid = tweet.GetId()
-        if not user is None:
-            assert uid is None
-            assert tid is None
-            assert tweet is None
+    def TFIDF(self, uid=None, tweet=None, user=None):
+        if user is not None:
             uid = user.GetId()
-        return uid, tid, tweet, user
-
-    def TFIDF(self, uid=None, tid=None, tweet=None, user=None):
-        uid, tid, tweet, user = self.NormalizeArgs(uid, tid, tweet, user)
-        if tid is None:
+        if tweet is None:
             q = "select token, tfidf from tfidf_view where user_id = %d" % uid
             rows = self.TimedQuery(q,"TFIDF_user")
         else:
