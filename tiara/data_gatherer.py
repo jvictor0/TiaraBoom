@@ -224,9 +224,9 @@ class DataManager:
         try:
             assert self.con.query("delete from tweets where user_id = %d and id = %d" % (uid,tid)) == 1
             assert self.con.query("delete from tweets_storage where user_id = %d and id = %d" % (uid,tid)) == 1
-            tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
+            tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(body))]
             for t in tokens:
-                assert self.con.query("update user_token_frequency set count = count - 1 where user_id = %d and token = %d" % (uid, t)) == 1
+                assert self.con.query("update user_token_frequency set count = count - 1 where user_id = %d and token = %s" % (uid, t)) == 1
         except Exception as e:
             self.Rollback()
             raise e
