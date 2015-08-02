@@ -4,16 +4,12 @@ import time
 class Chat(cmd.Cmd):
     prompt = "tiaraboom> "
 
-    def response(self,x):
-        return "hi " + x, {}
-
     def preloop(self):
         print "hi"
 
     def default(self, line):
         t0 = time.time()
-        r,d = self.response(line)
-        self.last_dict = d
+        r = self.response(line)
         print "(%f secs)" % (time.time() - t0)
         print r
         return False
@@ -29,6 +25,3 @@ class Chat(cmd.Cmd):
     
     def postloop(self):
         print "good bye"
-
-c = Chat()
-c.cmdloop()

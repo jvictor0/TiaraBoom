@@ -8,6 +8,7 @@ import Queue
 import chat
 import twitter
 import threading
+import pprint
 
 def GetConversationSymbols(g_data, tweet=None, user=None):
     symbols = {}
@@ -30,22 +31,26 @@ def GetConversationSymbols(g_data, tweet=None, user=None):
                 symbols[w2] = symbols[k]
     return symbols
 
-def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10):
+def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10, return_dict=False):
     import artrat.public as ar
     symbols = GetConversationSymbols(g_data, tweet=tweet,user=user)
     for i in xrange(retries):
         result = ar.Generate(personality, symbols, requireSymbols = (tweet is not None))
         if result["success"]:
             g_data.TraceInfo("The symbol we used is %s" % result["symbols"])
-            result = result["body"]
+            theresult = result["body"]
             if not tweet is None:
-                result = '@' + tweet.GetUser().GetScreenName() + " " + result
+                theresult = '@' + tweet.GetUser().GetScreenName() + " " + theresult
             if len(result) <= 140:
-                return result
+                if return_dict:
+                    return theresult, result
+                return theresult
             else:
                 g_data.TraceWarn("Failing long tweet \"%s\"" % result)
         else:
             g_data.TraceWarn("ArtRatReplyTo error: %s" % result["error"])
+    if return_dict:
+        return None, {}
     return None
 
 def ArtRatChat(personality):
@@ -53,8 +58,14 @@ def ArtRatChat(personality):
     class ArtRatChat(chat.Chat):
         def response(self, line):
             t = twitter.Status()
+            t.SetUser(twitter.User())
+            t.GetUser().SetScreenName("TiaraBoom1")
             t.SetText(line)
-            return str(ArtRatReplyTo(g_data, personality, tweet=t))
+            res, self.dct = ArtRatReplyTo(g_data, personality, tweet=t, return_dict=True)
+            return str(res)
+        def do_debug(self, line):
+            pprint.pprint(self.dct)
+            return False
     ArtRatChat().cmdloop()
 
 def RefreshArticles(g_data):

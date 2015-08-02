@@ -102,9 +102,9 @@ class DataManager:
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
-        self.g_data.TraceInfo("Starting %s with con %s" % (name, self.con))
         result = self.con.query(q, *largs)
-        self.g_data.TraceInfo("%s took %f secs" % (name, time.time() - t0))
+        if time.time() - t0 > 5:
+            self.g_data.TraceInfo("%s took %f secs" % (name, time.time() - t0))
         return result
             
     def ApiHandler(self):
