@@ -22,12 +22,7 @@ class Connection:
         self.attached = False
 
 
-if __name__ == '__main__':
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.setblocking(0)
-    
+def GDatas():
     abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
     with open(abs_prefix + '/config.json','r') as f:
         conf = json.load(f)
@@ -42,6 +37,15 @@ if __name__ == '__main__':
                 g_datas[-1].TraceWarn("g_data INVALID!")
                 assert False
         assert len(g_datas) != 0
+    return g_datas
+
+if __name__ == '__main__':
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.setblocking(0)
+    
+    g_datas = GDatas()
 
     sys.excepthook = exceptionTrace
 
@@ -66,9 +70,8 @@ if __name__ == '__main__':
 
     while inputs:
 
-        if not "artrat_only" in conf or not conf["artrat_only"]:
-            for g_data in g_datas:
-                g_data.SocialLogic().Act()
+        for g_data in g_datas:
+            g_data.SocialLogic().Act()
         assert refreshProcess.is_alive()
         
         ############# Begin server stuff ##################

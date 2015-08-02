@@ -6,7 +6,9 @@ import json
 import persisted as p
 import ticker as t
 import vocab as v
+import sys
 import artrat_utils as au
+import server
 
 class SocialLogic:
     def __init__(self, g_data, args):
@@ -396,3 +398,11 @@ class SocialLogic:
         for t in self.tickers:
             t.Tick()
     
+
+if __name__ == "__main__":
+    if sys.argv[1] == "gather_sources":        
+        g_datas = server.GDatas()
+        while True:
+            for g_data in g_datas:
+                g_data.GatherSources()
+            time.sleep(60)
