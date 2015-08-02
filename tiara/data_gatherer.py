@@ -663,7 +663,7 @@ class DataManager:
                 self.con.query(q2 % t)
             self.con.query(q3 % t)
                 
-    def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3307"):
+    def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3308"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
         self.con.query("truncate table user_document_frequency")
         self.con.query("truncate table tweet_document_frequency")
@@ -755,7 +755,7 @@ class DataManager:
     def ConfirmSource(self, personality, user_id, confirm=True):
         confirm = 1 if confirm else -1
         q = "update sources set confirmed = %d where personality = '%s' and user_id = %d" % (confirm,personality,user_id)
-        self.con.query(q)
+        assert self.con.query(q) == 1
 
     def Feat2Id(self, feature, allow_insert=True):
         q = "select id from token_id where token=%s"

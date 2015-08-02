@@ -41,12 +41,12 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10, return
             theresult = result["body"]
             if not tweet is None:
                 theresult = '@' + tweet.GetUser().GetScreenName() + " " + theresult
-            if len(result) <= 140:
+            if len(theresult) <= 140:
                 if return_dict:
                     return theresult, result
                 return theresult
             else:
-                g_data.TraceWarn("Failing long tweet \"%s\"" % result)
+                g_data.TraceWarn("Failing long tweet \"%s\"" % theresult)
         else:
             g_data.TraceWarn("ArtRatReplyTo error: %s" % result["error"])
     if return_dict:
@@ -97,7 +97,10 @@ def ArticleRat(personalities, logfn):
             os.makedirs(directory)
     atc.ArticleRat(abs_prefix, personalities, log=logfn)
 
-def InsertArticle(url, personality, logfn):
+def Print(x):
+    print x
+
+def InsertArticle(url, personality, logfn=Print):
     import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     directory = os.path.join(abs_prefix, personality)
@@ -108,7 +111,7 @@ def InsertArticle(url, personality, logfn):
                            personality,
                            log=logfn)
 
-def ArticleInsertionThread(logfn):
+def ArticleInsertionThread(logfn=Print):
     dbmgr = data_gatherer.MakeFakeDataMgr()
     count = 0
     while True:
@@ -137,7 +140,7 @@ def ArticleInsertionMultiThreaded(num_threads):
     while True:
         arts = dbmgr.PopAllArticles()
         for a in arts:
-            queue.put(a[0],a[1])
+            queue.put((a[0],a[1]))
         if queue.empty():
             print "queue empty...  sleeping for 5 minutes"
             time.sleep(5 * 60)
@@ -158,5 +161,6 @@ if __name__ == "__main__":
         num_threads = 4 if len(sys.argv) == 2 else int(sys.argv[2])
         print "Article Rat with %d threads" % num_threads 
         ArticleInsertionMultiThreaded(num_threads)
+#        ArticleInsertionThread()
     if sys.argv[1] == "chat":
         ArtRatChat(sys.argv[2])

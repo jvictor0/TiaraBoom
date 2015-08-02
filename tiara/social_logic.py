@@ -380,15 +380,19 @@ class SocialLogic:
         ss = self.g_data.ApiHandler().ShowStatuses(user_id=src)
         if ss is None:
             return None
+        count = 0
         for s in ss:
             used = False
             for url in (s.urls if not s.urls is None else []):
+                self.g_data.TraceInfo("pushing article %s" % url.expanded_url)
                 used = self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"]) or used
             if used:
-                if ss.GetRetweetCount() > 0:
-                    retweeted = self.g_data.ApiHandler().GetRetweets(ss.GetId())
+                if count < 28 and s.GetRetweetCount() > 0:
+                    count = count + 1
+                    retweeted = self.g_data.ApiHandler().GetRetweets(s.GetId())
                     for u in retweeted:
-                        self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetId())
+                        self.g_data.TraceInfo("pushing source %s" % u.GetUser().GetScreenName())                    
+                        self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetUser().GetId())
                 
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"
@@ -404,5 +408,7 @@ if __name__ == "__main__":
         g_datas = server.GDatas()
         while True:
             for g_data in g_datas:
-                g_data.GatherSources()
-            time.sleep(60)
+                if g_data.SocialLogic().IsArtRat():
+                    g_data.SocialLogic().GatherSources()
+            print "sleepy time"
+            time.sleep(8 * 60)
