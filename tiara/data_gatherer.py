@@ -380,9 +380,10 @@ class DataManager:
 
     def Lookup(self, tid, uid=None):
         assert not uid is None, uid
-        if self.con is None:
-            return []
-        res = self.con.query("select * from tweets_storage where id = %d and user_id = %d" % (tid, uid))
+        if tid is not None:
+            res = self.con.query("select * from tweets_storage where id = %d and user_id = %d" % (tid, uid))
+        else:
+            res = self.con.query("select * from tweets_storage where user_id = %d" % (uid))
         return res
     
     def RowToStatus(self, row):
@@ -429,7 +430,7 @@ class DataManager:
             s.SetUser(u)
         return s
 
-    def LookupStatuses(self, tid, uid = None):
+    def LookupStatuses(self, tid=None, uid = None):
         assert not uid is None, uid
         rows = self.Lookup(tid,uid)
         return filter(lambda x: not x is None,
@@ -481,6 +482,10 @@ class DataManager:
             return None
         assert len(result) == 1
         return MySQLTimestampToPython(result[0]["a"])
+
+    def UnixTimes(self, uid):
+        q = "select unix_timestamp(ts) as ts from tweets_storage where user_id = %s order by user_id, id" % (uid)
+        return [int(r["ts"]) for r in self.con.query(q)]
 
     def MostRecentTweetAt(self, uid):
         myuid = self.GetUserId()

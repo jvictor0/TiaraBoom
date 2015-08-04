@@ -51,6 +51,14 @@ def ListInsert(dict, k, v):
 def NotNone(arg1, arg2):
     return arg1 if not arg1 is None else arg2
 
+def Median(nums):
+    return sorted(nums)[len(nums)/2]
+
+def Differences(nums):
+    result = []
+    for i in xrange(len(nums)-1):
+        result.append(nums[i+1] - nums[i])
+    return result
 
 def exceptionTrace(exctype, value, tb):
     logger = logging.getLogger('TiaraBoom')

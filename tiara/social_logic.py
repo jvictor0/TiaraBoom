@@ -196,6 +196,8 @@ class SocialLogic:
         statuses = self.g_data.ApiHandler().ShowStatuses(user_id=user.GetId())
         if statuses is None or len(statuses) < 10:
             return -1 # either there was a problem or he dont tweet much
+        if not self.BotherUserAppropriate(u):
+            return -1
         both = len([t for t in statuses if self.BotherAppropriate(t)])
         if both == 0:
             return -1
@@ -274,7 +276,7 @@ class SocialLogic:
         return None
 
     def BotherAppropriate(self, tweet):
-        if tweet.lang != "en":
+        if not tweet.lang.startswith("en"):
             return False
         if len(tweet.hashtags) > 2:
             return False
@@ -284,26 +286,56 @@ class SocialLogic:
             return False
         if not tweet.GetRetweeted_status() is None:
             return False
-        if "follow" in tweet.GetText().lower():
+        if self.IsFollowback(tweet.GetText()):
             return False
         if OlderThan(MySQLTimestampToPython(TwitterTimestampToMySQL(tweet.GetCreatedAt())), 7):
             return False
         return True
 
     def BotherUserAppropriate(self, user):
+        if not user.GetLanguage().startswith('en'):
+            return False
         if self.UserInactive(user):
+            return False
+        if self.RecentlyTargeted(user):
+            return False
+        if self.UserOverActive(user):
             return False
         if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
             return False
         stats = self.HistoryStatistics(user)
         if stats["attempts"] > 1 and stats["conversations"] == 0: # they probably aren't into it
             return False
+        tweets = self.g_data.dbmgr.LookupStatuses(uid = user.GetId())
+        if len([t for t in tweets if self.BotherAppropriate(t)]) == 0:
+            return False
+        if self.UserFollowbacker(tweets):
+            return false
         return True
 
     def UserInactive(self, user):
         ts = self.g_data.dbmgr.MostRecentTweet(user.GetId())
         return ts is None or OlderThan(ts, 7)
     
+    def RecentlyTargeted(self, user):
+        ts = self.g_data.dbmgr.MostRecentTweetAt(user.GetId())
+        return ts is not None and not OlderThan(ts, 7)
+
+    def UserOveractive(self, user):
+        times = self.g_data.dbmgr.UnixTimes(user.GetId())
+        median = Median(Differences(times))
+        return median > 60
+
+    def UserFollowbacker(self, tweets):
+        return float(len([t for t in tweets if self.IsFollowback(t)]))/len(tweets) > 0.25
+
+    def IsFollowback(self, text):
+        text = text.lower()
+        for text in ['follow','seguro','retweet','mgwv']:
+            if re.match("[^a-z]*".join("follow"),text) is not None:
+                return True
+        return False
+
     def Follow(self):
         if self.bestNewFriend is None:
             return None
