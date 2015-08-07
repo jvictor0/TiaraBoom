@@ -745,12 +745,17 @@ class DataManager:
         return result
 
     def AddSource(self, personality, user_id, confirmed=False):
+        if not confirmed:
+            unconfirmed = int(self.con.query("select count(*) as a from sources where personality = '%s' and confirmed=0")[0]['a'])
+            if unconfirmed > 10:
+                return False
         confirmed = int(confirmed)
         q = "insert into sources values ('%s', %d, %d, now())" % (personality, user_id, confirmed)
         try:
             self.con.query(q)
         except Exception as e:
             assert e[0] == 1062, e # dup key                    
+        return True
         
     def ConfirmSource(self, personality, user_id, confirm=True):
         confirm = 1 if confirm else -1

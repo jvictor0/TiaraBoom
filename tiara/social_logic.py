@@ -381,18 +381,21 @@ class SocialLogic:
         if ss is None:
             return None
         count = 0
+        overconfirmed = False
         for s in ss:
             used = False
             for url in (s.urls if not s.urls is None else []):
                 self.g_data.TraceInfo("pushing article %s" % url.expanded_url)
                 used = self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"]) or used
             if used:
-                if count < 28 and s.GetRetweetCount() > 0:
+                if not overconfirmed and count < 28 and s.GetRetweetCount() > 0:
                     count = count + 1
                     retweeted = self.g_data.ApiHandler().GetRetweets(s.GetId())
                     for u in retweeted:
                         self.g_data.TraceInfo("pushing source %s" % u.GetUser().GetScreenName())                    
-                        self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetUser().GetId())
+                        overconfirmed = not self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetUser().GetId())
+                        if overconfirmed:
+                            break
                 
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"
