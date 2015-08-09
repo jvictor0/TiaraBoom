@@ -116,8 +116,10 @@ class DataManager:
                         "user_id bigint not null,"                        
                         "retweets bigint not null,"
                         "favorites bigint not null,"
-                        "primary key(user_id, id))"))
-
+                        "parent bigint default null,"
+                        "primary key(user_id, id),"
+                        "key(id),"
+                        "sparse key(parent))"))
         self.con.query(("create columnar table if not exists tweets_storage("                        
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -341,9 +343,9 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites) values (%d,%d,%d,%d) "
+            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d,%s) "
                                       "on duplicate key update "
-                                      "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes))
+                                      "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes, parent))
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
@@ -498,25 +500,26 @@ class DataManager:
     def EntireConversation(self, tweet, considered = set([])):
         result = []
         while not tweet is None:
-            if tweet.GetId() in considered:
+            if tweet[0] in considered:
                 break
             result.append(tweet)
-            considered.add(tweet.GetId())
-            q = "select %s from tweets_storage where parent = %d" % (self.skimp_tweets_storage,tweet.GetId())
-            statuses = [self.RowToStatus(s) for s in self.con.query(q)]
+            considered.add(tweet[0])
+            q = ("select id, user_id, parent from tweets "
+                 "where parent = %d" % tweet[1])
+            statuses = [(int(s["id"]),int(s["user_id"]),s["parent"]) for s in self.con.query(q)]
             for s in statuses:
                 result.extend(self.EntireConversation(s, considered))
-            if not tweet.GetInReplyToStatusId() is None:
-                tweet = self.LookupStatus(tweet.GetInReplyToStatusId(), tweet.GetInReplyToUserId())
+            if not tweet[2] is None:
+                t = self.con.query("select id, user_id, parent from tweets where id = %s" % tweet[2])[0]
+                tweet = (int(t["id"]), int(t["user_id"]), t["parent"])
             else:
                 break
         return result
 
     def RecentConversations(self, limit):
         user_id = self.GetUserId()
-        self.skimp_tweets_storage = "id, user_id, body, parent, parent_id, ts, '{}' as json"
-        q = "select %s from tweets_storage where parent_id = %s order by id desc limit %d" % (self.skimp_tweets_storage, user_id, limit)
-        statuses = [self.RowToStatus(s) for s in self.con.query(q)]
+        q = "select id, user_id, parent from tweets_storage where parent_id = %s order by id desc limit %d" % (user_id, limit)
+        statuses = [(int(s["id"]),int(s["user_id"]),s["parent"]) for s in self.con.query(q)]
         considered = set([])
         result = []
         for s in statuses:
@@ -569,14 +572,19 @@ class DataManager:
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def MakeTFIDFViews(self):
-        for v in ["tfidf_distance_view",
+        for v in ["tfidf_distance_%s" % self.g_data.myName, "tfidf_distance_%s_internal" % self.g_data.myName,
+                  "tfidf_distance_view",
                   "tfidf_important_word_view","tfidf_important_word_view_internal",
                   "tfidf_distance_numerator_view",
                   "tfidf_norm_view","tfidf_user_norm_view",
                   "tfidf_view", 
                   "tfidf_view_internal", 
                   "num_docs_view","max_df_view"]:
-            self.con.query("drop view if exists %s" % v)
+            try:
+                self.con.query("drop view if exists %s" % v)
+            except Exception as e:
+                print e
+                return
         self.con.query("create view num_docs_view as "
                        "select count(distinct user_id) as val from user_token_frequency")
         self.con.query("create view max_df_view as "
@@ -612,6 +620,7 @@ class DataManager:
                        "from tfidf_norm_view t1 join tfidf_norm_view t2 "
                        "on t1.token = t2.token "
                        "group by t1.user_id, t2.user_id")
+
         self.con.query("create view tfidf_important_word_view_internal as "
                        "select t1.user_id u1, t2.user_id u2, t1.token, t1.tfidf_norm * t2.tfidf_norm as dist, t1.df as df, "
                        "t1.tf as u1_tf, t1.tfidf as u1_tfidf, "
@@ -644,7 +653,7 @@ class DataManager:
             self.con.query("create view tfidf_distance_%s_internal as %s" % (self.g_data.myName, q))
             self.con.query("create view tfidf_distance_%s as "
                            "select users.screen_name, td.dist "
-                           "from users join tfidf_distance_%s td "
+                           "from users join tfidf_distance_%s_internal td "
                            "on users.id = td.user_id " % (self.g_data.myName, self.g_data.myName))
         else:
             return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }

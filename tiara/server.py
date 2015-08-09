@@ -41,6 +41,13 @@ def GDatas():
 
 if __name__ == '__main__':
 
+    abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+    with open(abs_prefix + '/config.json','r') as f:
+        conf = json.load(f)
+        host = conf['host'] if 'host' in conf else 'localhost'
+        port = conf['port'] if 'port' in conf else 10001
+
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.setblocking(0)
