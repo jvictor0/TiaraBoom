@@ -48,3 +48,7 @@ if __name__ == "__main__":
                         continue
                     uid = uid.GetId()
                     g_data.dbmgr.AddSource(g_data.SocialLogic().params["reply"]["personality"], uid, confirmed=True)
+    if sys.argv[1] == "drop_tfidf_views":
+        g_data.dbmgr.DropTFIDFViews()
+    if sys.argv[1] == "tfidf_distance_view":
+        g.GlobalData(name=sys.argv[2]).dbmgr.TFIDFDistance()

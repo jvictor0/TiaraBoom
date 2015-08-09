@@ -571,8 +571,14 @@ class DataManager:
                                    "TFIDF_tweet", *params)                
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
-    def MakeTFIDFViews(self):
-        for v in ["tfidf_distance_%s" % self.g_data.myName, "tfidf_distance_%s_internal" % self.g_data.myName,
+    def DropTFIDFViews(self):
+        bot_views = self.con.query("show tables like 'tfidf_bot_distance%'")
+        for t in bot_views:
+            k = t.keys()[0]
+            if not t[k].endswith("internal"):
+                self.con.query("drop view %s" % t[k])
+                self.con.query("drop view %s_internal" % t[k])            
+        for v in ["tfidf_bot_distance_%s" % self.g_data.myName, "tfidf_bot_distance_%s_internal" % self.g_data.myName,
                   "tfidf_distance_view",
                   "tfidf_important_word_view","tfidf_important_word_view_internal",
                   "tfidf_distance_numerator_view",
@@ -580,11 +586,10 @@ class DataManager:
                   "tfidf_view", 
                   "tfidf_view_internal", 
                   "num_docs_view","max_df_view"]:
-            try:
-                self.con.query("drop view if exists %s" % v)
-            except Exception as e:
-                print e
-                return
+            self.con.query("drop view if exists %s" % v)
+
+    def MakeTFIDFViews(self):
+        self.DropTFIDFViews()
         self.con.query("create view num_docs_view as "
                        "select count(distinct user_id) as val from user_token_frequency")
         self.con.query("create view max_df_view as "
@@ -633,27 +638,39 @@ class DataManager:
                        "on f.u1 = u1.id and f.u2 = u2.id and f.token = ti.id")
 
 
-    def TFIDFNormQuery(self, uids=None):
+    def TFIDFNormQuery(self, uids=None, normalize=True):
         if uids is None:
-            return "select * from tfidf_norm_view"
+            if normalize:
+                return "select * from tfidf_norm_view"
+            else:
+                return "select * from tfidf_view_internal"
+        if len(uids) == 1:
+            norm = ("/(select sqrt(sum(s.tfidf * s.tfidf)) as norm from tfidf_view_internal s where user_id = %d)" % uids[0]) if normalize else ""
+            return ("select t.token, t.user_id, t.tfidf%s as tfidf%s "
+                    "from tfidf_view_internal t where user_id = %d") % (norm, "_norm" if normalize else "", uids[0])
         uids = ",".join(["%d" % u for u in uids])
-        return ("select t.token, t.user_id, t.tfidf/u.norm as tfidf_norm "
-                "from (select * from tfidf_view_internal  where user_id in (%s)) t "
-                "join (select * from tfidf_user_norm_view where user_id in (%s)) u "
-                "on t.user_id = u.user_id") % (uids,uids)
+        if normalize:
+            return ("select t.token, t.user_id, t.tfidf/u.norm as tfidf_norm "
+                    "from (select * from tfidf_view_internal  where user_id in (%s)) t "
+                    "join (select * from tfidf_user_norm_view where user_id in (%s)) u "
+                    "on t.user_id = u.user_id") % (uids,uids)
+        else:
+            return "select * from tfidf_view_internal where user_id in (%s)" % uids
 
     def TFIDFDistance(self, uids=None):
-        q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf_norm) as dist "
-             "from (%s) t1 join (%s) t2 "
+        q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
+             "from (%s) t1 right join (%s) t2 "
              "on t1.token = t2.token "
-             "group by t2.user_id ") % (self.TFIDFNormQuery([self.GetUserId()]),self.TFIDFNormQuery(uids))
+             "group by t2.user_id "
+             "having count(t1.token) > 0") % (self.TFIDFNormQuery([self.GetUserId()], normalize=True),
+                                              self.TFIDFNormQuery(uids, normalize=False))
         if uids is None:
-            self.con.query("drop view if exists tfidf_distance_%s" % self.g_data.myName)
-            self.con.query("drop view if exists tfidf_distance_%s_internal" % self.g_data.myName)
-            self.con.query("create view tfidf_distance_%s_internal as %s" % (self.g_data.myName, q))
-            self.con.query("create view tfidf_distance_%s as "
+            self.con.query("drop view if exists tfidf_bot_distance_%s" % self.g_data.myName)
+            self.con.query("drop view if exists tfidf_bot_distance_%s_internal" % self.g_data.myName)
+            self.con.query("create view tfidf_bot_distance_%s_internal as %s" % (self.g_data.myName, q))
+            self.con.query("create view tfidf_bot_distance_%s as "
                            "select users.screen_name, td.dist "
-                           "from users join tfidf_distance_%s_internal td "
+                           "from users join tfidf_bot_distance_%s_internal td "
                            "on users.id = td.user_id " % (self.g_data.myName, self.g_data.myName))
         else:
             return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
