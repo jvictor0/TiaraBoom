@@ -7,9 +7,9 @@ if __name__ == "__main__":
     g_data = g.GlobalData()
     if len(sys.argv) == 1:
         sys.exit(0)
-    if sys.argv[1] == "tweet_tokens":
+    elif sys.argv[1] == "tweet_tokens":
         g_data.dbmgr.InsertAllTweetTokens()
-    if sys.argv[1] == "source":
+    elif sys.argv[1] == "source":
         while True:
             src = g_data.dbmgr.GetSource(sys.argv[2], confirmed = False)
             user = g_data.ApiHandler().ShowUser(user_id=src)
@@ -35,10 +35,10 @@ if __name__ == "__main__":
                 g_data.dbmgr.ConfirmSource(sys.argv[2],src,confirm=response=="y")
                 break
             print "didnt understand that gbop"
-    if sys.argv[1] == "add_source":
+    elif sys.argv[1] == "add_source":
         uid = g_data.ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()
         g_data.dbmgr.AddSource(sys.argv[2], uid, confirmed=True)
-    if sys.argv[1] == "add_sources_from_config":
+    elif sys.argv[1] == "add_sources_from_config":
         for g_data in server.GDatas():
             if g_data.SocialLogic().IsArtRat():
                 for sn in g_data.SocialLogic().params["reply"]["sources"]:
@@ -48,7 +48,11 @@ if __name__ == "__main__":
                         continue
                     uid = uid.GetId()
                     g_data.dbmgr.AddSource(g_data.SocialLogic().params["reply"]["personality"], uid, confirmed=True)
-    if sys.argv[1] == "drop_tfidf_views":
+    elif sys.argv[1] == "drop_tfidf_views":
         g_data.dbmgr.DropTFIDFViews()
-    if sys.argv[1] == "tfidf_distance_view":
-        g.GlobalData(name=sys.argv[2]).dbmgr.TFIDFDistance()
+    elif sys.argv[1] == "tfidf_distance_view":
+        dbmgr = g.GlobalData(name=sys.argv[2]).dbmgr
+        dbmgr.UpdateArtRatTFIDF()
+        dbmgr.TFIDFDistance()
+    else:
+        assert False

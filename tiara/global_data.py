@@ -148,6 +148,18 @@ class GlobalData:
             return word.lower()
         return None
 
+    def FamilyTuples(self):
+        result = []
+        for w,b in self.englishFamilies:
+            if '"' in w:
+                continue
+            if isinstance(b,list):
+                tid = self.dbmgr.Feat2Id(w)
+            else:
+                tid = self.dbmgr.Feat2Id(b)
+            result.append("(\"%s\",%s)" % (w,tid))
+        return result
+
     def WordFamily(self, word):
         res = BinarySearch(self.englishFamilies,word.lower())
         if res:

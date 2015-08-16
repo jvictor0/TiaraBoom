@@ -399,6 +399,9 @@ class SocialLogic:
                 
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"
+
+    def ArtRatPersonality(self):
+        return self.params["reply"]["personality"]
                 
     def Act(self):
         self.Reply()

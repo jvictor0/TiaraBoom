@@ -57,6 +57,8 @@ class DataManager:
         self.con.query("use tiaraboom")
         self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
         self.user_id = None
+        self.horde = {}
+        self.xact = False
         if no_ddl:
             return
         if "gatherer_authentication" in config:
@@ -64,8 +66,7 @@ class DataManager:
         else:
             self.apiHandler = g_data.ApiHandler()
         self.DDL()
-        self.horde = {}
-        self.xact = False
+        self.updatedArtratTFIDF = False
 
     def Begin(self):
         assert not self.xact
@@ -161,7 +162,7 @@ class DataManager:
                         "count bigint,"
                         "shard(token),"
                         "primary key(user_id, token))"))
-        self.con.query(("create table if not exists user_document_frequency("
+        self.con.query(("create reference table if not exists user_document_frequency("
                         "token bigint,"
                         "count bigint,"
                         "primary key(token))"))
@@ -183,6 +184,14 @@ class DataManager:
                         "id bigint primary key auto_increment,"
                         "token varbinary(200),"
                         "unique key(token))"))
+        self.con.query(("create reference table if not exists token_representatives("
+                        "id bigint not null,"
+                        "token varbinary(200) primary key)"))
+        self.con.query(("create reference table if not exists artrat_tfidf("
+                        "user_id bigint,"
+                        "token bigint,"
+                        "primary key(user_id, token),"
+                        "tfidf_norm double)"))
         self.con.query(("create table if not exists ignored_users("
                         "id bigint primary key)"))
         self.con.query(("create table if not exists sources("
@@ -304,7 +313,7 @@ class DataManager:
             self.con.query("delete from user_afflictions where id = %d and affliction = %d" % (uid, AFFLICT_BLOCKER))
         return [r["affliction"] for r in self.con.query("select * from user_afflictions where id = %d" % uid)]
 
-    def InsertTweet(self, s, single_xact=True):
+    def InsertTweet(self, s, single_xact=True, insert_user=True):
         if s.GetRetweeted_status() is not None:
             self.InsertTweet(s.GetRetweeted_status(), single_xact=single_xact)
         parent = "null"
@@ -350,7 +359,8 @@ class DataManager:
             if inserted == 1:
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
                 self.InsertTweetTokens(s.GetUser().GetId(), s.GetText())
-            self.InsertUser(s.GetUser())
+            if insert_user:
+                self.InsertUser(s.GetUser())
             if single_xact:
                 self.Commit()
         except Exception:
@@ -493,7 +503,9 @@ class DataManager:
             left = self.LookupStatus(int(r["chid"]),int(r["chu"]))
             right = self.LookupStatus(int(r["paid"]),int(r["pau"]))
             assert left is not None, r
-            assert right is not None, r
+            if right is None:
+                assert len(self.con.query("select * from ungettable_tweets where id = %s" % r["paid"])) > 0, r 
+                continue
             result.append((left,right))
         return result
 
@@ -637,7 +649,29 @@ class DataManager:
                        "from tfidf_important_word_view_internal f join users u1 join users u2 join token_id ti "
                        "on f.u1 = u1.id and f.u2 = u2.id and f.token = ti.id")
 
+    def UpdateArtRatTFIDF(self):
+        personality = self.g_data.SocialLogic().ArtRatPersonality()
+        q = ("select tr.id as token, log(1 + count(*)) * log((select val from tiaraboom.max_df_view)/(1+udf.count)) as tfidf "
+             "from artrat.%s_dependencies dp "
+             "join tiaraboom.token_representatives tr "
+             "join tiaraboom.user_document_frequency udf "
+             "on dp.dependant = tr.token and tr.id = udf.token "
+             "group by 1") % personality
+        nq = "select token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (q,q)
+        try:
+            self.Begin()
+            self.con.query("delete from artrat_tfidf where user_id = %d" % self.GetUserId())
+            vals = ["(%d,%s,%s)" % (self.GetUserId(), r["token"], r["tfidf_norm"]) for r in self.con.query(nq)]
+            self.con.query("insert into artrat_tfidf values %s" % ",".join(vals))    
+            self.updatedArtratTFIDF = True
+            self.Commit()
+        except Exception as e:
+            self.Rollback()
+            raise e
 
+    def ArtRatTFIDFNormQuery(self):
+        return "select * from artrat_tfidf where user_id = %d" % self.GetUserId()
+    
     def TFIDFNormQuery(self, uids=None, normalize=True):
         if uids is None:
             if normalize:
@@ -658,11 +692,13 @@ class DataManager:
             return "select * from tfidf_view_internal where user_id in (%s)" % uids
 
     def TFIDFDistance(self, uids=None):
+        if not self.updatedArtratTFIDF:
+            self.UdateArtRatTFIDF()
         q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
              "from (%s) t1 right join (%s) t2 "
              "on t1.token = t2.token "
              "group by t2.user_id "
-             "having count(t1.token) > 0") % (self.TFIDFNormQuery([self.GetUserId()], normalize=True),
+             "having count(t1.token) > 0") % (self.ArtRatTFIDFNormQuery(),
                                               self.TFIDFNormQuery(uids, normalize=False))
         if uids is None:
             self.con.query("drop view if exists tfidf_bot_distance_%s" % self.g_data.myName)
@@ -681,14 +717,21 @@ class DataManager:
 
     def InsertTweetTokensById(self, uid, tokens):
         q = "insert into user_token_frequency (user_id, token, count) values (%d,%%s,1) on duplicate key update count = count + 1" % (uid)
-        q2 = "insert into user_document_frequency (token, count) values (%s,1) on duplicate key update count = count + 1"
-        q3 = "insert into tweet_document_frequency (token,count) values (%s,1) on duplicate key update count = count + 1"
+        q2 = "insert into user_document_frequency (token, count) values %s on duplicate key update count = count + 1"
+        q3 = "insert into tweet_document_frequency (token,count) values %s on duplicate key update count = count + 1"
+        q2s = []
+        q3s = []
         for t in tokens:
             rc = self.con.query(q % t)
             if rc == 1:
-                self.con.query(q2 % t)
-            self.con.query(q3 % t)
-                
+                q2s.append("(%s,1)" % t)
+            q3s.append("(%s,1)" % t)
+        if len(q2s) > 0:
+            self.con.query(q2 % ",".join(q2s))
+        if len(q3s) > 0:
+            self.con.query(q3 % ",".join(q3s))
+
+
     def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3308"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
         self.con.query("truncate table user_document_frequency")
@@ -807,8 +850,10 @@ class DataManager:
             self.UpdateUsers()
         elif self.shard % MODES == 1:
             self.UpdateTweets()
+            self.UpdateArtRatTFIDF()
         elif self.shard % MODES == 2:
             self.ProcessUnprocessedTweets()
+            self.UpdateUsers()
         self.shard += 1
        
  
