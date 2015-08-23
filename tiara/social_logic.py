@@ -1,5 +1,6 @@
 import os, time
 import rewriter as r
+import re
 import random
 from util import *
 import json
@@ -9,6 +10,14 @@ import vocab as v
 import sys
 import artrat_utils as au
 import server
+
+BUA_FILTERS = [
+    "not is_retweet",
+    "num_user_mentions = 0",
+    "num_hashtags <= 2",
+    "num_media = 0",
+    "language = 'en'"
+]
 
 class SocialLogic:
     def __init__(self, g_data, args):
@@ -196,9 +205,9 @@ class SocialLogic:
         statuses = self.g_data.ApiHandler().ShowStatuses(user_id=user.GetId())
         if statuses is None or len(statuses) < 10:
             return -1 # either there was a problem or he dont tweet much
-        if not self.BotherUserAppropriate(u):
-            return -1
         both = len([t for t in statuses if self.BotherAppropriate(t)])
+        if not self.BotherUserAppropriate(user):
+            return -1
         if both == 0:
             return -1
         result += 3 * (float(both) / len(statuses))
@@ -292,25 +301,36 @@ class SocialLogic:
             return False
         return True
 
-    def BotherUserAppropriate(self, user):
-        if not user.GetLanguage().startswith('en'):
+    def BotherUserAppropriate(self, user, tweets = None, verbose=False):
+        t0 = time.time()
+        if not user.GetLang().startswith('en'):
+            if verbose: print "lang"
             return False
         if self.UserInactive(user):
+            if verbose: print "inactive"
             return False
         if self.RecentlyTargeted(user):
+            if verbose: print "recent"
             return False
-        if self.UserOverActive(user):
-            return False
+        #if self.UserOverActive(user):
+        #    return False
         if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
+            if verbose: "print afflicted"
             return False
         stats = self.HistoryStatistics(user)
         if stats["attempts"] > 1 and stats["conversations"] == 0: # they probably aren't into it
+            if verbose: print "history"
             return False
-        tweets = self.g_data.dbmgr.LookupStatuses(uid = user.GetId())
+        if tweets is None:
+            tweets = self.g_data.dbmgr.LookupStatusesFromUsers(uids = [user.GetId()], skip_rts=True, filters=BUA_FILTERS, json=False)
         if len([t for t in tweets if self.BotherAppropriate(t)]) == 0:
+            if verbose: print "unbotherable"
             return False
         if self.UserFollowbacker(tweets):
-            return false
+            if verbose: print "followbacker"
+            return False
+        if verbose: 
+            print "took %f secs" % (time.time() - t0)
         return True
 
     def UserInactive(self, user):
@@ -324,15 +344,15 @@ class SocialLogic:
     def UserOveractive(self, user):
         times = self.g_data.dbmgr.UnixTimes(user.GetId())
         median = Median(Differences(times))
-        return median > 60
+        return median < (60 * 5)
 
     def UserFollowbacker(self, tweets):
-        return float(len([t for t in tweets if self.IsFollowback(t)]))/len(tweets) > 0.25
+        return float(len([t for t in tweets if self.IsFollowback(t.GetText())]))/len(tweets) > 0.25
 
     def IsFollowback(self, text):
         text = text.lower()
-        for text in ['follow','seguro','retweet','mgwv']:
-            if re.match("[^a-z]*".join("follow"),text) is not None:
+        for fl in ['follow','seguro','retweet','mgwv']:
+            if re.search("[^a-z]*".join(fl),text) is not None:
                 return True
         return False
 
@@ -384,24 +404,24 @@ class SocialLogic:
                  "retweets"  : rts
                  }
 
-    def ScoreFriendFeatures(self, user):
-        stats = self.HistoryStatistics(user=user)
-        return {
-            "favorites"     : stats["favorites"],
-            "retweets"      : stats["retweets"],
-            "conversations" : stats["conversations"],
-            "avg_convo_len" : float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0,
-            "decayed_convo_len" : Decay(float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0),
-            "response_prob" : float(stats["conversations"])/stats["attempts"]  if stats["attempts"] != 0 else 0.0,
-            "virginity"     : 1.0/(2**stats["attempts"]),
-            }
+    # def ScoreFriendFeatures(self, user):
+    #     stats = self.HistoryStatistics(user=user)
+    #     return {
+    #         "favorites"     : stats["favorites"],
+    #         "retweets"      : stats["retweets"],
+    #         "conversations" : stats["conversations"],
+    #         "avg_convo_len" : float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0,
+    #         "decayed_convo_len" : Decay(float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0),
+    #         "response_prob" : float(stats["conversations"])/stats["attempts"]  if stats["attempts"] != 0 else 0.0,
+    #         "virginity"     : 1.0/(2**stats["attempts"]),
+    #         }
 
-    def ScoreFriend(self, user):
-        if not self.BotherUserAppropriate(user):
-            return -1
-        coefs = self.params["friend_score_coefficients"]
-        features = self.ScoreFriendFeatures(user)
-        return sum([coefs[k] * features[k] for k in features.keys()])
+    # def ScoreFriend(self, user):
+    #     if not self.BotherUserAppropriate(user):
+    #         return -1
+    #     coefs = self.params["friend_score_coefficients"]
+    #     features = self.ScoreFriendFeatures(user)
+    #     return sum([coefs[k] * features[k] for k in features.keys()])
 
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
@@ -414,20 +434,21 @@ class SocialLogic:
             return None
         count = 0
         overconfirmed = False
+        precount = -
         for s in ss:
             used = False
             for url in (s.urls if not s.urls is None else []):
-                self.g_data.TraceInfo("pushing article %s" % url.expanded_url)
+                precount = precount + 1
                 used = self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"]) or used
             if used:
                 if not overconfirmed and count < 28 and s.GetRetweetCount() > 0:
                     count = count + 1
                     retweeted = self.g_data.ApiHandler().GetRetweets(s.GetId())
                     for u in retweeted:
-                        self.g_data.TraceInfo("pushing source %s" % u.GetUser().GetScreenName())                    
                         overconfirmed = not self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetUser().GetId())
                         if overconfirmed:
                             break
+        self.g_data.TraceInfo("Inserted %d articles and added %d unconfirmed sources" % precount, count)
                 
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"

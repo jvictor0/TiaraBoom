@@ -55,6 +55,7 @@ def Median(nums):
     return sorted(nums)[len(nums)/2]
 
 def Differences(nums):
+    nums = sorted(nums)
     result = []
     for i in xrange(len(nums)-1):
         result.append(nums[i+1] - nums[i])
@@ -134,6 +135,8 @@ def TwitterTimestampToMySQL(ts):
 
 # looks like 2008-09-15 00:15:03
 def MySQLTimestampToTwitter(msts):
+    if msts == "0000-00-00 00:00:00":
+        return None
     ts = MySQLTimestampToPython(msts)
     dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][ts.weekday()]
     mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][ts.month-1]
@@ -149,7 +152,7 @@ def MySQLTimestampToTwitter(msts):
     year = "%d" % ts.year
     result = "%s %s %s %s:%s:%s +0000 %s" % (dow,mon,day,hour,minute,second,year)
     assert TwitterTimestampToMySQL(result) == msts, (result,msts,TwitterTimestampToMySQL(result))
-    return msts
+    return result
 
 def MySQLTimestampToPython(ts):
     return datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")

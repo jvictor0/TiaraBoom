@@ -59,6 +59,7 @@ class DataManager:
         self.user_id = None
         self.horde = {}
         self.xact = False
+        self.timedQueryLimit = 1.0
         if no_ddl:
             return
         if "gatherer_authentication" in config:
@@ -104,7 +105,7 @@ class DataManager:
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
         result = self.con.query(q, *largs)
-        if time.time() - t0 > 5:
+        if time.time() - t0 > self.timedQueryLimit:
             self.g_data.TraceInfo("%s took %f secs" % (name, time.time() - t0))
         return result
             
@@ -120,7 +121,7 @@ class DataManager:
                         "parent bigint default null,"
                         "primary key(user_id, id),"
                         "key(id),"
-                        "sparse key(parent))"))
+                        "key(parent))"))
         self.con.query(("create columnar table if not exists tweets_storage("                        
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -128,7 +129,12 @@ class DataManager:
                         "parent_id bigint default null,"                        
                         "body blob, "                        
                         "ts datetime not null,"
-                        "json json ,"                        
+                        "json json ,"            
+                        "num_hashtags as ifnull(json_length(json::hashtags),0) persisted bigint, "
+                        "num_media as ifnull(json_length(json::media),0) persisted bigint, "
+                        "num_user_mentions as ifnull(json_length(json::user_mentions),0) persisted bigint, "
+                        "is_retweet as not isnull(json::retweeted_status) persisted boolean, "
+                        "language as json::$lang persisted varbinary(200), "
                         "shard key(user_id, id),"
                         "index(user_id, id) using clustered columnar)"))
 
@@ -381,12 +387,18 @@ class DataManager:
     def Lookup(self, tid, uid=None):
         assert not uid is None, uid
         if tid is not None:
-            res = self.con.query("select * from tweets_storage where id = %d and user_id = %d" % (tid, uid))
+            res = self.con.query("select t.id, t.user_id, t.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
+                                 "from tweets_storage ts join tweets t "
+                                 "on ts.user_id = t.user_id and ts.id = t.id "
+                                 "where ts.id = %d and ts.user_id = %d" % (tid, uid))
         else:
-            res = self.con.query("select * from tweets_storage where user_id = %d" % (uid))
+            res = self.con.query("select t.id, t.user_id, t.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
+                                 "from tweets_storage ts join tweets t "
+                                 "on ts.user_id = t.user_id and ts.id = t.id "
+                                 "where ts.user_id = %d" % (uid))
         return res
     
-    def RowToStatus(self, row):
+    def RowToStatus(self, row, user, skip_rts=False):
         if row["json"] is None:
             return None
         jsdict = json.loads(row["json"])
@@ -399,6 +411,8 @@ class DataManager:
             jsdict["in_reply_to_status_id"] = int(row["parent"])
             jsdict["in_reply_to_user_id"] = int(row["parent_id"])
         if "retweeted_status" in jsdict:
+            if skip_rts:
+                return None
             if "retweeted_user_id" not in jsdict:
                 the_id = self.con.query("select user_id from tweets_storage where id = %d" % int(jsdict["retweeted_status"]))
                 if len(the_id) == 0:
@@ -408,39 +422,51 @@ class DataManager:
                 jsdict["retweeted_user_id"] = the_id
                 rows = self.con.query("update tweets_storage set json = json_set_string(json,'retweeted_user_id',%d) where user_id = %d and id = %d" % (the_id, int(row["user_id"]), jsdict["id"]))
                 assert rows == 1, (jsdict,rows)
-            jsdict["retweeted_status"] = self.LookupStatus(jsdict["retweeted_status"], jsdict["retweeted_user_id"])
+            jsdict["retweeted_status"] = self.LookupStatus(int(jsdict["retweeted_status"]), int(jsdict["retweeted_user_id"]))
             del jsdict["retweeted_user_id"]
             if jsdict["retweeted_status"] is None:
                 return None
             else:
                 jsdict["retweeted_status"] = jsdict["retweeted_status"].AsDict()
+        assert 'entities' not in jsdict, jsdict
+        jsdict['entities'] = {}
+        jsdict['entities']['hashtags'] = [{"text":h} for h in jsdict['hashtags']] if 'hashtags' in jsdict else []
+        jsdict['entities']['urls'] = [{"url": u, "expanded_url" : v} for u,v in jsdict['urls'].iteritems()] if 'urls' in jsdict else []
+        jsdict['entities']['media'] = jsdict['media'] if 'media' in jsdict else []
+        jsdict['entities']['user_mentions'] = jsdict['user_mentions'] if 'user_mentions' in jsdict else []
         s = Status.NewFromJsonDict(jsdict)
-        rts_favs = self.con.query("select retweets,favorites from tweets where user_id=%s and id=%s" % (row["user_id"], row["id"]))
-        assert len(rts_favs) == 1
-        rts_favs = rts_favs[0]
-        s.SetRetweetCount(int(rts_favs["retweets"]))
-        s.SetFavoriteCount(int(rts_favs["favorites"]))
-        if s.urls is None:
-            s.urls = []
-        assert s.GetUser() is None, row
-        u = self.LookupUser(int(row["user_id"]))
-        if u is None:            
-            return None
-        else:
-            s.SetUser(u)
+        s.SetRetweetCount(int(row["retweets"]))
+        s.SetFavoriteCount(int(row["favorites"]))
+        s.SetUser(user)
         return s
 
-    def LookupStatuses(self, tid=None, uid = None):
+    def LookupStatuses(self, tid=None, uid = None, skip_rts=False):
         assert not uid is None, uid
         rows = self.Lookup(tid,uid)
+        user = self.LookupUser(uid)
+        if user is None:
+            return []
         return filter(lambda x: not x is None,
-                      [self.RowToStatus(r) for r in rows])
+                      [self.RowToStatus(r, user, skip_rts=skip_rts) for r in rows])
 
     def LookupStatus(self, tid, uid=None):
         statuses = self.LookupStatuses(tid, uid)
         if len(statuses) == 0:
             return None
         return statuses[0]
+
+    def LookupStatusesFromUsers(self, uids=None, skip_rts=False, filters = [], json = True):
+        jscol = "ts.json" if json else "json_set_string('{}','lang',ts.language) as json"
+        filters = "".join([" and " + f for f in filters])
+        rows = self.con.query("select t.id, t.user_id, t.parent, ts.parent_id, ts.body, %s, ts.ts, t.retweets, t.favorites "
+                              "from tweets_storage ts join tweets t "
+                              "on ts.user_id = t.user_id and ts.id = t.id "
+                              "where ts.user_id in (%s)%s" % (jscol, ",".join(["%d"%u for u in uids]), filters))
+        users = {uid: self.LookupUser(uid) for uid in uids}
+        return filter(lambda x: not x is None,
+                      [self.RowToStatus(r, users[int(r["user_id"])], skip_rts=skip_rts) 
+                       for r in rows 
+                       if not users[int(r["user_id"])] is None])
 
     def LookupUser(self, uid, days_old = None):
         q = "select * from users where id = %d" % uid
@@ -503,10 +529,21 @@ class DataManager:
              " or (parent_id = %d and   user_id = %d)")
         q = q % (uid, myuid, uid, myuid)
         rows = self.TimedQuery(q, "TweetHistory")
+        uids = list(set([(r["chu"]) for r in rows] + [(r["pau"]) for r in rows]))
+        tids = list(set([(r["chid"]) for r in rows] + [(r["paid"]) for r in rows]))
+        if len(tids) == 0:
+            return []
+        assert len(uids) > 0, uid
+        q = ("select t.id, ts.parent_id, t.parent, t.user_id, '' as body, '0000-00-00 00:00:00' as ts, '{}' as json, t.retweets, t.favorites "
+             "from tweets_storage ts join tweets t "
+             "on ts.user_id = t.user_id and ts.id = t.id "
+             "where ts.id in (%s) and ts.user_id in (%s)" % (",".join(tids),",".join(uids)))
+        status_rows = {int(r["id"]) : r for r in self.TimedQuery(q,"fetch tweet history rows")}
+        users = {int(u) : self.LookupUser(int(u)) for u in uids}
         result = []
         for r in rows:
-            left = self.LookupStatus(int(r["chid"]),int(r["chu"]))
-            right = self.LookupStatus(int(r["paid"]),int(r["pau"]))
+            left  = self.RowToStatus(status_rows[int(r["chid"])], users[int(r["chu"])])
+            right = self.RowToStatus(status_rows[int(r["paid"])], users[int(r["pau"])])
             assert left is not None, r
             if right is None:
                 assert len(self.con.query("select * from ungettable_tweets where id = %s" % r["paid"])) > 0, r 
@@ -663,10 +700,10 @@ class DataManager:
              "on dp.dependant = tr.token and tr.id = udf.token "
              "group by 1") % personality
         nq = "select token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (q,q)
+        vals = ["(%d,%s,%s)" % (self.GetUserId(), r["token"], r["tfidf_norm"]) for r in self.con.query(nq)]
         try:
             self.Begin()
             self.con.query("delete from artrat_tfidf where user_id = %d" % self.GetUserId())
-            vals = ["(%d,%s,%s)" % (self.GetUserId(), r["token"], r["tfidf_norm"]) for r in self.con.query(nq)]
             self.con.query("insert into artrat_tfidf values %s" % ",".join(vals))    
             self.updatedArtratTFIDF = True
             self.Commit()
@@ -698,7 +735,7 @@ class DataManager:
 
     def TFIDFDistance(self, uids=None):
         if not self.updatedArtratTFIDF:
-            self.UdateArtRatTFIDF()
+            self.UpdateArtRatTFIDF()
         q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
              "from (%s) t1 right join (%s) t2 "
              "on t1.token = t2.token "
@@ -855,7 +892,8 @@ class DataManager:
             self.UpdateUsers()
         elif self.shard % MODES == 1:
             self.UpdateTweets()
-            self.UpdateArtRatTFIDF()
+            if self.g_data.SocialLogic().IsArtRat():
+                self.UpdateArtRatTFIDF()
         elif self.shard % MODES == 2:
             self.ProcessUnprocessedTweets()
             self.UpdateUsers()

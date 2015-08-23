@@ -54,5 +54,14 @@ if __name__ == "__main__":
         dbmgr = g.GlobalData(name=sys.argv[2]).dbmgr
         dbmgr.UpdateArtRatTFIDF()
         dbmgr.TFIDFDistance()
+    elif sys.argv[1] == "new_ddl":
+        g_data.dbmgr.DropTFIDFViews()
+        print "alter table"
+        g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
+        print "ddl"
+        g_data.dbmgr.DDL()
+        print "insert select"
+        g_data.dbmgr.con.query("insert into %s select * from %s_bak" % (sys.argv[2],sys.argv[2]))
+        print "did not drop %s_bak" % sys.argv[2]
     else:
         assert False

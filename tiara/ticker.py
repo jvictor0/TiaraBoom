@@ -32,8 +32,10 @@ class Ticker(object):
         if self.time > self.limit:
             if self.verbose:
                 self.g_data.TraceInfo("Performing %s." % (self.name))
+            t0 = time.time()
             self.fun()
+            time_taken = time.time() - t0
             self.SetLimit()
             if self.verbose:
-                self.g_data.TraceInfo("Action Performed! %f minutes until next %s." % (self.limit/60, self.name))
+                self.g_data.TraceInfo("Action Performed (%f secs)! %f minutes until next %s." % (time_taken, self.limit/60, self.name))
 
