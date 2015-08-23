@@ -108,17 +108,7 @@ def HandleUserInput(g_data, input):
     return "syntax error"
 
 def HandleArtrat(g_data, input):
-    if len(input) != 1:
-        return "syntax error"
-    if g_data.SocialLogic().params["reply"]["mode"] != "artrat":
-        return "No articles to refresh for mode %s" % g_data.SocialLogic().params["reply"]["mode"]
-    if input[0] == "refresh":
-        au.RefreshArticles(g_data)
-    elif input[0] == "reset":
-        au.ResetArticles(g_data)
-    else:
-        return "syntax error"
-    return "ok"
+    return "syntax error"
 
 input_handlers = [
     InputHandler("ping", lambda g_data, x: "pong", "ping the server"),

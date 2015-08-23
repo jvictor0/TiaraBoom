@@ -45,7 +45,7 @@ class SocialLogic:
         if self.params["reply"]["mode"] == "classic":
             SKD("alliteration_mode",  self.params["reply"], False)
         elif self.params["reply"]["mode"] == "artrat":
-            if not "personality" in self.params["reply"] or not "sources" in self.params["reply"]:
+            if not "personality" in self.params["reply"]:
                 self.invalid = True
                 return
             if len(self.params["reply"]) != 4:

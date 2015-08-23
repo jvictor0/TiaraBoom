@@ -68,17 +68,6 @@ def ArtRatChat(personality):
             return False
     ArtRatChat().cmdloop()
 
-def RefreshArticles(g_data):
-    import artrat.article_rat as atc
-    abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
-    sl = g_data.SocialLogic()
-    directory = os.path.join(abs_prefix, sl.params["reply"]["personality"])
-    if not os.path.isdir(directory):
-        os.makedirs(directory)
-    for source in sl.params["reply"]["sources"]:
-        print directory
-        atc.RefreshArticles(source, directory, sl.params["reply"]["personality"], g_data.TraceInfo)
-        
 def ResetArticles(g_data):
     import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
