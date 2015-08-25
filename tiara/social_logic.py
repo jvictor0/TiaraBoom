@@ -46,16 +46,20 @@ class SocialLogic:
             SKD("alliteration_mode",  self.params["reply"], False)
         elif self.params["reply"]["mode"] == "artrat":
             if not "personality" in self.params["reply"]:
+                print "no personality"
                 self.invalid = True
                 return
-            if len(self.params["reply"]) != 4:
+            if len(self.params["reply"]) != 3:
+                print "wrong param len"
                 self.invalid = True
                 return
         else:
+            print "not artrat"
             self.invalid = True
             return
             
         if len(self.params) != 6:
+            print "not 6"
             self.invalid = True
             return
 
@@ -68,6 +72,7 @@ class SocialLogic:
         SKD("response_prob" , fsc, 1.0)
         SKD("virginity"     , fsc, 1.0)
         if len(fsc) != 7:
+            print "not 7"
             self.invalid = True
             return
         
@@ -135,7 +140,7 @@ class SocialLogic:
         return random.choice(result)
 
     def StalkTwitter(self):
-        if random.uniform(0,1) > self.params["gravitation_parameter"]:
+        if random.uniform(0,1) < self.params["gravitation_parameter"]:
             self.StalkTwitterGravitate()
         else:
             self.StalkTwitterHops()
@@ -434,7 +439,7 @@ class SocialLogic:
             return None
         count = 0
         overconfirmed = False
-        precount = -
+        precount = 0
         for s in ss:
             used = False
             for url in (s.urls if not s.urls is None else []):
@@ -448,7 +453,7 @@ class SocialLogic:
                         overconfirmed = not self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetUser().GetId())
                         if overconfirmed:
                             break
-        self.g_data.TraceInfo("Inserted %d articles and added %d unconfirmed sources" % precount, count)
+        self.g_data.TraceInfo("Inserted %d articles and added %d unconfirmed sources" % (precount, count))
                 
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"

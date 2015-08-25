@@ -584,7 +584,10 @@ class DataManager:
 
     def GetUserId(self):
         if self.user_id is None:
-            self.user_id = int(self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)[0]["id"])
+            rows = self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)
+            if len(rows) == 0:
+                return self.g_data.ApiHandler().ShowUser(screen_name=self.g_data.myName).GetId()
+            self.user_id = int(rows[0]["id"])
         return self.user_id
             
     def GetBotIds(self):

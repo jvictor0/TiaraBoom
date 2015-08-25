@@ -56,9 +56,6 @@ if __name__ == '__main__':
 
     sys.excepthook = exceptionTrace
 
-    artrat_personalities = [(gd.SocialLogic().params['reply']['personality'],src)
-                            for gd in g_datas if gd.SocialLogic().params["reply"]["mode"] == 'artrat'
-                            for src in gd.SocialLogic().params['reply']['sources']]
     refreshProcess = threading.Thread(target = au.ArticleInsertionThread,
                                       args=(g_datas[0].TraceArticleThread,))
     refreshProcess.setDaemon(True)
