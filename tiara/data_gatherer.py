@@ -582,9 +582,11 @@ class DataManager:
         result = []
         for r in rows:
             left  = self.RowToStatus(status_rows[int(r["chid"])], users[int(r["chu"])])
-            right = self.RowToStatus(status_rows[int(r["paid"])], users[int(r["pau"])])
             assert left is not None, r
-            if right is None:
+            try:
+                right = self.RowToStatus(status_rows[int(r["paid"])], users[int(r["pau"])])
+                assert right is not None
+            except Exception as e:
                 assert len(self.con.query("select * from ungettable_tweets where id = %s" % r["paid"])) > 0, r 
                 continue
             result.append((left,right))
