@@ -320,7 +320,7 @@ class SocialLogic:
         #if self.UserOverActive(user):
         #    return False
         if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
-            if verbose: "print afflicted"
+            if verbose: print "afflicted"
             return False
         stats = self.HistoryStatistics(user)
         if stats["attempts"] > 1 and stats["conversations"] == 0: # they probably aren't into it

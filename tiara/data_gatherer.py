@@ -15,7 +15,7 @@ from util import *
 
 import threading
 
-MODES=3
+MODES=4
 
 AFFLICT_FOLLOWBACK = 1
 AFFLICT_DELETER = 2
@@ -58,6 +58,7 @@ class DataManager:
         self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
         self.user_id = None
         self.horde = {}
+        self.hordeUpserts = {}
         self.xact = False
         self.timedQueryLimit = 1.0
         if no_ddl:
@@ -80,11 +81,15 @@ class DataManager:
         try:
             for k,val in self.horde.iteritems():
                 q = "insert into %s values %s" % (k,",".join(val))
+                if k in self.hordeUpserts:
+                    q = q + " on duplicate key update " + self.hordeUpserts[k]
                 self.con.query(q)            
             self.con.query("commit")
             self.horde = {}
+            self.hordeUpserts = {}
         except Exception as e:
             self.horde = {}
+            self.hordeUpserts = {}
             self.con.query("rollback")
             raise e
 
@@ -92,6 +97,7 @@ class DataManager:
         assert self.xact
         self.xact = False        
         self.horde = {}
+        self.hordeUpserts = {}
         self.con.query("rollback")
     
     def Horde(self, table, values, *parameters):
@@ -101,6 +107,9 @@ class DataManager:
         if table not in self.horde:
             self.horde[table] = []
         self.horde[table].append(values)
+
+    def HordeUpsert(table, upsert):
+        self.horde[table] = upsert
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
@@ -206,6 +215,17 @@ class DataManager:
                         "primary key(personality, user_id),"
                         "confirmed tinyint,"
                         "updated timestamp default current_timestamp on update current_timestamp)"))
+        self.con.query(("create reference table if not exists target_candidates("
+                        "id bigint not null,"
+                        "bot_id bigint not null,"
+                        "primary key(bot_id, id),"
+                        "processed datetime default null)"))
+        self.con.query(("create reference table if not exists follower_cursors("
+                        "id bigint not null,"
+                        "bot_id bigint not null,"
+                        "cursor bigint not null,"                        
+                        "primary key(bot_id, id, cursor),"
+                        "processed datetime default null)"))
         self.MakeTFIDFViews()
                 
     def UpdateTweets(self):
@@ -364,7 +384,7 @@ class DataManager:
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
-                self.InsertTweetTokens(s.GetUser().GetId(), s.GetText())
+                self.InsertTweetTokens(s.GetUser().GetId(), s.GetText(), single_xact=False)
             if insert_user:
                 self.InsertUser(s.GetUser())
             if single_xact:
@@ -586,7 +606,7 @@ class DataManager:
         if self.user_id is None:
             rows = self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)
             if len(rows) == 0:
-                return self.g_data.ApiHandler().ShowUser(screen_name=self.g_data.myName).GetId()
+                return self.ApiHandler().ShowUser(screen_name=self.g_data.myName).GetId()
             self.user_id = int(rows[0]["id"])
         return self.user_id
             
@@ -693,6 +713,14 @@ class DataManager:
                        "select u1.screen_name u1, u2.screen_name u2, ti.token, f.dist, f.df, f.u1_tf, f.u1_tfidf, f.u2_tf, f.u2_tfidf "
                        "from tfidf_important_word_view_internal f join users u1 join users u2 join token_id ti "
                        "on f.u1 = u1.id and f.u2 = u2.id and f.token = ti.id")
+        self.con.query("create view tfidf_bot_distance_view as "
+                       "select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
+                       "from artrat_tfidf t1 right join tfidf_view_internal t2 "
+                       "on t1.token = t2.token "
+                       "group by t2.user_id "
+                       "having count(t1.token) > 0")
+
+
 
     def UpdateArtRatTFIDF(self):
         personality = self.g_data.SocialLogic().ArtRatPersonality()
@@ -756,26 +784,29 @@ class DataManager:
         else:
             return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
 
-    def InsertTweetTokens(self, uid, tweet):
-        tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
-        self.InsertTweetTokensById(uid, tokens)
+    def InsertTweetTokens(self, uid, tweet, single_xact=True):
+        if single_xact:
+            self.Begin()
+        else:
+            assert self.xact
+        try:
+            tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
+            self.InsertTweetTokensById(uid, tokens)
+            if single_xact:
+                self.Commit()
+        except Exception as e:
+            self.Rollback()
+            raise e
 
     def InsertTweetTokensById(self, uid, tokens):
         q = "insert into user_token_frequency (user_id, token, count) values (%d,%%s,1) on duplicate key update count = count + 1" % (uid)
-        q2 = "insert into user_document_frequency (token, count) values %s on duplicate key update count = count + 1"
-        q3 = "insert into tweet_document_frequency (token,count) values %s on duplicate key update count = count + 1"
-        q2s = []
-        q3s = []
         for t in tokens:
             rc = self.con.query(q % t)
             if rc == 1:
-                q2s.append("(%s,1)" % t)
-            q3s.append("(%s,1)" % t)
-        if len(q2s) > 0:
-            self.con.query(q2 % ",".join(q2s))
-        if len(q3s) > 0:
-            self.con.query(q3 % ",".join(q3s))
-
+                self.Horde("user_document_frequency", "(%s,1)" % t)
+            self.Horde("tweet_document_frequency", "(%s,1)" % t)
+        self.HordeUpsert("user_document_frequency", "count=count+1")
+        self.HordeUpsert("tweet_document_frequency","count=count+1")
 
     def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3308"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
@@ -889,8 +920,68 @@ class DataManager:
 
     def IgnoreUser(self, user_name):
         self.con.query("insert into ignored_users select id from users where screen_name = '%s'" % user_name)
+
+    def AddTargets(self, ids):
+        values = ",".join(["(%d,%d,null)" % (i,self.GetuserId()) for i in ids])
+        self.con.query("insert into target_candidates %s on duplicate key update processed=processed" % values)
+
+    def EnqueueFollower(self, uid):
+        try:
+            self.con.query("insert into follower_cursors(%d,%d,-1,null)" % (uid, self.GetUserId()))
+        except Exceiption as e:
+            assert e[0] == 1062, e # dup key                    
     
+    def ProcessFollowerCursors(self):
+        while True:
+            rows = self.con.query("select * from follower_cursors where bot_id = %d and processed is null limit 1" % self.GetUserId())
+            if len(rows) == 0:
+                return
+            row = rows[0]
+            result = self.ApiHandler().GetFollowerIDsPaged(user_id=int(rows[0]['uid']), cursor=int(rows[0]['cursor']))
+            if result is None:
+                return
+            ids, next_cursor = result
+            try:
+                self.Begin()
+                self.con.query("update follower_cursors set processed=now() where bot_id = %s and id = %s and cursor = %s" % (row["bot_id"],row["id"],row["cursor"]))
+                self.con.query("insert into follower_cursors(%s,%d,%d,null)" % (row["id"], self.GetUserId(), next_cursor))
+                self.AddTargets(ids)
+                self.Commit()
+            except Exception as e:
+                self.Rollback()
+                raise e
+            if self.ApiHandler().last_call_rate_limit_remaining < 5:
+                return
+    
+    def ProcessTargetCandidates(self):
+        q = "select id from target_candiates where bot_id = %d and processed is null limit 75" % self.GetUserId()
+        users = [int(r["id"]) for r in self.con.query(q)]
+        for u in users:
+            self.ApiHandler().ShowStatuses(user_id=u)
+        self.con.query("update target_candidates set processed = NOW() where bot_id = %d and ids in (%d)" % (self.GetUserId(), ",".join(["%d" % u for u in users])))
+
+    def CreateTargetCandidatesViews(self):
+        for v in []:
+            con.query("drop view if exists %s" % v)
+        con.query("create view candidates_joined_view as "
+                  "select tc.bot_id, tc.id as uid, tc.processed, "
+                  "       users.screen_name, users.num_followers, users.num_friends, users.language, "
+                  "       tf.ts, tf.num_hashtags, tf.num_media, tf.num_users_mentions, tf.is_retweet, tf.language as tweet_language "                  
+                  "from target_candidates tc join users join tweets_storage tf "
+                  "on tc.id = users.id and users.id = tf.user_id "
+                  "where processed is not null ")
+        con.query("create view candidates_joined_filtered_view as "
+                  "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts "
+                  "and num_users_mentions = 0 and num_media = 0 and num_hashtags <= 2 "
+                  "where not is_retweet and ts > processed - interval 7 day "
+                  "and num_followers <= 5000 and num_friends <= 5000 and num_followers >= 100 and num_friends >= 100 "
+                  "and language like 'en%' and tweet_language like 'en%' ")
+        con.query("create view candidates_filtered_view as " 
+                  "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count, timestampdiff(minute, processed, min(ts)) as tweets_per_minute  "
+                  "from candidates_joined_filtered_view ")
+        
     def Act(self):
+        self.ProcessFollowerCursors()
         if self.shard % MODES == 0:
             self.UpdateUsers()
         elif self.shard % MODES == 1:
@@ -900,6 +991,8 @@ class DataManager:
         elif self.shard % MODES == 2:
             self.ProcessUnprocessedTweets()
             self.UpdateUsers()
+        elif self.shard % MODES == 3:
+            self.ProcessTargetCandidates()
         self.shard += 1
        
  

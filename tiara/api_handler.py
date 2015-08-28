@@ -189,9 +189,9 @@ class ApiHandler():
     def ApiCallInternal(self, url, data, request="GET"):
         url = "%s/%s" % (self.api.base_url, url)
         json_data = self.api._RequestUrl(url, request, data=data)
-        if "x-rate-limit-remaining" in json_data.headers:
-            self.g_data.TraceDebug("rate limit remaining = %s" % json_data.headers["x-rate-limit-remaining"])
-            assert int(json_data.headers["x-rate-limit-remaining"]) > 0, "lets just not cause ourselves problems"
+        self.g_data.TraceDebug("rate limit remaining = %s" % json_data.headers["x-rate-limit-remaining"])
+        self.last_call_rate_limit_remaining =  int(json_data.headers["x-rate-limit-remaining"])
+        assert int(json_data.headers["x-rate-limit-remaining"]) > 0, "lets just not cause ourselves problems"
         data = self.api._ParseAndCheckTwitter(json_data.content)
         return data
         
