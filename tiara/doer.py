@@ -63,5 +63,10 @@ if __name__ == "__main__":
         print "insert select"
         g_data.dbmgr.con.query("insert into %s select * from %s_bak" % (sys.argv[2],sys.argv[2]))
         print "did not drop %s_bak" % sys.argv[2]
+    elif sys.argv[1] == "add_fc":
+        uid = g.GlobalData(name=sys.argv[2]).ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()
+        g_data.dbmgr.EnqueueFollower(uid)
+    elif sys.argv[1] == "target_views":
+        g_data.dbmgr.CreateTargetCandidatesViews()
     else:
         assert False

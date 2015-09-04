@@ -110,8 +110,8 @@ class DataManager:
             self.horde[table] = []
         self.horde[table].append(values)
 
-    def HordeUpsert(table, upsert):
-        self.horde[table] = upsert
+    def HordeUpsert(self, table, upsert):
+        self.hordeUpserts[table] = upsert
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
@@ -241,8 +241,8 @@ class DataManager:
         self.con.query(("create reference table if not exists follower_cursors("
                         "id bigint not null,"
                         "bot_id bigint not null,"
-                        "cursor bigint not null,"                        
-                        "primary key(bot_id, id, cursor),"
+                        "cursr bigint not null,"                        
+                        "primary key(bot_id, id, cursr),"
                         "processed datetime default null)"))
         self.MakeTFIDFViews()
                 
@@ -283,6 +283,7 @@ class DataManager:
             for t in tokens:
                 assert self.con.query("update user_token_frequency set count = count - 1 where user_id = %d and token = %s" % (uid, t)) == 1
         except Exception as e:
+            self.g_data.TraceWarn("Rollback in PurgeTweet")
             self.Rollback()
             raise e
         self.Commit()
@@ -409,6 +410,7 @@ class DataManager:
             if single_xact:
                 self.Commit()
         except Exception:
+            self.g_data.TraceWarn("Rollback in InsertTweet")
             self.Rollback()
             raise
 
@@ -740,11 +742,13 @@ class DataManager:
             results[v].append(self.RowToStatus(row, users[int(row["user_id"])]))
         return sorted([sorted(ss, key=lambda s:s.GetId()) for k,ss in results.iteritems()], key=lambda l: -l[0].GetId())
 
-    def GetUserId(self):
-        if self.user_id is None:
-            rows = self.con.query("select id from users where screen_name = '%s'" % self.g_data.myName)
+    def GetUserId(self, screen_name = None):
+        if screen_name is None:
+            screen_name = self.g_data.myName
+        if self.user_id is None or screen_name != self.g_data.myName:
+            rows = self.con.query("select id from users where screen_name = '%s'" % screen_name)
             if len(rows) == 0:
-                return self.ApiHandler().ShowUser(screen_name=self.g_data.myName).GetId()
+                return self.ApiHandler().ShowUser(screen_name=screen_name).GetId()
             self.user_id = int(rows[0]["id"])
         return self.user_id
             
@@ -792,7 +796,7 @@ class DataManager:
             k = t.keys()[0]
             if not t[k].endswith("internal"):
                 self.con.query("drop view %s" % t[k])
-                self.con.query("drop view %s_internal" % t[k])            
+                self.con.query("drop view if exists %s_internal" % t[k])            
         for v in ["tfidf_bot_distance_%s" % self.g_data.myName, "tfidf_bot_distance_%s_internal" % self.g_data.myName,
                   "tfidf_distance_view",
                   "tfidf_important_word_view","tfidf_important_word_view_internal",
@@ -877,6 +881,7 @@ class DataManager:
             self.updatedArtratTFIDF = True
             self.Commit()
         except Exception as e:
+            self.g_data.TraceWarn("Rollback in UpdateArtatTFIDF")
             self.Rollback()
             raise e
 
@@ -926,13 +931,15 @@ class DataManager:
         if single_xact:
             self.Begin()
         else:
-            assert self.xact
+            assert self.xact, "must have began xaction in InsertTweetTokens"
         try:
             tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
             self.InsertTweetTokensById(uid, tokens)
             if single_xact:
                 self.Commit()
         except Exception as e:
+            self.g_data.TraceWarn("Rollback in InsertTweetTokens")
+            print e
             self.Rollback()
             raise e
 
@@ -1060,13 +1067,13 @@ class DataManager:
         self.con.query("insert into ignored_users select id from users where screen_name = '%s'" % user_name)
 
     def AddTargets(self, ids):
-        values = ",".join(["(%d,%d,null)" % (i,self.GetuserId()) for i in ids])
-        self.con.query("insert into target_candidates %s on duplicate key update processed=processed" % values)
+        values = ",".join(["(%d,%d,null)" % (i,self.GetUserId()) for i in ids])
+        self.con.query("insert into target_candidates values %s on duplicate key update processed=processed" % values)
 
     def EnqueueFollower(self, uid):
         try:
-            self.con.query("insert into follower_cursors(%d,%d,-1,null)" % (uid, self.GetUserId()))
-        except Exceiption as e:
+            self.con.query("insert into follower_cursors values(%d,%d,-1,null)" % (uid, self.GetUserId()))
+        except Exception as e:
             assert e[0] == 1062, e # dup key                    
     
     def ProcessFollowerCursors(self):
@@ -1075,48 +1082,52 @@ class DataManager:
             if len(rows) == 0:
                 return
             row = rows[0]
-            result = self.ApiHandler().GetFollowerIDsPaged(user_id=int(rows[0]['uid']), cursor=int(rows[0]['cursor']))
+            result = self.ApiHandler().GetFollowerIDsPaged(user_id=int(rows[0]['id']), cursor=int(rows[0]['cursr']))
             if result is None:
                 return
             ids, next_cursor = result
             try:
                 self.Begin()
-                self.con.query("update follower_cursors set processed=now() where bot_id = %s and id = %s and cursor = %s" % (row["bot_id"],row["id"],row["cursor"]))
-                self.con.query("insert into follower_cursors(%s,%d,%d,null)" % (row["id"], self.GetUserId(), next_cursor))
+                if next_cursor != 0:
+                    self.con.query("update follower_cursors set processed=now() where bot_id = %s and id = %s and cursr = %s" % (row["bot_id"],row["id"],row["cursr"]))
+                self.con.query("insert into follower_cursors values(%s,%d,%d,null)" % (row["id"], self.GetUserId(), next_cursor))
                 self.AddTargets(ids)
                 self.Commit()
             except Exception as e:
+                self.g_data.TraceWarn("Rollback in ProcessFollowerCursor")                
                 self.Rollback()
                 raise e
             if self.ApiHandler().last_call_rate_limit_remaining < 5:
                 return
     
-    def ProcessTargetCandidates(self):
-        q = "select id from target_candiates where bot_id = %d and processed is null limit 75" % self.GetUserId()
+    def ProcessTargetCandidates(self, screen_name = None):
+        q = "select id from target_candidates where bot_id = %d and processed is null limit 75" % self.GetUserId(screen_name)
         users = [int(r["id"]) for r in self.con.query(q)]
         for u in users:
             self.ApiHandler().ShowStatuses(user_id=u)
-        self.con.query("update target_candidates set processed = NOW() where bot_id = %d and ids in (%d)" % (self.GetUserId(), ",".join(["%d" % u for u in users])))
+        if len(users) > 0:
+            self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
 
     def CreateTargetCandidatesViews(self):
-        for v in []:
-            con.query("drop view if exists %s" % v)
-        con.query("create view candidates_joined_view as "
-                  "select tc.bot_id, tc.id as uid, tc.processed, "
-                  "       users.screen_name, users.num_followers, users.num_friends, users.language, "
-                  "       tf.ts, tf.num_hashtags, tf.num_media, tf.num_users_mentions, tf.is_retweet, tf.language as tweet_language "                  
-                  "from target_candidates tc join users join tweets_storage tf "
-                  "on tc.id = users.id and users.id = tf.user_id "
-                  "where processed is not null ")
-        con.query("create view candidates_joined_filtered_view as "
-                  "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts "
-                  "and num_users_mentions = 0 and num_media = 0 and num_hashtags <= 2 "
-                  "where not is_retweet and ts > processed - interval 7 day "
-                  "and num_followers <= 5000 and num_friends <= 5000 and num_followers >= 100 and num_friends >= 100 "
-                  "and language like 'en%' and tweet_language like 'en%' ")
-        con.query("create view candidates_filtered_view as " 
-                  "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count, timestampdiff(minute, processed, min(ts)) as tweets_per_minute  "
-                  "from candidates_joined_filtered_view ")
+        for v in ["candidates_joined_filtered_view","candidates_joined_view"]:
+            self.con.query("drop view if exists %s" % v)
+        self.con.query("create view candidates_joined_view as "
+                       "select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, "
+                       "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_user_mentions, ts.language as tweet_language, ts.is_retweet, ts.ts, "
+                       "       tc.bot_id, tc.processed "
+                       "from tweets_storage ts join users join target_candidates tc "
+                       "on ts.user_id = users.id and users.id = tc.id "
+                       "where ts.user_id in (select sql_small_result id from target_candidates where processed is not null)")
+        self.con.query("create view candidates_joined_filtered_view as "
+                       "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts "
+                       "from candidates_joined_view " 
+                       "where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 "
+                       "and not is_retweet and ts > processed - interval 7 day "
+                       "and num_followers <= 5000 and num_friends <= 5000 and num_followers >= 100 and num_friends >= 100 "
+                       "and language like 'en%' and tweet_language like 'en%' ")
+#        con.query("create view candidates_filtered_view as " 
+#                  "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count, timestampdiff(minute, processed, min(ts)) as tweets_per_minute  "
+#                  "from candidates_joined_filtered_view ")
         
     def Act(self):
         self.ProcessFollowerCursors()

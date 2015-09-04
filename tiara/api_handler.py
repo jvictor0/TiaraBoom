@@ -6,6 +6,7 @@ from util import *
 class ApiHandler():
     def __init__(self, g_data, authentication):
         self.g_data = g_data
+        self.last_call_rate_limit_remaining = 0 
         self.api = twitter.Api(consumer_key=authentication["consumer_key"],
                                consumer_secret=authentication["consumer_secret"], 
                                access_token_key=authentication["access_token_key"], 
@@ -189,9 +190,10 @@ class ApiHandler():
     def ApiCallInternal(self, url, data, request="GET"):
         url = "%s/%s" % (self.api.base_url, url)
         json_data = self.api._RequestUrl(url, request, data=data)
-        self.g_data.TraceDebug("rate limit remaining = %s" % json_data.headers["x-rate-limit-remaining"])
-        self.last_call_rate_limit_remaining =  int(json_data.headers["x-rate-limit-remaining"])
-        assert int(json_data.headers["x-rate-limit-remaining"]) > 0, "lets just not cause ourselves problems"
+        if 'x-rate-limit-remaining' in json_data.headers:
+            self.g_data.TraceDebug("rate limit remaining = %s" % json_data.headers["x-rate-limit-remaining"])
+            self.last_call_rate_limit_remaining =  int(json_data.headers["x-rate-limit-remaining"])            
+            assert int(json_data.headers["x-rate-limit-remaining"]) > 0, "lets just not cause ourselves problems"
         data = self.api._ParseAndCheckTwitter(json_data.content)
         return data
         
