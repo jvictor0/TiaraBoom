@@ -162,3 +162,8 @@ def OlderThan(ts,days):
 
 def Decay(x):
     return max(0,3 - 0.5**(x-2))
+
+def Int(x):
+    if x is None:
+        return None
+    return int(x)

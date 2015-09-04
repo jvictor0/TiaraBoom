@@ -8,6 +8,8 @@ import datetime
 import os
 import math
 
+import union_find 
+
 from twitter.status import Status
 from twitter.user import User
 
@@ -144,8 +146,24 @@ class DataManager:
                         "num_user_mentions as ifnull(json_length(json::user_mentions),0) persisted bigint, "
                         "is_retweet as not isnull(json::retweeted_status) persisted boolean, "
                         "language as json::$lang persisted varbinary(200), "
+                        "conversation_id bigint default null,"
                         "shard key(user_id, id),"
                         "index(user_id, id) using clustered columnar)"))
+
+        self.con.query(("create view if not exists tweets_joined as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.json, ts.ts "
+                        "from tweets_storage ts join tweets "
+                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+        self.con.query(("create view if not exists tweets_straight_joined_no_json as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.ts "
+                        "from tweets straight_join tweets_storage ts "
+                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+        self.con.query(("create view if not exists tweets_straight_joined_no_json as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.ts, '{}' as json"
+                        "from tweets_straight_joined"))
+        self.con.query(("create view if not exists tweets_joined_no_json as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.ts, '{}' as json"
+                        "from tweets_joined"))
 
         self.con.query(("create table if not exists ungettable_tweets("
                         "id bigint primary key,"
@@ -357,7 +375,8 @@ class DataManager:
         values = [str(sid), parent, str(uid), parent_id,
                   "%s",
                   timestamp.encode("utf8"),
-                  "%s"]
+                  "%s",
+                  "null"]
         values = " , ".join(values)
         values = "(%s)" % (values)
         jsdict = s.AsDict()
@@ -378,7 +397,7 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d,%s) "
+            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d,%d) "
                                       "on duplicate key update "
                                       "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes, parent))
             assert inserted in [0,1,2], (inserted, sid)
@@ -407,12 +426,12 @@ class DataManager:
     def Lookup(self, tid, uid=None):
         assert not uid is None, uid
         if tid is not None:
-            res = self.con.query("select t.id, t.user_id, t.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
+            res = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
                                  "from tweets_storage ts join tweets t "
                                  "on ts.user_id = t.user_id and ts.id = t.id "
                                  "where ts.id = %d and ts.user_id = %d" % (tid, uid))
         else:
-            res = self.con.query("select t.id, t.user_id, t.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
+            res = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
                                  "from tweets_storage ts join tweets t "
                                  "on ts.user_id = t.user_id and ts.id = t.id "
                                  "where ts.user_id = %d" % (uid))
@@ -478,7 +497,7 @@ class DataManager:
     def LookupStatusesFromUsers(self, uids=None, skip_rts=False, filters = [], json = True):
         jscol = "ts.json" if json else "json_set_string('{}','lang',ts.language) as json"
         filters = "".join([" and " + f for f in filters])
-        rows = self.con.query("select t.id, t.user_id, t.parent, ts.parent_id, ts.body, %s, ts.ts, t.retweets, t.favorites "
+        rows = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, %s, ts.ts, t.retweets, t.favorites "
                               "from tweets_storage ts join tweets t "
                               "on ts.user_id = t.user_id and ts.id = t.id "
                               "where ts.user_id in (%s)%s" % (jscol, ",".join(["%d"%u for u in uids]), filters))
@@ -554,7 +573,7 @@ class DataManager:
         if len(tids) == 0:
             return []
         assert len(uids) > 0, uid
-        q = ("select t.id, ts.parent_id, t.parent, t.user_id, '' as body, '0000-00-00 00:00:00' as ts, '{}' as json, t.retweets, t.favorites "
+        q = ("select t.id, ts.parent_id, ts.parent, t.user_id, '' as body, '0000-00-00 00:00:00' as ts, '{}' as json, t.retweets, t.favorites "
              "from tweets_storage ts join tweets t "
              "on ts.user_id = t.user_id and ts.id = t.id "
              "where ts.id in (%s) and ts.user_id in (%s)" % (",".join(tids),",".join(uids)))
@@ -571,36 +590,153 @@ class DataManager:
             result.append((left,right))
         return result
 
-    def EntireConversation(self, tweet, considered = set([])):
-        result = []
-        while not tweet is None:
-            if tweet[0] in considered:
-                break
-            result.append(tweet)
-            considered.add(tweet[0])
-            q = ("select id, user_id, parent from tweets "
-                 "where parent = %d" % tweet[1])
-            statuses = [(int(s["id"]),int(s["user_id"]),s["parent"]) for s in self.con.query(q)]
-            for s in statuses:
-                result.extend(self.EntireConversation(s, considered))
-            if not tweet[2] is None:
-                t = self.con.query("select id, user_id, parent from tweets where id = %s" % tweet[2])[0]
-                tweet = (int(t["id"]), int(t["user_id"]), t["parent"])
+    def InitializeConversation(self, uid, tid, parent_uid=None, parent_tid=None):
+        if parent_uid is None:            
+            cid = tid
+        else:
+            row = self.con.query("select id, user_id, parent, parent_id, conversation_id from tweets_storage where user_id = %d and id = %d" % (parent_uid, parent_tid))
+            assert len(rows) <= 1            
+            if len(rows) == 0:
+                s = None
+                if len(self.con.query("select * from ungettable_tweets where id = %s" % parent_tid)) == 0:
+                    s = self.ApiHandler().ShowStatus(parent_tid, cache=False)
+                    assert s is not None or len(self.con.query("select * from ungettable_tweets where id = %s" % parent_id)) > 0, (parent_uid, parent_tid)
+                    if s is not None:
+                        row = [{"conversation_id" : None, "id" : s.GetId(), "user_id" : s.GetUser().GetId(), "parent_id" : s.GetInReplyTouserId(), "parent" : s.GetInReplyToStatusId() }]
+                if s is None:
+                    row = [{"conversation_id" : tid}]
+            if row[0]['conversation_id'] is None:
+                cid = self.InitializeConversation(int(row[0]["user_id"]), int(row[0]["id"]), Int(row[0]["parent_id"]), Int(row[0]["parent"]))
             else:
-                break
-        return result
+                cid = int(row[0]['conversation_id'])
+        self.con.query("update tweets_storage set conversation_id = %d where user_id = %d and id = %d" % (cid, uid, tid)) 
+        return cid
 
+    def UpdateConversationIds(self):
+        self.Begin()
+        self.con.print_queries = True
+        try:
+            # find all replies involving the beloved bot, apply union find locally, update all changed rows
+            q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where parent_id is not null and (parent_id = %d or user_id = %d)" % (self.GetUserId(), self.GetUserId())
+            rows = {int(r["id"]) : (int(r["user_id"]), int(r["conversation_id"]), int(r["parent"]), int(r["parent_id"])) for r in self.TimedQuery(q, "UpdateConversationIds initial fetch")}
+            while True:
+                top_tids = set([])
+                top_uids = set([])
+                for k,v in rows.iteritems():
+                    if v[2] not in rows:
+                        top_tids.add(v[2])
+                        top_uids.add(v[3])
+                        rows[v[2]] = (v[3], v[2], None, None) # so that we cannot add this again even if we dont find it in the database
+                q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where user_id in (%s) and id in (%d)" 
+                q = q % (",".join(["%d" % v for v in top_uids]), ",".join(["%d" % v for v in top_tids]))
+                new_rows = self.con.query(q)
+                if len(new_rows) == 0:
+                    break
+                for r in new_rows:
+                    rows[int(r["id"])] = (int(r["user_id"]), int(r["conversation_id"]), int(r["parent"]), int(r["parent_id"]))
+            uf = { k : (v[1] if v[1] is not None else v[2]) for k,v in rows.iteritems() }
+            uf = union_find.UnionFind(uf)
+            for cid,ss in uf.iteritems():
+                updatable = [s for s in ss if rows[s][1] != cid]
+                uids = ",".join(list(set([str(rows[s][0]) for s in updatable])))
+                tids = ",".join([str(s) for s in updatable])
+                if len(updatable) != 0:                
+                    self.g_data.TraceInfo("UpdateConversationIds: updating %d conversations to id %d" % (len(updatable), cid))
+                    self.con.query("update tweets_storage set conversation_id = %d where user_id in (%s) and id in (%s)" % (cid, uids, tids))
+            
+            # find all non root conversation_id's, recursively find root, update descendants
+            q = ("select id, user_id, parent_id, parent, "
+                 "from tweets_storage "
+                 "where conversation_id = id and parent is not null ")
+            rows = self.con.query(q)
+            assert len(rows) == 0, rows
+            if len(rows) > 0:
+                self.g_data.TraceInfo("UpdateConversationids: updating %d non root conversation_ids" % len(rows))
+            for r in rows:
+                cid = self.InitializeConversation(int(r["user_id"]), int(r["id"]), int(r["parent_id"]), int(r["parent"]))
+                assert cid < int(r["id"]), cid
+                if cid != int(r["id"]):
+                    self.con.query("update tweets_storage set conversation_id = %d where conversation_id = %s" % (cid, r["id"]))
+    
+            # join tweets_storage to itself and find inconsistencies.  Should never never have rows
+            while True:
+                q = ("select rep.id, rep.user_id, rep.parent_id, rep.parent, orig.parent, orig.parent_id, rep.conversation_id, orig.conversation_id "
+                     "from tweets_storage rep join tweets_storage orig "
+                     "on rep.parent_id = orig.user_id and rep.parent = orig.id and (orig.conversation_id is null or rep.conversation_id != orig.conversation_id) "
+                     "where rep.conversation_id is not null ")
+                rows = self.TimedQuery(q, "UpdateConversationIds second fetch")
+                if len(rows) == 0:
+                    break
+                assert False
+                self.g_data.TraceWarn("UpdateConversationIds: found %d INCONSISTENT rows", len(rows))
+                for r in rows:
+                    pass # TODO
+            self.Commt()
+        except Exception as e:
+            self.Rollback()
+            raise e
+
+        
+    # Int -> [[Status]]
+    # A "Conversation" is a list of statuses, sorted by timestamp, having a common reply anscestor.
+    # This shitty code returns the most recent largest known Conversations involving current bot.
+    # The `limit` parameter is a lower bound on the total number of tweets.  Yes: that is weird UX, but convinient to implement.  
+    # This function will probably be triggered by http, so it really should be sub-second.   
+    #
+    # Code could be simplified using either 
+    #     1) rowgnar->columnstore merge join (honeypie)
+    #     2) a special rowstore table for conversations involving my beloved bots
+    #     3) rewriting to return all conversations after a specified datetime.  I might get faster convergence at the expense of having to do big stupid scans.
+    #
+    # Yes, I have an inlined UnionFind.  Wanna make something of it?  punk...
+    # 
     def RecentConversations(self, limit):
         user_id = self.GetUserId()
-        q = "select id, user_id, parent from tweets_storage where parent_id = %s order by id desc limit %d" % (user_id, limit)
-        statuses = [(int(s["id"]),int(s["user_id"]),s["parent"]) for s in self.con.query(q)]
-        considered = set([])
-        result = []
-        for s in statuses:
-            nx = self.EntireConversation(s, considered)
-            if len(nx) != 0:
-                result.append(nx)
-        return result               
+        q = "select * from tweets_joined_no_json where parent_id = %s order by id desc limit %d" % (user_id, limit)
+        rows = self.con.query(q)
+        statuses = set([int(s["id"]) for s in rows])
+        parents = set([int(s["parent"]) for s in rows])
+        parent_ids = set([int(s["parent_id"]) for s in rows])
+        new_statuses = statuses
+        while True:
+            new_rows1 = self.con.query("select * from tweets_joined_no_json where user_id in (%s) and id in (%s)" 
+                                       % (",".join(["%d" % s for s in parent_ids]),",".join(["%d" % s for s in parents])))
+            new_rows2 = self.con.query("select * from tweets_straight_joined_no_json where parent in (%s) and id not in (%s)" % 
+                                       (",".join(["%d" % s for s in new_statuses]), 
+                                        ",".join(["%d" % s for s in statuses] + [r["id"] for r in new_rows1]))) #insanely slow if new_statuses \ statuses gets big
+            new_statuses = set([int(s["id"]) for s in new_rows1 + new_rows2 if s not in statuses])
+            parents      = set([int(s["parent"]) for s in new_rows1 + new_rows2 if s not in statuses])
+            parent_ids   = set([int(s["parent_id"]) for s in new_rows1 + new_rows2 if s not in statuses])
+            found_new = False
+            for r in new_rows1 + new_rows2:
+                if int(r["id"]) not in statuses:
+                    found_new = True
+                    rows.add(r)
+                    statuses.add(int(r["id"]))
+            if not found_new:
+                break
+        uf = {int(r["id"]): int(r["id"]) if r["parent"] is None else int(r["parent"]) for r in rows}
+        rows = { int(r["id"]) : r for r in rows }
+        def Find(k):
+            if k not in uf:
+                return None
+            v = uf[k]
+            if v == k:
+                return v
+            result = Find(v)
+            uf[k] = result
+            return result
+        results = {}
+        users = {}
+        for k in uf.keys():
+            v = Find(k)
+            if v not in results and v is not None:
+                results[v] = []
+            row = rows[k]
+            if int(row["user_id"]) not in users:
+                users[int(row["user_id"])] = self.LookupUser(int(row["user_id"]))
+            results[v].append(self.RowToStatus(row, users[int(row["user_id"])]))
+        return sorted([sorted(ss, key=lambda s:s.GetId()) for k,ss in results.iteritems()], key=lambda l: -l[0].GetId())
 
     def GetUserId(self):
         if self.user_id is None:
