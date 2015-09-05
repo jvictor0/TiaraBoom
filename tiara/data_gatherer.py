@@ -394,7 +394,7 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d,%d) "
+            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d,%s) "
                                       "on duplicate key update "
                                       "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes, parent))
             assert inserted in [0,1,2], (inserted, sid)
@@ -513,7 +513,7 @@ class DataManager:
         if len(row) == 0:
             return None
         assert len(row) == 1
-        return self.RowToUser(row, days_old, ignore_following_status)
+        return self.RowToUser(row[0], days_old, ignore_following_status)
 
     def LookupUsers(self, uids, days_old=None, ignore_following_status=False):
         uidstr = ",".join([str(u) for u in set(uids)])
@@ -538,10 +538,10 @@ class DataManager:
         user.SetFollowersCount(int(row["num_followers"]))
         user.SetFriendsCount(int(row["num_friends"]))
         user.SetLang(row["language"])
-        if not days_old is None:
-            q = q + " and updated > timestampadd(day, -%d, now())" % days_old
         if not ignore_following_status:
             q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,user.GetId())
+            if not days_old is None:
+                q = q + " and updated > timestampadd(day, -%d, now())" % days_old
             row = self.con.query(q)
             if len(row) == 0:
                 return None
