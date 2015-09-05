@@ -10,13 +10,7 @@ class NewsFeedGenerator(object):
 
     # returns a list of lists of tweets, representing recent conversations between bots and the outside world
     def GetConversations(self):
-        convos = []
-        for b in self.bots:
-            convos.extend(dg.MakeFakeDataMgr(b).RecentConversations(100))
-        for c in convos:
-            c.sort(key = lambda b: b.GetId())
-        convos.sort(key = lambda c: -c[-1].GetId())
-        return convos
+        return dg.MakeFakeDataMgr("").RecentConversations(100)
 
     def FormatTweet(self, tweet):
         fmt = ("<blockquote><a href=\"%s\" target=\"_blank\">"

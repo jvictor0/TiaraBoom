@@ -157,7 +157,7 @@ class DataManager:
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view tweets_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json, ts.conversation_id "
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
 
@@ -505,7 +505,7 @@ class DataManager:
                        for r in rows 
                        if not users[int(r["user_id"])] is None])
 
-    def LookupUser(self, uid, days_old = None):
+    def LookupUser(self, uid, days_old = None, ignore_following_status=False):
         q = "select * from users where id = %d" % uid
         if not days_old is None:
             q = q + " and updated > timestampadd(day, -%d, now())" % days_old
@@ -526,10 +526,11 @@ class DataManager:
         q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,uid)
         if not days_old is None:
             q = q + " and updated > timestampadd(day, -%d, now())" % days_old
-        row = self.con.query(q)
-        if len(row) == 0:
-            return None
-        user.following = True if row[0]["following"] == "1" else False
+        if ignore_following_status:
+            row = self.con.query(q)
+            if len(row) == 0:
+                return None
+            user.following = True if row[0]["following"] == "1" else False
         return user
 
     def EverFollowed(self, uid):
@@ -688,65 +689,30 @@ class DataManager:
 
         
     # Int -> [[Status]]
-    # A "Conversation" is a list of statuses, sorted by timestamp, having a common reply anscestor.
-    # This shitty code returns the most recent largest known Conversations involving current bot.
-    # The `limit` parameter is a lower bound on the total number of tweets.  Yes: that is weird UX, but convinient to implement.  
-    # This function will probably be triggered by http, so it really should be sub-second.   
-    #
-    # Code could be simplified using either 
-    #     1) rowgnar->columnstore merge join (honeypie)
-    #     2) a special rowstore table for conversations involving my beloved bots
-    #     3) rewriting to return all conversations after a specified datetime.  I might get faster convergence at the expense of having to do big stupid scans.
-    #
-    # Yes, I have an inlined UnionFind.  Wanna make something of it?  punk...
-    # 
     def RecentConversations(self, limit):
-        user_id = self.GetUserId()
-        q = "select * from tweets_joined_no_json where parent_id = %s order by id desc limit %d" % (user_id, limit)
+        q = ("select * from tweets_joined_no_json "
+             "where conversation_id in "
+             "   (select sql_small_result conversation_id from tweets_storage group by 1 having count(*) > 2 limit %d) "
+             "order by -conversation_id, id ")
+        q = q % limit
         rows = self.con.query(q)
-        statuses = set([int(s["id"]) for s in rows])
-        parents = set([int(s["parent"]) for s in rows])
-        parent_ids = set([int(s["parent_id"]) for s in rows])
-        new_statuses = statuses
-        while True:
-            new_rows1 = self.con.query("select * from tweets_joined_no_json where user_id in (%s) and id in (%s)" 
-                                       % (",".join(["%d" % s for s in parent_ids]),",".join(["%d" % s for s in parents])))
-            new_rows2 = self.con.query("select * from tweets_straight_joined_no_json where parent in (%s) and id not in (%s)" % 
-                                       (",".join(["%d" % s for s in new_statuses]), 
-                                        ",".join(["%d" % s for s in statuses] + [r["id"] for r in new_rows1]))) #insanely slow if new_statuses \ statuses gets big
-            new_statuses = set([int(s["id"]) for s in new_rows1 + new_rows2 if s not in statuses])
-            parents      = set([int(s["parent"]) for s in new_rows1 + new_rows2 if s not in statuses])
-            parent_ids   = set([int(s["parent_id"]) for s in new_rows1 + new_rows2 if s not in statuses])
-            found_new = False
-            for r in new_rows1 + new_rows2:
-                if int(r["id"]) not in statuses:
-                    found_new = True
-                    rows.add(r)
-                    statuses.add(int(r["id"]))
-            if not found_new:
-                break
-        uf = {int(r["id"]): int(r["id"]) if r["parent"] is None else int(r["parent"]) for r in rows}
-        rows = { int(r["id"]) : r for r in rows }
-        def Find(k):
-            if k not in uf:
-                return None
-            v = uf[k]
-            if v == k:
-                return v
-            result = Find(v)
-            uf[k] = result
-            return result
-        results = {}
         users = {}
-        for k in uf.keys():
-            v = Find(k)
-            if v not in results and v is not None:
-                results[v] = []
-            row = rows[k]
-            if int(row["user_id"]) not in users:
-                users[int(row["user_id"])] = self.LookupUser(int(row["user_id"]))
-            results[v].append(self.RowToStatus(row, users[int(row["user_id"])]))
-        return sorted([sorted(ss, key=lambda s:s.GetId()) for k,ss in results.iteritems()], key=lambda l: -l[0].GetId())
+        for r in rows:
+            if int(r["user_id"]) not in users:
+                users[int(r["user_id"])] = self.LookupUser(int(r["user_id"]), ignore_following_status=True)
+                if users[int(r["user_id"])] is None:
+                    users[int(r["user_id"])] = User()
+                    users[int(r["user_id"])].SetScreenName("??")
+        result = []
+        conversation_id = ""
+        for r in rows:
+            status = self.RowToStatus(r, users[int(r["user_id"])])
+            if r["conversation_id"] != conversation_id:
+                result.append([])
+                conversation_id = r["conversation_id"]
+            result[-1].append(status)
+        return result
+
 
     def GetUserId(self, screen_name = None):
         if screen_name is None:
