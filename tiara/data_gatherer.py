@@ -150,20 +150,16 @@ class DataManager:
                         "shard key(user_id, id),"
                         "index(user_id, id) using clustered columnar)"))
 
-        self.con.query(("create view if not exists tweets_joined as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.json, ts.ts "
+        self.con.query("drop view if exists tweets_joined_no_json")
+        self.con.query("drop view if exists tweets_joined")
+        self.con.query(("create view tweets_joined as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-        self.con.query(("create view if not exists tweets_straight_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.ts "
-                        "from tweets straight_join tweets_storage ts "
+        self.con.query(("create view tweets_joined_no_json as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
+                        "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-        self.con.query(("create view if not exists tweets_straight_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.ts, '{}' as json"
-                        "from tweets_straight_joined"))
-        self.con.query(("create view if not exists tweets_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.num_favorites, tweets.num_retweets, ts.body, ts.ts, '{}' as json"
-                        "from tweets_joined"))
 
         self.con.query(("create table if not exists ungettable_tweets("
                         "id bigint primary key,"
@@ -618,36 +614,46 @@ class DataManager:
 
     def UpdateConversationIds(self):
         self.Begin()
-        self.con.print_queries = True
         try:
             # find all replies involving the beloved bot, apply union find locally, update all changed rows
             q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where parent_id is not null and (parent_id = %d or user_id = %d)" % (self.GetUserId(), self.GetUserId())
-            rows = {int(r["id"]) : (int(r["user_id"]), int(r["conversation_id"]), int(r["parent"]), int(r["parent_id"])) for r in self.TimedQuery(q, "UpdateConversationIds initial fetch")}
+            rows = {int(r["id"]) : (int(r["user_id"]), Int(r["conversation_id"]), int(r["parent"]), int(r["parent_id"])) for r in self.TimedQuery(q, "UpdateConversationIds initial fetch")}
             while True:
-                top_tids = set([])
-                top_uids = set([])
+                print "loop"
+                top_tids = []
+                top_uids = []
                 for k,v in rows.iteritems():
-                    if v[2] not in rows:
-                        top_tids.add(v[2])
-                        top_uids.add(v[3])
-                        rows[v[2]] = (v[3], v[2], None, None) # so that we cannot add this again even if we dont find it in the database
-                q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where user_id in (%s) and id in (%d)" 
-                q = q % (",".join(["%d" % v for v in top_uids]), ",".join(["%d" % v for v in top_tids]))
+                    if v[2] is not None and v[2] not in rows:
+                        top_tids.append(v[2])
+                        top_uids.append(v[3])
+                for v,u in zip(top_tids,top_uids):
+                    rows[v] = (u, v, None, None) # so that we cannot add this again even if we dont find it in the database
+                if len(top_tids) == 0:
+                    break
+                q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where user_id in (%s) and id in (%s)" 
+                print "here"
+                q = q % (",".join(["%d" % v for v in set(top_uids)]), ",".join(["%d" % v for v in set(top_tids)]))
+                print "there"
                 new_rows = self.con.query(q)
+                self.g_data.TraceInfo("UpdateConversationIds: %d terminal ids produced %d new tweets" % (len(top_tids), len(new_rows)))
                 if len(new_rows) == 0:
                     break
                 for r in new_rows:
-                    rows[int(r["id"])] = (int(r["user_id"]), int(r["conversation_id"]), int(r["parent"]), int(r["parent_id"]))
-            uf = { k : (v[1] if v[1] is not None else v[2]) for k,v in rows.iteritems() }
+                    rows[int(r["id"])] = (int(r["user_id"]), Int(r["conversation_id"]), Int(r["parent"]), Int(r["parent_id"]))
+            print "uf"
+            uf = { k : (v[1] if v[1] is not None else (v[2] if v[2] is not None else k)) for k,v in rows.iteritems() }
             uf = union_find.UnionFind(uf)
-            for cid,ss in uf.iteritems():
+            print "atm"
+            print len(uf)
+            for cid, ss in uf.iteritems():
                 updatable = [s for s in ss if rows[s][1] != cid]
                 uids = ",".join(list(set([str(rows[s][0]) for s in updatable])))
                 tids = ",".join([str(s) for s in updatable])
                 if len(updatable) != 0:                
                     self.g_data.TraceInfo("UpdateConversationIds: updating %d conversations to id %d" % (len(updatable), cid))
                     self.con.query("update tweets_storage set conversation_id = %d where user_id in (%s) and id in (%s)" % (cid, uids, tids))
-            
+            self.Commit()
+            return
             # find all non root conversation_id's, recursively find root, update descendants
             q = ("select id, user_id, parent_id, parent, "
                  "from tweets_storage "
@@ -675,7 +681,7 @@ class DataManager:
                 self.g_data.TraceWarn("UpdateConversationIds: found %d INCONSISTENT rows", len(rows))
                 for r in rows:
                     pass # TODO
-            self.Commt()
+            self.Commit()
         except Exception as e:
             self.Rollback()
             raise e
