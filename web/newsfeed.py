@@ -1,7 +1,7 @@
 import tiara.data_gatherer as dg
 from tiara.util import GetURL
 import re, os, json
-
+reload(dg)
 
 class NewsFeedGenerator(object):
     def __init__(self, bots, database):
@@ -23,7 +23,7 @@ class NewsFeedGenerator(object):
         return fmt % self.FormatTweetText(tweet)
 
     def FormatTweetText(self, tweet):
-        result = tweet.GetText().encode("utf8")
+        result = tweet.GetText()
         result = re.sub(r'#([0-9A-Za-z_]*)',
                         r'<a href="https://twitter.com/hashtag/\1" target="_blank">&#35;\1</a>',
                         result)

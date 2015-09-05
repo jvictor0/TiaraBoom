@@ -513,20 +513,35 @@ class DataManager:
         if len(row) == 0:
             return None
         assert len(row) == 1
-        if row[0]["num_followers"] is None:
-            return None
-        if row[0]["language"] is None:
-            return None
-        user = User()
-        user.SetScreenName(row[0]["screen_name"])
-        user.SetId(uid)
-        user.SetFollowersCount(int(row[0]["num_followers"]))
-        user.SetFriendsCount(int(row[0]["num_friends"]))
-        user.SetLang(row[0]["language"])
-        q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,uid)
+        return self.RowToUser(row, days_old, ignore_following_status)
+
+    def LookupUsers(self, uids, days_old=None, ignore_following_status=False):
+        uidstr = ",".join([str(u) for u in set(uids)])
+        q = "select * from users where id in (%s)" % uidstr
         if not days_old is None:
             q = q + " and updated > timestampadd(day, -%d, now())" % days_old
-        if ignore_following_status:
+        rows = self.con.query(q)
+        users = {int(row["id"]) : self.RowToUser(row, days_old, ignore_following_status) for row in rows}
+        for u in uids:
+            if int(u) not in users:
+                users[int(u)] = None
+        return users
+        
+    def RowToUser(self, row, days_old=None, ignore_following_status=False):        
+        if row["num_followers"] is None:
+            return None
+        if row["language"] is None:
+            return None
+        user = User()
+        user.SetScreenName(row["screen_name"])
+        user.SetId(int(row["id"]))
+        user.SetFollowersCount(int(row["num_followers"]))
+        user.SetFriendsCount(int(row["num_friends"]))
+        user.SetLang(row["language"])
+        if not days_old is None:
+            q = q + " and updated > timestampadd(day, -%d, now())" % days_old
+        if not ignore_following_status:
+            q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,user.GetId())
             row = self.con.query(q)
             if len(row) == 0:
                 return None
@@ -692,17 +707,13 @@ class DataManager:
     def RecentConversations(self, limit):
         q = ("select * from tweets_joined_no_json "
              "where conversation_id in "
-             "   (select sql_small_result conversation_id from tweets_storage group by 1 having count(*) > 2 limit %d) "
+             "   (select sql_small_result conversation_id from tweets_storage group by 1 having count(*) > 2 order by 1 desc limit %d) "
              "order by -conversation_id, id ")
         q = q % limit
+        t0 = time.time()
         rows = self.con.query(q)
-        users = {}
-        for r in rows:
-            if int(r["user_id"]) not in users:
-                users[int(r["user_id"])] = self.LookupUser(int(r["user_id"]), ignore_following_status=True)
-                if users[int(r["user_id"])] is None:
-                    users[int(r["user_id"])] = User()
-                    users[int(r["user_id"])].SetScreenName("??")
+        t0 = time.time()
+        users = self.LookupUsers([r["user_id"] for r in rows], ignore_following_status=True)        
         result = []
         conversation_id = ""
         for r in rows:
