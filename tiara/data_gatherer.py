@@ -179,7 +179,7 @@ class DataManager:
                         "from bot_tweets ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view tweets_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json, ts.conversation_id "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
 
@@ -806,13 +806,16 @@ class DataManager:
                   "tfidf_norm_view","tfidf_user_norm_view",
                   "tfidf_view", 
                   "tfidf_view_internal", 
-                  "num_docs_view","max_df_view"]:
+                  "num_docs_view","max_df_view",
+                  "user_document_frequency_colnar"]:
             self.con.query("drop view if exists %s" % v)
 
     def MakeTFIDFViews(self):
         self.DropTFIDFViews()
         self.con.query("create view num_docs_view as "
                        "select count(distinct user_id) as val from user_token_frequency")
+        self.con.query("create view user_document_frequency_colnar as "
+                       "select token, count(*) as count from user_token_frequency_colnar group by 1")
         self.con.query("create view max_df_view as "
                        "select max(count) as val from user_document_frequency")
 
@@ -857,13 +860,6 @@ class DataManager:
                        "select u1.screen_name u1, u2.screen_name u2, ti.token, f.dist, f.df, f.u1_tf, f.u1_tfidf, f.u2_tf, f.u2_tfidf "
                        "from tfidf_important_word_view_internal f join users u1 join users u2 join token_id ti "
                        "on f.u1 = u1.id and f.u2 = u2.id and f.token = ti.id")
-        self.con.query("create view tfidf_bot_distance_view as "
-                       "select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
-                       "from artrat_tfidf t1 right join tfidf_view_internal t2 "
-                       "on t1.token = t2.token "
-                       "group by t2.user_id "
-                       "having count(t1.token) > 0")
-
 
 
     def UpdateArtRatTFIDF(self):
