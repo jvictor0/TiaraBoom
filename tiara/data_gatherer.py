@@ -61,6 +61,7 @@ class DataManager:
         self.user_id = None
         self.horde = {}
         self.hordeUpserts = {}
+        self.needsUpdateBotTweets = False
         self.xact = False
         self.timedQueryLimit = 1.0
         if no_ddl:
@@ -85,13 +86,17 @@ class DataManager:
                 q = "insert into %s values %s" % (k,",".join(val))
                 if k in self.hordeUpserts:
                     q = q + " on duplicate key update " + self.hordeUpserts[k]
-                self.con.query(q)            
-            self.con.query("commit")
+                self.con.query(q)   
+            if self.needsUpdateBotTweets:
+                self.UpdateConversationIds()
+            self.con.query("commit")            
             self.horde = {}
             self.hordeUpserts = {}
+            self.needsUpdateBotTweets = False
         except Exception as e:
             self.horde = {}
             self.hordeUpserts = {}
+            self.needsUpdateBotTweets = False
             self.con.query("rollback")
             raise e
 
@@ -99,6 +104,7 @@ class DataManager:
         assert self.xact
         self.xact = False        
         self.horde = {}
+        self.needsUpdateBotTweets = False
         self.hordeUpserts = {}
         self.con.query("rollback")
     
@@ -146,15 +152,31 @@ class DataManager:
                         "num_user_mentions as ifnull(json_length(json::user_mentions),0) persisted bigint, "
                         "is_retweet as not isnull(json::retweeted_status) persisted boolean, "
                         "language as json::$lang persisted varbinary(200), "
-                        "conversation_id bigint default null,"
                         "shard key(user_id, id),"
                         "index(user_id, id) using clustered columnar)"))
+        self.con.query(("create table bot_tweets ("
+                        "id bigint not null,"
+                        "parent bigint default null,"                        
+                        "user_id bigint not null,"                        
+                        "parent_id bigint default null,"                        
+                        "body blob, "                        
+                        "ts datetime not null,"
+                        "json json ,"
+                        "conversation_id bigint not null, "
+                        "key (conversation_id), "
+                        "key (parent_id,parent), "
+                        "primary key(user_id, id))"))
 
         self.con.query("drop view if exists tweets_joined_no_json")
         self.con.query("drop view if exists tweets_joined")
+        self.con.query("drop view if exists bot_tweets_joined")
         self.con.query(("create view tweets_joined as "
                         "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
                         "from tweets_storage ts join tweets "
+                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+        self.con.query(("create view bot_tweets_joined as "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
+                        "from bot_tweets ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view tweets_joined_no_json as "
                         "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json, ts.conversation_id "
@@ -372,8 +394,7 @@ class DataManager:
         values = [str(sid), parent, str(uid), parent_id,
                   "%s",
                   timestamp.encode("utf8"),
-                  "%s",
-                  "null"]
+                  "%s"]
         values = " , ".join(values)
         values = "(%s)" % (values)
         jsdict = s.AsDict()
@@ -399,6 +420,8 @@ class DataManager:
                                       "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes, parent))
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
+                if s.GetUser().GetId() in self.GetBotIds() or s.GetInReplyToUserId() in self.GetBotIds():
+                    self.needsUpdateBotTweets = True
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
                 self.InsertTweetTokens(s.GetUser().GetId(), s.GetText(), single_xact=False)
             if insert_user:
@@ -628,91 +651,98 @@ class DataManager:
         self.con.query("update tweets_storage set conversation_id = %d where user_id = %d and id = %d" % (cid, uid, tid)) 
         return cid
 
-    def UpdateConversationIds(self):
-        self.Begin()
-        try:
-            # find all replies involving the beloved bot, apply union find locally, update all changed rows
-            q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where parent_id is not null and (parent_id = %d or user_id = %d)" % (self.GetUserId(), self.GetUserId())
-            rows = {int(r["id"]) : (int(r["user_id"]), Int(r["conversation_id"]), int(r["parent"]), int(r["parent_id"])) for r in self.TimedQuery(q, "UpdateConversationIds initial fetch")}
-            while True:
-                print "loop"
-                top_tids = []
-                top_uids = []
-                for k,v in rows.iteritems():
-                    if v[2] is not None and v[2] not in rows:
-                        top_tids.append(v[2])
-                        top_uids.append(v[3])
-                for v,u in zip(top_tids,top_uids):
-                    rows[v] = (u, v, None, None) # so that we cannot add this again even if we dont find it in the database
-                if len(top_tids) == 0:
-                    break
-                q = "select id, user_id, parent, parent_id, conversation_id from tweets_storage where user_id in (%s) and id in (%s)" 
-                print "here"
-                q = q % (",".join(["%d" % v for v in set(top_uids)]), ",".join(["%d" % v for v in set(top_tids)]))
-                print "there"
-                new_rows = self.con.query(q)
-                self.g_data.TraceInfo("UpdateConversationIds: %d terminal ids produced %d new tweets" % (len(top_tids), len(new_rows)))
-                if len(new_rows) == 0:
-                    break
-                for r in new_rows:
-                    rows[int(r["id"])] = (int(r["user_id"]), Int(r["conversation_id"]), Int(r["parent"]), Int(r["parent_id"]))
-            print "uf"
-            uf = { k : (v[1] if v[1] is not None else (v[2] if v[2] is not None else k)) for k,v in rows.iteritems() }
-            uf = union_find.UnionFind(uf)
-            print "atm"
-            print len(uf)
-            for cid, ss in uf.iteritems():
-                updatable = [s for s in ss if rows[s][1] != cid]
-                uids = ",".join(list(set([str(rows[s][0]) for s in updatable])))
-                tids = ",".join([str(s) for s in updatable])
-                if len(updatable) != 0:                
-                    self.g_data.TraceInfo("UpdateConversationIds: updating %d conversations to id %d" % (len(updatable), cid))
-                    self.con.query("update tweets_storage set conversation_id = %d where user_id in (%s) and id in (%s)" % (cid, uids, tids))
-            self.Commit()
-            return
-            # find all non root conversation_id's, recursively find root, update descendants
-            q = ("select id, user_id, parent_id, parent, "
-                 "from tweets_storage "
-                 "where conversation_id = id and parent is not null ")
-            rows = self.con.query(q)
-            assert len(rows) == 0, rows
-            if len(rows) > 0:
-                self.g_data.TraceInfo("UpdateConversationids: updating %d non root conversation_ids" % len(rows))
-            for r in rows:
-                cid = self.InitializeConversation(int(r["user_id"]), int(r["id"]), int(r["parent_id"]), int(r["parent"]))
-                assert cid < int(r["id"]), cid
-                if cid != int(r["id"]):
-                    self.con.query("update tweets_storage set conversation_id = %d where conversation_id = %s" % (cid, r["id"]))
-    
-            # join tweets_storage to itself and find inconsistencies.  Should never never have rows
-            while True:
-                q = ("select rep.id, rep.user_id, rep.parent_id, rep.parent, orig.parent, orig.parent_id, rep.conversation_id, orig.conversation_id "
-                     "from tweets_storage rep join tweets_storage orig "
-                     "on rep.parent_id = orig.user_id and rep.parent = orig.id and (orig.conversation_id is null or rep.conversation_id != orig.conversation_id) "
-                     "where rep.conversation_id is not null ")
-                rows = self.TimedQuery(q, "UpdateConversationIds second fetch")
-                if len(rows) == 0:
-                    break
-                assert False
-                self.g_data.TraceWarn("UpdateConversationIds: found %d INCONSISTENT rows", len(rows))
-                for r in rows:
-                    pass # TODO
-            self.Commit()
-        except Exception as e:
-            self.Rollback()
-            raise e
 
+    def MoveBotTweets(self, rows, reason=None):
+        if len(rows) > 0:
+            if reason is not None:
+                self.g_data.TraceInfo("MoveBotTweets: Moving %d rows which are %s" % (len(rows), reason))
+            uids = ",".join([str(a) for a in set([r["user_id"] for r in rows])])
+            tids = ",".join([str(a) for a in set([r["id"] for r in rows])])
+            self.con.query(("insert into bot_tweets "
+                            "select id, parent, user_id, parent_id, body, ts, json, ifnull(parent, id) "
+                            "from tweets_storage where user_id in (%s) and id in (%s)") % (uids,tids))
+            return True
+        return False
+        
+
+    def LoadBotTweets(self):
+        while True:
+            # we first find all reachable tweets not in the bot_tweets table
+            # obvious bot tweets must move!
+            #
+            bot_ids = ",".join([str(a) for a in self.GetBotIds()])
+            q = (("select ts.user_id, ts.id "
+                  "from tweets_storage ts "
+                  "where (user_id in (%s) or parent_id in (%s)) "
+                  "and not exists (select * from bot_tweets bs_inner where ts.user_id = bs_innser.user_id and ts.id = bs_inner.id)" % (bot_ids, bot_ids)))
+            rows = self.con.query(q)
+            self.MoveBotTweets(rows, "which by a bot or for a bot")
+            
+            # we find tweets whose parent is in the bot_tweets, but not it
+            #
+            q = (("select ts.user_id, ts.id "
+                  "from tweets_storage ts join bot_tweets bt "
+                  "on ts.parent = bt.id and ts.parent_id = bt.user_id "
+                  "where not exists (select * from bot_tweets bs_inner where ts.user_id = bs_innser.user_id and ts.id = bs_inner.id)"))
+            rows = self.con.query(q)
+            if self.MoveBotTweets(rows, "which are replies to bot_tweets"):
+                continue
+            
+            # we find bot_tweets which reply to tweets
+            # we find tweets whose parent is in the bot_tweets, but not it
+            #
+            q = (("select t.user_id, t.id "
+                  "from tweets t join bot_tweets bt "
+                  "on bt.parent = t.id and bt.parent_id = t.user_id"
+                  "where not exists (select * from bot_tweets bs_inner where t.user_id = bs_innser.user_id and t.id = bs_inner.id)"))
+            rows = self.con.query(q)
+            if self.MoveBotTweets(rows, "which are replies from bot_tweets"):
+                continue
+            
+            break
+
+    def UpdateConversationIds(self):
+        multstmt = not self.xact
+        if multstmt:
+            self.Begin()
+        try:
+            self.UpdateBotTweets()
+
+            while True:
+                # find all bot_tweets with conversation_id having a parent
+                # we could use a Union Find and be all fancy pantsy, but fuck it
+                # this loop will be executed only log(conversation_length) times if each bot_tweet just points to its direct parent
+                # the vast majority of conversations are short enough that they won't be picked up by this.  
+                #
+                q = (("select bt1.user_id, bt1.id, bt2.conversation_id "
+                      "from bot_tweets bt1 join bot_tweets bt2 "
+                      "on bt1.conversation_id = bt2.id "
+                      "where bt2.conversation_id != bt2.id "))
+                rows = self.con.query(q)
+                if len(rows) > 0:
+                    print "moving %d conversation_ids" % len(rows)
+                    for i,r in enumerate(rows):
+                        if i % 100 == 0:
+                            print float(i)/len(rows)
+                        self.con.query("update bot_tweets set conversation_id = %s where user_id = %s and id = %s" % (r["conversation_id"], r["user_id"],r["bot_id"]))
+                    continue
+                break
+            if multstmt:
+                assert not self.needsUpdateBotTweets, "needsUpdateBotTweets set in multstmt call to UpdateConversationId"
+                self.Commit()
+        except Exception as e:
+            if multstmt:
+                self.Rollback()
+            raise e
         
     # Int -> [[Status]]
-    def RecentConversations(self, limit):
-        q = ("select * from tweets_joined_no_json "
+    def RecentConversations(self, limit, min_length=2, bots=None):
+        q = ("select * from bot_tweets_joined "
              "where conversation_id in "
-             "   (select sql_small_result conversation_id from tweets_storage group by 1 having count(*) > 2 order by 1 desc limit %d) "
+             "   (select conversation_id from bot_tweets group by 1 having count(*) > %d order by 1 desc limit %d) "
              "order by -conversation_id, id ")
-        q = q % limit
-        t0 = time.time()
+        q = q % (min_length, limit)
         rows = self.con.query(q)
-        t0 = time.time()
         users = self.LookupUsers([r["user_id"] for r in rows], ignore_following_status=True)        
         result = []
         conversation_id = ""
