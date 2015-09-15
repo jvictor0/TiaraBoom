@@ -87,11 +87,11 @@ class DataManager:
                 if k in self.hordeUpserts:
                     q = q + " on duplicate key update " + self.hordeUpserts[k]
                 self.con.query(q)   
-            if self.needsUpdateBotTweets:
-                self.UpdateConversationIds()
             self.con.query("commit")            
             self.horde = {}
             self.hordeUpserts = {}
+            if self.needsUpdateBotTweets:
+                self.UpdateConversationIds()
             self.needsUpdateBotTweets = False
         except Exception as e:
             self.horde = {}
@@ -154,7 +154,7 @@ class DataManager:
                         "language as json::$lang persisted varbinary(200), "
                         "shard key(user_id, id),"
                         "index(user_id, id) using clustered columnar)"))
-        self.con.query(("create table bot_tweets ("
+        self.con.query(("create table if not exists bot_tweets ("
                         "id bigint not null,"
                         "parent bigint default null,"                        
                         "user_id bigint not null,"                        
@@ -175,7 +175,7 @@ class DataManager:
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view bot_tweets_joined as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
+                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts, ts.conversation_id "
                         "from bot_tweets ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view tweets_joined_no_json as "
@@ -665,7 +665,7 @@ class DataManager:
         return False
         
 
-    def LoadBotTweets(self):
+    def UpdateBotTweets(self):
         while True:
             # we first find all reachable tweets not in the bot_tweets table
             # obvious bot tweets must move!
@@ -674,7 +674,7 @@ class DataManager:
             q = (("select ts.user_id, ts.id "
                   "from tweets_storage ts "
                   "where (user_id in (%s) or parent_id in (%s)) "
-                  "and not exists (select * from bot_tweets bs_inner where ts.user_id = bs_innser.user_id and ts.id = bs_inner.id)" % (bot_ids, bot_ids)))
+                  "and not exists (select * from bot_tweets bs_inner where ts.user_id = bs_inner.user_id and ts.id = bs_inner.id)" % (bot_ids, bot_ids)))
             rows = self.con.query(q)
             self.MoveBotTweets(rows, "which by a bot or for a bot")
             
@@ -683,7 +683,7 @@ class DataManager:
             q = (("select ts.user_id, ts.id "
                   "from tweets_storage ts join bot_tweets bt "
                   "on ts.parent = bt.id and ts.parent_id = bt.user_id "
-                  "where not exists (select * from bot_tweets bs_inner where ts.user_id = bs_innser.user_id and ts.id = bs_inner.id)"))
+                  "where not exists (select * from bot_tweets bs_inner where ts.user_id = bs_inner.user_id and ts.id = bs_inner.id)"))
             rows = self.con.query(q)
             if self.MoveBotTweets(rows, "which are replies to bot_tweets"):
                 continue
@@ -693,8 +693,8 @@ class DataManager:
             #
             q = (("select t.user_id, t.id "
                   "from tweets t join bot_tweets bt "
-                  "on bt.parent = t.id and bt.parent_id = t.user_id"
-                  "where not exists (select * from bot_tweets bs_inner where t.user_id = bs_innser.user_id and t.id = bs_inner.id)"))
+                  "on bt.parent = t.id and bt.parent_id = t.user_id "
+                  "where not exists (select * from bot_tweets bs_inner where t.user_id = bs_inner.user_id and t.id = bs_inner.id)"))
             rows = self.con.query(q)
             if self.MoveBotTweets(rows, "which are replies from bot_tweets"):
                 continue
@@ -702,38 +702,27 @@ class DataManager:
             break
 
     def UpdateConversationIds(self):
-        multstmt = not self.xact
-        if multstmt:
-            self.Begin()
-        try:
-            self.UpdateBotTweets()
-
-            while True:
-                # find all bot_tweets with conversation_id having a parent
-                # we could use a Union Find and be all fancy pantsy, but fuck it
-                # this loop will be executed only log(conversation_length) times if each bot_tweet just points to its direct parent
-                # the vast majority of conversations are short enough that they won't be picked up by this.  
-                #
-                q = (("select bt1.user_id, bt1.id, bt2.conversation_id "
-                      "from bot_tweets bt1 join bot_tweets bt2 "
-                      "on bt1.conversation_id = bt2.id "
-                      "where bt2.conversation_id != bt2.id "))
-                rows = self.con.query(q)
-                if len(rows) > 0:
-                    print "moving %d conversation_ids" % len(rows)
-                    for i,r in enumerate(rows):
-                        if i % 100 == 0:
-                            print float(i)/len(rows)
-                        self.con.query("update bot_tweets set conversation_id = %s where user_id = %s and id = %s" % (r["conversation_id"], r["user_id"],r["bot_id"]))
-                    continue
-                break
-            if multstmt:
-                assert not self.needsUpdateBotTweets, "needsUpdateBotTweets set in multstmt call to UpdateConversationId"
-                self.Commit()
-        except Exception as e:
-            if multstmt:
-                self.Rollback()
-            raise e
+        assert not self.xact
+        self.UpdateBotTweets()
+        while True:
+            # find all bot_tweets with conversation_id having a parent
+            # we could use a Union Find and be all fancy pantsy, but fuck it
+            # this loop will be executed only log(conversation_length) times if each bot_tweet just points to its direct parent
+            # the vast majority of conversations are short enough that they won't be picked up by this.  
+            #
+            q = (("select bt1.user_id, bt1.id, bt2.conversation_id "
+                  "from bot_tweets bt1 join bot_tweets bt2 "
+                  "on bt1.conversation_id = bt2.id "
+                  "where bt2.conversation_id != bt2.id "))
+            rows = self.con.query(q)
+            if len(rows) > 0:
+                print "moving %d conversation_ids" % len(rows)
+                for i,r in enumerate(rows):
+                    if i % 100 == 0:
+                        print float(i)/len(rows)
+                    self.con.query("update bot_tweets set conversation_id = %s where user_id = %s and id = %s" % (r["conversation_id"], r["user_id"],r["id"]))
+                continue
+            break
         
     # Int -> [[Status]]
     def RecentConversations(self, limit, min_length=2, bots=None):
