@@ -171,15 +171,15 @@ class DataManager:
         self.con.query("drop view if exists tweets_joined")
         self.con.query("drop view if exists bot_tweets_joined")
         self.con.query(("create view tweets_joined as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view bot_tweets_joined as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts, ts.conversation_id "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts, ts.conversation_id "
                         "from bot_tweets ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
         self.con.query(("create view tweets_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, tweets.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json, ts.conversation_id "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json, ts.conversation_id "
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
 
@@ -415,9 +415,9 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d,%s) "
+            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d) "
                                       "on duplicate key update "
-                                      "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes, parent))
+                                      "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes))
             assert inserted in [0,1,2], (inserted, sid)
             if inserted == 1:
                 if s.GetUser().GetId() in self.GetBotIds() or s.GetInReplyToUserId() in self.GetBotIds():
