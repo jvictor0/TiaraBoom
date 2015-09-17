@@ -213,10 +213,6 @@ class DataManager:
                         "count bigint,"
                         "shard(token),"
                         "primary key(user_id, token))"))
-        self.con.query(("create reference table if not exists user_document_frequency("
-                        "token bigint,"
-                        "count bigint,"
-                        "primary key(token))"))
         self.con.query(("create table if not exists tweet_document_frequency("
                         "token bigint,"
                         "count bigint,"
@@ -807,15 +803,15 @@ class DataManager:
                   "tfidf_view", 
                   "tfidf_view_internal", 
                   "num_docs_view","max_df_view",
-                  "user_document_frequency_colnar"]:
+                  "user_document_frequency"]:
             self.con.query("drop view if exists %s" % v)
 
     def MakeTFIDFViews(self):
         self.DropTFIDFViews()
         self.con.query("create view num_docs_view as "
                        "select count(distinct user_id) as val from user_token_frequency")
-        self.con.query("create view user_document_frequency_colnar as "
-                       "select token, count(*) as count from user_token_frequency_colnar group by 1")
+        self.con.query("create view user_document_frequency as "
+                       "select token, count(distinct user_id) as count from user_token_frequency group by 1")
         self.con.query("create view max_df_view as "
                        "select max(count) as val from user_document_frequency")
 
@@ -863,25 +859,19 @@ class DataManager:
 
 
     def UpdateArtRatTFIDF(self):
+        print "updateartrattfidf"
+        maxdf = self.con.query("select val from max_df_view")[0]["val"]
         personality = self.g_data.SocialLogic().ArtRatPersonality()
-        q = ("select tr.id as token, log(1 + count(*)) * log((select val from tiaraboom.max_df_view)/(1+udf.count)) as tfidf "
+        q = ("select tr.id as token, log(1 + count(*)) * log(%s/(1+udf.count)) as tfidf "
              "from %s_dependencies dp "
-             "join tiaraboom.token_representatives tr "
-             "join tiaraboom.user_document_frequency udf "
+             "straight_join token_representatives tr "
+             "straight_join user_document_frequency udf "
              "on dp.dependant = tr.token and tr.id = udf.token "
-             "group by 1") % personality
-        nq = "select token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (q,q)
-        vals = ["(%d,%s,%s)" % (self.GetUserId(), r["token"], r["tfidf_norm"]) for r in self.con.query(nq)]
-        try:
-            self.Begin()
-            self.con.query("delete from artrat_tfidf where user_id = %d" % self.GetUserId())
-            self.con.query("insert into artrat_tfidf values %s" % ",".join(vals))    
-            self.updatedArtratTFIDF = True
-            self.Commit()
-        except Exception as e:
-            self.g_data.TraceWarn("Rollback in UpdateArtatTFIDF")
-            self.Rollback()
-            raise e
+             "group by 1") % (maxdf, personality)
+        nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
+        #self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
+        self.con.query("insert into artrat_tfidf %s" % nq)
+        self.updatedArtratTFIDF = True
 
     def ArtRatTFIDFNormQuery(self):
         return "select * from artrat_tfidf where user_id = %d" % self.GetUserId()
@@ -942,18 +932,14 @@ class DataManager:
             raise e
 
     def InsertTweetTokensById(self, uid, tokens):
-        q = "insert into user_token_frequency (user_id, token, count) values (%d,%%s,1) on duplicate key update count = count + 1" % (uid)
         for t in tokens:
-            rc = self.con.query(q % t)
-            if rc == 1:
-                self.Horde("user_document_frequency", "(%s,1)" % t)
+            self.Horde("user_token_frequency", "(%d,%s,1)" % (uid, t))
             self.Horde("tweet_document_frequency", "(%s,1)" % t)
-        self.HordeUpsert("user_document_frequency", "count=count+1")
+        self.HordeUpsert("user_token_frequency", "count=count+1")
         self.HordeUpsert("tweet_document_frequency","count=count+1")
 
     def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3308"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
-        self.con.query("truncate table user_document_frequency")
         self.con.query("truncate table tweet_document_frequency")
         lkt = { r["token"] : r["id"] for r in self.con.query("select * from token_id") }
         voc = v.Vocab(self.g_data)
@@ -984,9 +970,7 @@ class DataManager:
 
 
     def RepairDocFreq(self):
-        self.con.query("truncate table user_document_frequency")
         self.con.query("truncate table tweet_document_frequency")
-        self.con.query("insert into user_document_frequency select token, count(*) from user_token_frequency group by 1")
         self.con.query("insert into tweet_document_frequency select token, sum(count) from user_token_frequency group by 1")
 
     def PushArticle(self, url, tweet_id, personality):

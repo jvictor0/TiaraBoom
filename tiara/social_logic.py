@@ -232,7 +232,7 @@ class SocialLogic:
             result += 2
         elif 100 < numFollowers <= 200:
             result += 1
-        if self.params["reply"]["mode"] == "artrat":
+        if self.IsArtRat():
             dist = self.g_data.dbmgr.TFIDFDistance([user.GetId()])
             if user.GetId() in dist:
                 result += 100 * dist[user.GetId()]
