@@ -69,3 +69,5 @@ data/targets_data
 save.*
 client/*.json
 artrat_data/*
+
+stanford-corenlp-full*

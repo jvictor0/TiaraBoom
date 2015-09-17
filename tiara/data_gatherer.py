@@ -415,7 +415,7 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites,parent) values (%d,%d,%d,%d) "
+            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites) values (%d,%d,%d,%d) "
                                       "on duplicate key update "
                                       "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes))
             assert inserted in [0,1,2], (inserted, sid)
@@ -865,7 +865,7 @@ class DataManager:
     def UpdateArtRatTFIDF(self):
         personality = self.g_data.SocialLogic().ArtRatPersonality()
         q = ("select tr.id as token, log(1 + count(*)) * log((select val from tiaraboom.max_df_view)/(1+udf.count)) as tfidf "
-             "from artrat.%s_dependencies dp "
+             "from %s_dependencies dp "
              "join tiaraboom.token_representatives tr "
              "join tiaraboom.user_document_frequency udf "
              "on dp.dependant = tr.token and tr.id = udf.token "

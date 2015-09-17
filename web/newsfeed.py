@@ -1,7 +1,6 @@
 import tiara.data_gatherer as dg
 from tiara.util import GetURL
 import re, os, json
-reload(dg)
 
 class NewsFeedGenerator(object):
     def __init__(self, bots, database):

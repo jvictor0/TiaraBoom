@@ -39,7 +39,7 @@ def GDatas():
         assert len(g_datas) != 0
     return g_datas
 
-if __name__ == '__main__':
+def StartServer():
 
     abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
     with open(abs_prefix + '/config.json','r') as f:
