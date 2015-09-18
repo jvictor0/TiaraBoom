@@ -814,7 +814,7 @@ class DataManager:
                   "tfidf_view", 
                   "tfidf_view_internal", 
                   "num_docs_view","max_df_view",
-                  "user_document_frequency"]:
+                  "user_token_frequency_aggregated", "user_document_frequency"]:
             self.con.query("drop view if exists %s" % v)
 
     def MakeTFIDFViews(self):
@@ -825,7 +825,7 @@ class DataManager:
                        "select max(count) as val from user_document_frequency")
 
         self.con.query("create view user_token_frequency_aggregated "
-                       "as select user_id, token, sum(count) "
+                       "as select user_id, token, sum(count) as count "
                        "from user_token_frequency "
                        "group by 1,2")
 
@@ -865,7 +865,7 @@ class DataManager:
         q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
              "from artrat_tfidf t1 right join tfidf_view_internal t2 "
              "on t1.token = t2.token "
-             "where t1.bot_id = %d %s "
+             "where t1.user_id = %d %s "
              "group by t2.user_id "
              "having count(t1.token) > 0") % (self.GetUserId(),uidpred)
         if uids is None:
@@ -897,7 +897,7 @@ class DataManager:
 
     def InsertTweetTokensById(self, uid, tokens):
         for t in tokens:
-            self.HordeUpsert("user_token_frequency", (uid, int(t)), 1, "count=count+values(count)")
+            self.HordeUpsert("user_token_frequency", (uid, int(t)), 1, None)
             self.HordeUpsert("tweet_document_frequency", (int(t),), 1, "count=count+values(count)")
 
     def TweetTokenBackgroundMerger(self):
@@ -907,10 +907,10 @@ class DataManager:
 
     def TweetTokensBackgroundMergerIteration(self):
         self.Begin()
-        try:
+        try:            
             row = self.con.query("select user_id, token, sum(count) as tt from user_token_frequency "
                                  "group by 1, 2 "
-                                 "having count(*) > 0 "
+                                 "having count(*) > 1 "
                                  "limit 1")
             if len(row) == 0:
                 return False
