@@ -167,3 +167,16 @@ def Int(x):
     if x is None:
         return None
     return int(x)
+
+def ImageURLToTuple(url):
+    assert url.startswith("https://pbs.twimg.com/profile_images/"), url
+    url = url[len("https://pbs.twimg.com/profile_images/"):]
+    url = url.split("/")
+    assert len(url) == 2, url
+    assert url[1].endswith("_normal.jpg"), url
+    return int(url[0]), url[1][:-len("_normal.jpg")]
+
+def TupleToImageURL(imid, hsh):
+    if str(imid) == "0":
+        return "https://abs.twimg.com/sticky/default_profile_images/default_profile_2_normal.png"
+    return "https://pbs.twimg.com/profile_images/" + str(imid) + "/" + hsh + "_normal.jpg"

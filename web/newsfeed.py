@@ -3,9 +3,8 @@ from tiara.util import GetURL
 import re, os, json
 
 class NewsFeedGenerator(object):
-    def __init__(self, bots, database):
-        self.bots = bots
-        self.database = database
+    def __init__(self):
+        pass
 
     # returns a list of lists of tweets, representing recent conversations between bots and the outside world
     def GetConversations(self):
@@ -13,12 +12,15 @@ class NewsFeedGenerator(object):
 
     def FormatTweet(self, tweet):
         fmt = ("<blockquote><a href=\"%s\" target=\"_blank\">"
-               "<img border=0 src=\"/images/%s\" alt=\"View Original Tweet\" width=50 height=50/>"
-               "<strong>%s:</strong></a><blockquote><div>%%s</div></blockquote>"
-               "</blockquote>")
-        fmt = fmt % (GetURL(tweet), 
-                     "tiaraboom.jpeg" if tweet.GetUser().GetScreenName() in self.bots else "egg.png", 
+               "<img border=0 src=\"%s\" alt=\"View Original Tweet\" width=50 height=50/>"
+               "<strong>%s:</strong></a><blockquote><div>%%s</div></blockquote>")
+        fmt = fmt % (GetURL(tweet), tweet.GetUser().profile_image_url,
                      tweet.GetUser().GetScreenName())
+        if tweet.GetRetweetCount() > 0:
+            fmt += ("retweets = %d<br>" % tweet.GetRetweetCount())
+        if tweet.GetFavoriteCount() > 0:
+            fmt += ("favorites = %d" % tweet.GetFavoriteCount())
+        fmt += "</blockquote>"
         return fmt % self.FormatTweetText(tweet)
 
     def FormatTweetText(self, tweet):
@@ -42,5 +44,4 @@ if __name__ == "__main__":
     with open(abs_prefix + '/config.json','r') as f:
         conf = json.load(f)
         print conf
-        bots  = [t['twitter_name'] for t in conf["bots"]]
-    print NewsFeedGenerator(bots,"tiaraboom").GetAndFormatConversations()
+    print NewsFeedGenerator().GetAndFormatConversations()

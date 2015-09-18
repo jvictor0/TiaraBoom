@@ -335,11 +335,13 @@ class DataManager:
         folls = str(user.GetFollowersCount())
         friens = str(user.GetFriendsCount())
         language = "'%s'" % user.GetLang()
-        values = ",".join([uid, sn, folls, friens, language, "NOW()"])
+        im_url = user.profile_image_url
+        values = ",".join([uid, sn, folls, friens, language, "NOW()", "'%s'" % im_url])
         updates = ["num_followers = %s" % folls,
                    "num_friends = %s" % friens,
                    "screen_name = %s" % sn,
                    "language = %s" % language,
+                   "image_url = values(image_url)",
                    "updated = NOW()"]
         q = "insert into users values (%s) on duplicate key update %s" % (values, ",".join(updates))
         self.con.query(q)
@@ -571,6 +573,9 @@ class DataManager:
         user.SetFollowersCount(int(row["num_followers"]))
         user.SetFriendsCount(int(row["num_friends"]))
         user.SetLang(row["language"])
+        user.profile_image_url = row["image_url"]
+        if len(user.profile_image_url) == 0:
+            user.profile_image_url = "https://abs.twimg.com/sticky/default_profile_images/default_profile_2_normal.png"
         if not ignore_following_status:
             q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,user.GetId())
             if not days_old is None:
