@@ -83,9 +83,14 @@ class DataManager:
         self.xact = False        
         try:
             for k,val in self.horde.iteritems():
-                q = "insert into %s values %s" % (k,",".join(val))
                 if k in self.hordeUpserts:
-                    q = q + " on duplicate key update " + self.hordeUpserts[k]
+                    values = ",".join(["(%s)" % ",".join([str(a) for a in ki + (vi,)]) 
+                                       for ki,vi in val.iteritems()])
+                    q = "insert into %s values %s" % (k, values)
+                    if self.hordeUpserts[k] is not None:
+                        q = q + " on duplicate key update " + self.hordeUpserts[k]
+                else:
+                    q = "insert into %s values %s" % (k,",".join(val))
                 self.con.query(q)   
             self.con.query("commit")            
             self.horde = {}
@@ -116,8 +121,16 @@ class DataManager:
             self.horde[table] = []
         self.horde[table].append(values)
 
-    def HordeUpsert(self, table, upsert):
+    def HordeUpsert(self, table, key, value, upsert):
+        assert isinstance(key,tuple), key
+        assert isinstance(value,int), value
         self.hordeUpserts[table] = upsert
+        if table not in self.horde:
+            self.horde[table] = {}
+        if key not in self.horde[table]:
+            self.horde[table][key] = value
+        else:
+            self.horde[table][key] += value
 
     def TimedQuery(self, q, name, *largs):
         t0 = time.time()
@@ -212,7 +225,7 @@ class DataManager:
                         "token bigint,"
                         "count bigint,"
                         "shard(token),"
-                        "primary key(user_id, token))"))
+                        "key(token, user_id) using clustered columnstore)"))
         self.con.query(("create table if not exists tweet_document_frequency("
                         "token bigint,"
                         "count bigint,"
@@ -234,11 +247,12 @@ class DataManager:
         self.con.query(("create reference table if not exists token_representatives("
                         "id bigint not null,"
                         "token varbinary(200) primary key)"))
-        self.con.query(("create reference table if not exists artrat_tfidf("
+        self.con.query(("create table if not exists artrat_tfidf("
                         "user_id bigint,"
                         "token bigint,"
+                        "tfidf_norm double,"
                         "primary key(user_id, token),"
-                        "tfidf_norm double)"))
+                        "shard(token))"))
         self.con.query(("create table if not exists ignored_users("
                         "id bigint primary key)"))
         self.con.query(("create table if not exists sources("
@@ -277,7 +291,6 @@ class DataManager:
                 break
             max_id = min([s.GetId() for s in statuses]) - 1
                        
-
     def ProcessUnprocessedTweets(self):
         tweets = self.GetUnprocessed()
         self.g_data.TraceInfo("There are currently %d unprocessed tweets" % len(tweets))
@@ -289,6 +302,7 @@ class DataManager:
     # NOTE: this requires running RepareDocFreq eventually
     #
     def PurgeTweet(self, uid, tid, body):
+        assert False, "broken by columnarize user_token_frequency"
         self.Begin()
         try:
             assert self.con.query("delete from tweets where user_id = %d and id = %d" % (uid,tid)) == 1
@@ -619,7 +633,7 @@ class DataManager:
             try:
                 right = self.RowToStatus(status_rows[int(r["paid"])], users[int(r["pau"])])
                 assert right is not None
-            except Exception as e:
+            except Exception:
                 assert len(self.con.query("select * from ungettable_tweets where id = %s" % r["paid"])) > 0, r 
                 continue
             result.append((left,right))
@@ -739,7 +753,6 @@ class DataManager:
             result[-1].append(status)
         return result
 
-
     def GetUserId(self, screen_name = None):
         if screen_name is None:
             screen_name = self.g_data.myName
@@ -766,10 +779,8 @@ class DataManager:
             stats = self.ApiHandler().ShowStatuses(user_id=int(r["id"]))
             if stats is not None:
                 count += len(stats)
-        self.g_data.TraceInfo("Added %d tweets" % count)
+        self.g_data.TraceInfo("Added %d tweets" % count)        
         
-        
-
     def TFIDF(self, uid=None, tweet=None, user=None):
         if user is not None:
             uid = user.GetId()
@@ -808,17 +819,20 @@ class DataManager:
 
     def MakeTFIDFViews(self):
         self.DropTFIDFViews()
-        self.con.query("create view num_docs_view as "
-                       "select count(distinct user_id) as val from user_token_frequency")
         self.con.query("create view user_document_frequency as "
                        "select token, count(distinct user_id) as count from user_token_frequency group by 1")
         self.con.query("create view max_df_view as "
                        "select max(count) as val from user_document_frequency")
 
+        self.con.query("create view user_token_frequency_aggregated "
+                       "as select user_id, token, sum(count) "
+                       "from user_token_frequency "
+                       "group by 1,2")
+
         self.con.query("create view tfidf_view_internal as "
                        "select termfreq.token, termfreq.user_id, termfreq.count as tf, docfreq.count as df, "
                        "log(1+termfreq.count) * log((select val from max_df_view)/(1+docfreq.count)) as tfidf "
-                       "from user_token_frequency termfreq join user_document_frequency docfreq "
+                       "from user_token_frequency_aggregated termfreq join user_document_frequency docfreq "
                        "on termfreq.token = docfreq.token")
 
         self.con.query("create view tfidf_view as "
@@ -826,40 +840,7 @@ class DataManager:
                        "from tfidf_view_internal tf join token_id tid "
                        "on tf.token = tid.id")
 
-        self.con.query("create view tfidf_user_norm_view as "
-                       "select user_id, sqrt(sum(tfidf * tfidf)) as norm "
-                       "from tfidf_view_internal "
-                       "group by user_id")
-        self.con.query("create view tfidf_norm_view as select t.token, t.user_id, t.tf, t.df, t.tfidf, t.tfidf/u.norm as tfidf_norm "
-                       "from tfidf_view_internal t join tfidf_user_norm_view u "
-                       "on t.user_id = u.user_id")
-
-        self.con.query("create view tfidf_distance_numerator_view as "
-                       "select t1.user_id u1, t2.user_id u2, sum(t1.tfidf * t2.tfidf) as dist "
-                       "from tfidf_view t1 join tfidf_view t2 "
-                       "on t1.token = t2.token "
-                       "group by t1.user_id, t2.user_id")
-
-        self.con.query("create view tfidf_distance_view as "
-                       "select t1.user_id u1, t2.user_id u2, sum(t1.tfidf_norm * t2.tfidf_norm) as dist "
-                       "from tfidf_norm_view t1 join tfidf_norm_view t2 "
-                       "on t1.token = t2.token "
-                       "group by t1.user_id, t2.user_id")
-
-        self.con.query("create view tfidf_important_word_view_internal as "
-                       "select t1.user_id u1, t2.user_id u2, t1.token, t1.tfidf_norm * t2.tfidf_norm as dist, t1.df as df, "
-                       "t1.tf as u1_tf, t1.tfidf as u1_tfidf, "
-                       "t2.tf as u2_tf, t2.tfidf as u2_tfidf "
-                       "from tfidf_norm_view t1 join tfidf_norm_view t2 "
-                       "on t1.token = t2.token")
-        self.con.query("create view tfidf_important_word_view as "
-                       "select u1.screen_name u1, u2.screen_name u2, ti.token, f.dist, f.df, f.u1_tf, f.u1_tfidf, f.u2_tf, f.u2_tfidf "
-                       "from tfidf_important_word_view_internal f join users u1 join users u2 join token_id ti "
-                       "on f.u1 = u1.id and f.u2 = u2.id and f.token = ti.id")
-
-
     def UpdateArtRatTFIDF(self):
-        print "updateartrattfidf"
         maxdf = self.con.query("select val from max_df_view")[0]["val"]
         personality = self.g_data.SocialLogic().ArtRatPersonality()
         q = ("select tr.id as token, log(1 + count(*)) * log(%s/(1+udf.count)) as tfidf "
@@ -869,41 +850,24 @@ class DataManager:
              "on dp.dependant = tr.token and tr.id = udf.token "
              "group by 1") % (maxdf, personality)
         nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
-        #self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
-        self.con.query("insert into artrat_tfidf %s" % nq)
+        self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
         self.updatedArtratTFIDF = True
-
-    def ArtRatTFIDFNormQuery(self):
-        return "select * from artrat_tfidf where user_id = %d" % self.GetUserId()
-    
-    def TFIDFNormQuery(self, uids=None, normalize=True):
-        if uids is None:
-            if normalize:
-                return "select * from tfidf_norm_view"
-            else:
-                return "select * from tfidf_view_internal"
-        if len(uids) == 1:
-            norm = ("/(select sqrt(sum(s.tfidf * s.tfidf)) as norm from tfidf_view_internal s where user_id = %d)" % uids[0]) if normalize else ""
-            return ("select t.token, t.user_id, t.tfidf%s as tfidf%s "
-                    "from tfidf_view_internal t where user_id = %d") % (norm, "_norm" if normalize else "", uids[0])
-        uids = ",".join(["%d" % u for u in uids])
-        if normalize:
-            return ("select t.token, t.user_id, t.tfidf/u.norm as tfidf_norm "
-                    "from (select * from tfidf_view_internal  where user_id in (%s)) t "
-                    "join (select * from tfidf_user_norm_view where user_id in (%s)) u "
-                    "on t.user_id = u.user_id") % (uids,uids)
-        else:
-            return "select * from tfidf_view_internal where user_id in (%s)" % uids
 
     def TFIDFDistance(self, uids=None):
         if not self.updatedArtratTFIDF:
             self.UpdateArtRatTFIDF()
+        if uids is None:
+            uidpred = ""
+        elif len(uids) == 1:
+            uidpred = "and t2.user_id = %d" % uids[0]
+        else:
+            uidpred = "and t2.user_id in (%s)" % ",".join(map(str,uids))
         q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
-             "from (%s) t1 right join (%s) t2 "
+             "from artrat_tfidf t1 right join tfidf_view_internal t2 "
              "on t1.token = t2.token "
+             "where t1.bot_id = %d %s "
              "group by t2.user_id "
-             "having count(t1.token) > 0") % (self.ArtRatTFIDFNormQuery(),
-                                              self.TFIDFNormQuery(uids, normalize=False))
+             "having count(t1.token) > 0") % (self.GetUserId(),uidpred)
         if uids is None:
             self.con.query("drop view if exists tfidf_bot_distance_%s" % self.g_data.myName)
             self.con.query("drop view if exists tfidf_bot_distance_%s_internal" % self.g_data.myName)
@@ -933,10 +897,39 @@ class DataManager:
 
     def InsertTweetTokensById(self, uid, tokens):
         for t in tokens:
-            self.Horde("user_token_frequency", "(%d,%s,1)" % (uid, t))
-            self.Horde("tweet_document_frequency", "(%s,1)" % t)
-        self.HordeUpsert("user_token_frequency", "count=count+1")
-        self.HordeUpsert("tweet_document_frequency","count=count+1")
+            self.HordeUpsert("user_token_frequency", (uid, int(t)), 1, "count=count+values(count)")
+            self.HordeUpsert("tweet_document_frequency", (int(t),), 1, "count=count+values(count)")
+
+    def TweetTokenBackgroundMerger(self):
+        while True:
+            if not self.TweetTokenBackgroundMergerIteration():
+                time.sleep(60 * 5)
+
+    def TweetTokensBackgroundMergerIteration(self):
+        self.Begin()
+        try:
+            row = self.con.query("select user_id, token, sum(count) as tt from user_token_frequency "
+                                 "group by 1, 2 "
+                                 "having count(*) > 0 "
+                                 "limit 1")
+            if len(row) == 0:
+                return False
+            tt = int(row[0]["tt"])
+            tti = tt
+            assert tt > 0, row
+            while tt > 0:
+                tt -= self.con.query("update user_token_frequency set count = count - 1 "
+                                     "where count > 0 and user_id = %s and token = %s "
+                                     "limit %d " % (row[0]["user_id"], row[0]["token"], tt))
+                assert tt >= 0, tt
+            assert tti > 0, row
+            self.con.query("insert into user_token_frequency (user_id, token, count) values (%s,%s,%d)" % (row[0]["user_id"], row[0]["token"], tti))
+            self.con.query("delete from user_token_frequency where count = 0")
+            self.Commit()
+            return True
+        except Exception as e:
+            self.Rollback()
+            raise e
 
     def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3308"):
         self.con.query("truncate table user_token_frequency") # because fuck you thats why!
