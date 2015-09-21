@@ -212,6 +212,7 @@ class DataManager:
                         "num_friends bigint,"
                         "language varbinary(200),"
                         "updated timestamp default current_timestamp on update current_timestamp,"
+                        "image_url varbinary(200),"
                         "key (screen_name))"))
         self.con.query(("create table if not exists user_following_status("
                         "id bigint,"
@@ -811,8 +812,15 @@ class DataManager:
             if not t[k].endswith("internal"):
                 self.con.query("drop view %s" % t[k])
                 self.con.query("drop view if exists %s_internal" % t[k])            
-        for v in ["tfidf_bot_distance_%s" % self.g_data.myName, "tfidf_bot_distance_%s_internal" % self.g_data.myName,
+        for v in ["candidates_scored_view",
+                  "candidates_predictors_view",
+                  "candidates_predictors_no_distance_view",
+                  "candidates_view",
+                  "candidates_joined_filtered_view",
+                  "candidates_joined_view",
+                  "tfidf_bot_distance_%s" % self.g_data.myName, "tfidf_bot_distance_%s_internal" % self.g_data.myName,
                   "tfidf_distance_view",
+                  "tfidf_distance_view_internal",
                   "tfidf_important_word_view","tfidf_important_word_view_internal",
                   "tfidf_distance_numerator_view",
                   "tfidf_norm_view","tfidf_user_norm_view",
@@ -844,6 +852,55 @@ class DataManager:
                        "select tid.token, tf.user_id, tf.tf, tf.df, tf.tfidf "
                        "from tfidf_view_internal tf join token_id tid "
                        "on tf.token = tid.id")
+
+        self.con.query("create view tfidf_distance_view_internal as "
+                       "select t1.user_id as bot_id, t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
+                       "from artrat_tfidf t1 right join tfidf_view_internal t2 "
+                       "on t1.token = t2.token "
+                       "group by bot_id, t2.user_id "
+                       "having count(t1.token) > 0")
+        self.con.query("create view tfidf_distance_view as "
+                       "select bot_id, users.screen_name, users.id as user_id, td.dist "
+                       "from users join tfidf_distance_view_internal td "
+                       "on users.id = td.user_id ")
+
+        self.con.query("create view candidates_joined_view as "
+                       "select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, "
+                       "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_user_mentions, ts.language as tweet_language, ts.is_retweet, ts.ts, "
+                       "       tc.bot_id, tc.processed "
+                       "from tweets_storage ts join users join target_candidates tc "
+                       "on ts.user_id = tc.id and users.id = tc.id "
+                       "where users.id not in (select id from user_afflictions) "
+                       "and users.id not in (select id from user_following_status where has_followed)")
+        self.con.query("create view candidates_joined_filtered_view as "
+                       "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts "
+                       "from candidates_joined_view " 
+                       "where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 "
+                       "and not is_retweet and ts > processed - interval 7 day and ts < processed "
+                       "and num_followers <= 2500 and num_friends <= 2500 and num_followers >= 100 and num_friends >= 100 "
+                       "and language like 'en%' and tweet_language like 'en%' ")
+        self.con.query("create view candidates_view as " 
+                       "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count, count(*)/timestampdiff(minute, min(ts), processed) as tweets_per_minute "
+                       "from candidates_joined_filtered_view "
+                       "group by bot_id, uid ")
+        self.con.query("create view candidates_predictors_no_distance_view as "
+                       "select cv.bot_id, cv.screen_name, uid, "
+                       "       3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, "
+                       "       3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, "
+                       "       (1/25) * cv.count as count_score "
+                       "from candidates_view cv ")
+        self.con.query("create view candidates_predictors_view as "
+                       "select cv.bot_id, cv.screen_name, cv.uid, cv.follower_score, cv.friend_score, cv.count_score, "
+                       "       50 * tdv.dist as dist_score "
+                       "from candidates_predictors_no_distance_view cv join tfidf_distance_view tdv "
+                       "on cv.bot_id = tdv.bot_id and cv.uid = tdv.user_id ")
+        self.con.query("create view candidates_scored_view as "
+                       "select bot_id, screen_name, uid, "
+                       "       follower_score , friend_score , count_score , dist_score ,"
+                       "       follower_score + friend_score + count_score + dist_score as score "
+                       "from candidates_predictors_view")
+
+
 
     def UpdateArtRatTFIDF(self):
         maxdf = self.con.query("select val from max_df_view")[0]["val"]
@@ -1088,27 +1145,6 @@ class DataManager:
         if len(users) > 0:
             self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
 
-    def CreateTargetCandidatesViews(self):
-        for v in ["candidates_joined_filtered_view","candidates_joined_view"]:
-            self.con.query("drop view if exists %s" % v)
-        self.con.query("create view candidates_joined_view as "
-                       "select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, "
-                       "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_user_mentions, ts.language as tweet_language, ts.is_retweet, ts.ts, "
-                       "       tc.bot_id, tc.processed "
-                       "from tweets_storage ts join users join target_candidates tc "
-                       "on ts.user_id = users.id and users.id = tc.id "
-                       "where ts.user_id in (select sql_small_result id from target_candidates where processed is not null)")
-        self.con.query("create view candidates_joined_filtered_view as "
-                       "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts "
-                       "from candidates_joined_view " 
-                       "where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 "
-                       "and not is_retweet and ts > processed - interval 7 day "
-                       "and num_followers <= 5000 and num_friends <= 5000 and num_followers >= 100 and num_friends >= 100 "
-                       "and language like 'en%' and tweet_language like 'en%' ")
-#        con.query("create view candidates_filtered_view as " 
-#                  "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count, timestampdiff(minute, processed, min(ts)) as tweets_per_minute  "
-#                  "from candidates_joined_filtered_view ")
-        
     def Act(self):
         self.ProcessFollowerCursors()
         if self.shard % MODES == 0:

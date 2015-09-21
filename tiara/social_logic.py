@@ -198,7 +198,7 @@ class SocialLogic:
             return -1 
         numFriends = user.GetFriendsCount()
         numFollowers = user.GetFollowersCount()
-        if numFriends > 5000 or numFollowers > 5000:
+        if numFriends > 2500 or numFollowers > 2500:
             return -1
         result = 0
         if 'follow' in user.GetScreenName().lower():
