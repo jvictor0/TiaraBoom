@@ -284,7 +284,7 @@ class DataManager:
             count += 1
             assert count <= 30
             statuses = self.ApiHandler().ShowStatuses(screen_name=self.g_data.myName,
-                                                    max_id=max_id)
+                                                      max_id=max_id)
             if statuses is None:
                 self.g_data.TraceWarn("Failed to update tweets")
                 return None
@@ -1144,6 +1144,13 @@ class DataManager:
             self.ApiHandler().ShowStatuses(user_id=u)
         if len(users) > 0:
             self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
+
+    def NextTargetCandidate(self):
+        q = "select uid from target_candidates_scored order where bot_id = %d by score desc limit 1" % self.GetUserId()
+        rows = self.TimedQuery(q, "NextTargetCandidate")
+        if len(rows) == 0:
+            return None
+        return int(rows[0]['uid'])
 
     def Act(self):
         self.ProcessFollowerCursors()

@@ -78,7 +78,6 @@ class SocialLogic:
         
         self.tickers.append(t.Ticker(g_data, self.params["mean_follow_time"], lambda: self.Follow(), "Follow"))
         self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.BotherRandom(), "BotherRandom"))
-        self.tickers.append(t.Ticker(g_data, 16, lambda: self.StalkTwitter(), "StalkTwitter", exponential=False))
         self.tickers.append(t.Ticker(g_data, 16, lambda: self.g_data.dbmgr.Act(), "ManageDb", exponential=False))
         if self.params["reply"]["mode"] == "artrat":
             self.tickers.append(t.Ticker(g_data, 16, lambda: self.GatherSources(), "GatherSources", exponential=False))
@@ -93,10 +92,11 @@ class SocialLogic:
         if tweets is None:
             # warning already in log, no need to warn again
             return None
-        for t in tweets[-1::-1]:
+        for t in sorted(tweets, key = lambda tw: tw.GetId()):
             if self.SignalsStop(t):
                 self.SetMaxId(t.GetId())
                 continue
+            self.g_data.dbmgr.EnqueueFollower(t.GetUser().GetId())
             if self.ReplyTo(t) or self.g_data.read_only_mode:
                 self.SetMaxId(t.GetId())
         return True
@@ -132,113 +132,6 @@ class SocialLogic:
         self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
         return None
             
-
-    def RandomFriendID(self, name):
-        result = self.g_data.ApiHandler().GetFriendIDs(screen_name=name)
-        if result is None or result == []:
-            return None
-        return random.choice(result)
-
-    def StalkTwitter(self):
-        if random.uniform(0,1) < self.params["gravitation_parameter"]:
-            self.StalkTwitterGravitate()
-        else:
-            self.StalkTwitterHops()
-
-
-    def StalkTwitterGravitate(self):
-        target = random.choice(self.params["gravitation_targets"])
-        followers = random.choice([self.g_data.ApiHandler().GetFollowerIDs,self.g_data.ApiHandler().GetFriendIDs])(user_id=target)
-        if followers is None:
-            return
-        random.shuffle(followers)
-        cands = []
-        for i in xrange(30):
-            if len(followers) == i:
-                break
-            u = self.g_data.ApiHandler().ShowUser(user_id = followers[i])
-            if not u is None:
-                cands.append(u)
-        self.UpdateNewBestFriend(cands)
-
-    def StalkTwitterHops(self):
-        friends = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
-        if friends is None or friends == []:
-            return None
-        random.shuffle(friends)
-        follower = random.choice(friends)
-        followers = random.choice([self.g_data.ApiHandler().GetFollowers,self.g_data.ApiHandler().GetFriends])(user_id=follower)
-        self.g_data.ApiHandler().ShowStatuses(user_id=follower)
-        if followers is None:
-            return
-        self.UpdateNewBestFriend(followers)
-
-    def UpdateNewBestFriend(self, user_list):
-        random.shuffle(user_list)
-        user_list = user_list[0:75]
-        for user in user_list:
-            if user.GetProtected():
-                continue
-            score = self.ScoreUser(user)
-            if score > 0 and float(score)/(score + self.bestNewFriendScore) > random.uniform(0,1):
-                self.bestNewFriendScore = score
-                self.bestNewFriend = user
-        if self.bestNewFriend is None:
-            self.g_data.TraceInfo("Can't find a new friend.")
-        else:
-            self.g_data.TraceInfo("Interested in new friend @%s with score %d" % (self.bestNewFriend.GetScreenName(), self.bestNewFriendScore))
-
-
-    # we shall eventually replace this with a learning machine
-    #
-    def ScoreUser(self, user):
-        if self.g_data.dbmgr.EverFollowed(user.GetId()):
-            return -1
-        if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
-            return -1 
-        numFriends = user.GetFriendsCount()
-        numFollowers = user.GetFollowersCount()
-        if numFriends > 2500 or numFollowers > 2500:
-            return -1
-        result = 0
-        if 'follow' in user.GetScreenName().lower():
-            return -1 # because fuck you, thats why
-        if user.GetProtected():
-            return -1 # I don't want to talk to you anyways!
-        if numFriends < 100 or numFollowers < 100:
-            return -1 # stay away from people with very few friends!
-        statuses = self.g_data.ApiHandler().ShowStatuses(user_id=user.GetId())
-        if statuses is None or len(statuses) < 10:
-            return -1 # either there was a problem or he dont tweet much
-        both = len([t for t in statuses if self.BotherAppropriate(t)])
-        if not self.BotherUserAppropriate(user):
-            return -1
-        if both == 0:
-            return -1
-        result += 3 * (float(both) / len(statuses))
-        if 400 < numFriends <= 600:
-            result += 3
-        elif 600 < numFriends <= 1000:
-            result +=  2
-        elif 200 < numFriends <= 400:
-            result += 2
-        elif 100 < numFriends <= 200:
-            result += 1
-        if 400 < numFollowers <= 600:
-            result += 3
-        elif 600 < numFollowers <= 1000:
-            result +=  2
-        elif 200 < numFollowers <= 400:
-            result += 2
-        elif 100 < numFollowers <= 200:
-            result += 1
-        if self.IsArtRat():
-            dist = self.g_data.dbmgr.TFIDFDistance([user.GetId()])
-            if user.GetId() in dist:
-                result += 100 * dist[user.GetId()]
-            else:
-                return -1 # nothing in common with us!
-        return result
 
     def BotherRandom(self):
         result = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
@@ -362,12 +255,10 @@ class SocialLogic:
         return False
 
     def Follow(self):
-        if self.bestNewFriend is None:
+        uid = self.g_data.dbmgr.NextTargetCandidate()
+        if uid is None:
             return None
-        user = self.bestNewFriend
-        self.bestNewFriend = None
-        self.bestNewFriendScore = 0
-        result = self.g_data.ApiHandler().Follow(screen_name = user.GetScreenName())
+        result = self.g_data.ApiHandler().Follow(user_id=uid)
         if result is None:
             return None
         fn = random.choice([lambda : self.TweetFrom(user),
