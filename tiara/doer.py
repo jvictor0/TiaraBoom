@@ -2,6 +2,7 @@ import global_data as g
 import sys
 from util import *
 import server
+import database
 
 if __name__ == "__main__":
     g_data = g.GlobalData()
@@ -61,8 +62,12 @@ if __name__ == "__main__":
         print "ddl"
         g_data.dbmgr.DDL()
         print "insert select"
-        cols = ",".join([c['column_name'] for c in g_data.dbmgr.con.query("select column_name from information_schema.columns where table_name ='%s' and table_schema='tiaraboom'" % sys.argv[2])])
-        g_data.dbmgr.con.query("insert into %s select %s from %s_bak" % (sys.argv[2], cols, sys.argv[2]))
+        cols = ",".join([c['column_name'] for c in g_data.dbmgr.con.query("select column_name from information_schema.columns where table_name ='%s' and table_schema='tiaraboom' and extra != 'computed'" % sys.argv[2])])
+        q = "insert into %s(%s) select %s from %s_bak" % (sys.argv[2], cols, cols, sys.argv[2])
+        for c in g_data.dbmgr.con.query("show partitions"):
+            con = database.ConnectToMySQL("%s:%s" % (c["Host"],c["Port"]))
+            con.query("use tiaraboom_%s" % c["Ordinal"])
+            con.query(q)
         print "did not drop %s_bak" % sys.argv[2]
     elif sys.argv[1] == "add_fc":
         uid = g.GlobalData(name=sys.argv[2]).ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()

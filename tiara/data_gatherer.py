@@ -152,7 +152,7 @@ class DataManager:
                         "primary key(user_id, id),"
                         "key(id),"
                         "key(parent))"))
-        followbacker_regex = " or ".join([("lcase(cast(body as char)) regexp '%s'" % ("[^a-z]".join(fl))) for fl in ['follow','seguro','retweet','mgwv']])
+        followbacker_regex = " or ".join([("lcase(cast(body as char)) regexp '%s'" % ("[^a-z][^a-z]*".join(fl))) for fl in ['follow','seguro','retweet','mgwv']])
         self.con.query(("create columnar table if not exists tweets_storage("                        
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -185,18 +185,6 @@ class DataManager:
         self.con.query("drop view if exists tweets_joined_no_json")
         self.con.query("drop view if exists tweets_joined")
         self.con.query("drop view if exists bot_tweets_joined")
-        self.con.query(("create view tweets_joined as "
-                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
-                        "from tweets_storage ts join tweets "
-                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-        self.con.query(("create view bot_tweets_joined as "
-                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts, ts.conversation_id "
-                        "from bot_tweets ts join tweets "
-                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-        self.con.query(("create view tweets_joined_no_json as "
-                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
-                        "from tweets_storage ts join tweets "
-                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
 
         self.con.query(("create table if not exists ungettable_tweets("
                         "id bigint primary key,"
@@ -820,6 +808,9 @@ class DataManager:
                   "candidates_view",
                   "candidates_joined_filtered_view",
                   "candidates_joined_view",
+                  "tweets_joined",
+                  "bots_tweets_joined",
+                  "tweets_joined_no_json",
                   "tfidf_bot_distance_%s" % self.g_data.myName, "tfidf_bot_distance_%s_internal" % self.g_data.myName,
                   "tfidf_distance_view",
                   "tfidf_distance_view_internal",
@@ -834,6 +825,20 @@ class DataManager:
 
     def MakeTFIDFViews(self):
         self.DropTFIDFViews()
+
+        self.con.query(("create view tweets_joined as "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
+                        "from tweets_storage ts join tweets "
+                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+        self.con.query(("create view bot_tweets_joined as "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts, ts.conversation_id "
+                        "from bot_tweets ts join tweets "
+                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+        self.con.query(("create view tweets_joined_no_json as "
+                        "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
+                        "from tweets_storage ts join tweets "
+                        "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+
         self.con.query("create view user_document_frequency as "
                        "select token, count(distinct user_id) as count from user_token_frequency group by 1")
         self.con.query("create view max_df_view as "
