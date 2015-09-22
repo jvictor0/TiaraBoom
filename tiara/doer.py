@@ -61,7 +61,8 @@ if __name__ == "__main__":
         print "ddl"
         g_data.dbmgr.DDL()
         print "insert select"
-        g_data.dbmgr.con.query("insert into %s select * from %s_bak" % (sys.argv[2],sys.argv[2]))
+        cols = ",".join([c['column_name'] for c in g_data.dbmgr.con.query("select column_name from information_schema.columns where table_name ='%s' and table_schema='tiaraboom'" % sys.argv[2])])
+        g_data.dbmgr.con.query("insert into %s select %s from %s_bak" % (sys.argv[2], cols, sys.argv[2]))
         print "did not drop %s_bak" % sys.argv[2]
     elif sys.argv[1] == "add_fc":
         uid = g.GlobalData(name=sys.argv[2]).ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()

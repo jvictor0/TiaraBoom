@@ -152,6 +152,7 @@ class DataManager:
                         "primary key(user_id, id),"
                         "key(id),"
                         "key(parent))"))
+        followbacker_regex = " or ".join([("lcase(cast(body as char)) regexp '%s'" % ("[^a-z]".join(fl))) for fl in ['follow','seguro','retweet','mgwv']])
         self.con.query(("create columnar table if not exists tweets_storage("                        
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -165,8 +166,9 @@ class DataManager:
                         "num_user_mentions as ifnull(json_length(json::user_mentions),0) persisted bigint, "
                         "is_retweet as not isnull(json::retweeted_status) persisted boolean, "
                         "language as json::$lang persisted varbinary(200), "
+                        "is_followbacker as %s persisted boolean,"
                         "shard key(user_id, id),"
-                        "index(user_id, id) using clustered columnar)"))
+                        "index(user_id, id) using clustered columnar)" % followbacker_regex))
         self.con.query(("create table if not exists bot_tweets ("
                         "id bigint not null,"
                         "parent bigint default null,"                        
