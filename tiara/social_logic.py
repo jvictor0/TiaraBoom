@@ -1,12 +1,10 @@
-import os, time
+import time
 import rewriter as r
 import re
 import random
 from util import *
-import json
 import persisted as p
 import ticker as t
-import vocab as v
 import sys
 import artrat_utils as au
 import server
@@ -21,7 +19,6 @@ BUA_FILTERS = [
 
 class SocialLogic:
     def __init__(self, g_data, args):
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         self.g_data = g_data
         self.max_id = p.PersistedObject("max_id_%s" % g_data.myName, 0)
 

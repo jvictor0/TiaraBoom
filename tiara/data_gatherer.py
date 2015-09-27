@@ -152,7 +152,8 @@ class DataManager:
                         "primary key(user_id, id),"
                         "key(id),"
                         "key(parent))"))
-        followbacker_regex = " or ".join([("lcase(cast(body as char)) regexp '%s'" % ("[^a-z][^a-z]*".join(fl))) for fl in ['follow','seguro','retweet','mgwv']])
+        followbacker_regex = " + ".join([("(lcasebody regexp '%s')" % ("[^a-z][^a-z]*".join(fl))) for fl in ['follow','seguro','retweet','mgwv']])
+        maybe_followbacker_regex = " + ".join([("(lcasebody regexp '%s')" % fl for fl in ['follow','seguro','retweet','mgwv'])])
         self.con.query(("create columnar table if not exists tweets_storage("                        
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -160,15 +161,17 @@ class DataManager:
                         "parent_id bigint default null,"                        
                         "body blob, "                        
                         "ts datetime not null,"
-                        "json json ,"            
+                        "json json ," 
+                        "lcase_body as lcase(cast(body as char)) persisted blob,"
                         "num_hashtags as ifnull(json_length(json::hashtags),0) persisted bigint, "
                         "num_media as ifnull(json_length(json::media),0) persisted bigint, "
                         "num_user_mentions as ifnull(json_length(json::user_mentions),0) persisted bigint, "
                         "is_retweet as not isnull(json::retweeted_status) persisted boolean, "
                         "language as json::$lang persisted varbinary(200), "
-                        "is_followbacker as %s persisted boolean,"
+                        "is_followbacker as %s persisted tinyint,"
+                        "maybe_followbacker as %s persisted tinyint,"
                         "shard key(user_id, id),"
-                        "index(user_id, id) using clustered columnar)" % followbacker_regex))
+                        "index(user_id, id) using clustered columnar)" % (followbacker_regex, maybe_followbacker_regex)))
         self.con.query(("create table if not exists bot_tweets ("
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -263,7 +266,7 @@ class DataManager:
                         "cursr bigint not null,"                        
                         "primary key(bot_id, id, cursr),"
                         "processed datetime default null)"))
-        self.MakeTFIDFViews()
+        self.MakeViews()
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -795,7 +798,7 @@ class DataManager:
                                    "TFIDF_tweet", *params)                
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
-    def DropTFIDFViews(self):
+    def DropViews(self):
         bot_views = self.con.query("show tables like 'tfidf_bot_distance%'")
         for t in bot_views:
             k = t.keys()[0]
@@ -823,8 +826,8 @@ class DataManager:
                   "user_token_frequency_aggregated", "user_document_frequency"]:
             self.con.query("drop view if exists %s" % v)
 
-    def MakeTFIDFViews(self):
-        self.DropTFIDFViews()
+    def MakeViews(self):
+        self.DropViews()
 
         self.con.query(("create view tweets_joined as "
                         "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "

@@ -49,14 +49,14 @@ if __name__ == "__main__":
                         continue
                     uid = uid.GetId()
                     g_data.dbmgr.AddSource(g_data.SocialLogic().params["reply"]["personality"], uid, confirmed=True)
-    elif sys.argv[1] == "drop_tfidf_views":
-        g_data.dbmgr.DropTFIDFViews()
+    elif sys.argv[1] == "drop_views":
+        g_data.dbmgr.DropViews()
     elif sys.argv[1] == "tfidf_distance_view":
         dbmgr = g.GlobalData(name=sys.argv[2]).dbmgr
         dbmgr.UpdateArtRatTFIDF()
         dbmgr.TFIDFDistance()
     elif sys.argv[1] == "new_ddl":
-        g_data.dbmgr.DropTFIDFViews()
+        g_data.dbmgr.DropViews()
         print "alter table"
         g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
         print "ddl"
