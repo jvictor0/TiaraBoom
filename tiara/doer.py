@@ -51,23 +51,24 @@ if __name__ == "__main__":
                     g_data.dbmgr.AddSource(g_data.SocialLogic().params["reply"]["personality"], uid, confirmed=True)
     elif sys.argv[1] == "drop_views":
         g_data.dbmgr.DropViews()
-    elif sys.argv[1] == "tfidf_distance_view":
+    elif sys.argv[1] == "update_artrat_tfidf":
         dbmgr = g.GlobalData(name=sys.argv[2]).dbmgr
         dbmgr.UpdateArtRatTFIDF()
-        dbmgr.TFIDFDistance()
     elif sys.argv[1] == "new_ddl":
         g_data.dbmgr.DropViews()
         print "alter table"
-        g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
+#        g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
         print "ddl"
         g_data.dbmgr.DDL()
         print "insert select"
         cols = ",".join([c['column_name'] for c in g_data.dbmgr.con.query("select column_name from information_schema.columns where table_name ='%s' and table_schema='tiaraboom' and extra != 'computed'" % sys.argv[2])])
         q = "insert into %s(%s) select %s from %s_bak" % (sys.argv[2], cols, cols, sys.argv[2])
-        for c in g_data.dbmgr.con.query("show partitions"):
-            con = database.ConnectToMySQL("%s:%s" % (c["Host"],c["Port"]))
-            con.query("use tiaraboom_%s" % c["Ordinal"])
-            con.query(q)
+        g_data.dbmgr.con.query(q)
+        # for c in g_data.dbmgr.con.query("show partitions"):
+        #     print c["Ordinal"]
+        #     con = database.ConnectToMySQL("%s:%s" % (c["Host"],c["Port"]))
+        #     con.query("use tiaraboom_%s" % c["Ordinal"])
+        #     con.query(q)
         print "did not drop %s_bak" % sys.argv[2]
     elif sys.argv[1] == "add_fc":
         uid = g.GlobalData(name=sys.argv[2]).ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()

@@ -72,6 +72,10 @@ class DataManager:
             self.apiHandler = g_data.ApiHandler()
         self.DDL()
         self.updatedArtratTFIDF = False
+        try:
+            self.con.query("insert into bots values (%d,'%s')" % (self.GetUserId(), self.g_data.myName))
+        except Exception as e:
+            assert e[0] == 1062, e # dup key        
 
     def Begin(self):
         assert not self.xact
@@ -152,8 +156,9 @@ class DataManager:
                         "primary key(user_id, id),"
                         "key(id),"
                         "key(parent))"))
-        followbacker_regex = " + ".join([("(lcasebody regexp '%s')" % ("[^a-z][^a-z]*".join(fl))) for fl in ['follow','seguro','retweet','mgwv']])
-        maybe_followbacker_regex = " + ".join([("(lcasebody regexp '%s')" % fl for fl in ['follow','seguro','retweet','mgwv'])])
+        followback_terms = ['follow','seguro','retweet','mgwv','followback','followtrain','followtrick','teamfollowback']
+        followbacker_regex = " + ".join([("(lcase_body regexp '%s')" % ("[^a-z][^a-z]*".join(fl))) for fl in followback_terms])
+        maybe_followbacker_regex = " + ".join([("(lcase_body regexp '%s')" % fl) for fl in followback_terms])
         self.con.query(("create columnar table if not exists tweets_storage("                        
                         "id bigint not null,"
                         "parent bigint default null,"                        
@@ -166,6 +171,7 @@ class DataManager:
                         "num_hashtags as ifnull(json_length(json::hashtags),0) persisted bigint, "
                         "num_media as ifnull(json_length(json::media),0) persisted bigint, "
                         "num_user_mentions as ifnull(json_length(json::user_mentions),0) persisted bigint, "
+                        "num_urls as ifnull(json_length(json::urls),0) persisted bigint, "
                         "is_retweet as not isnull(json::retweeted_status) persisted boolean, "
                         "language as json::$lang persisted varbinary(200), "
                         "is_followbacker as %s persisted tinyint,"
@@ -209,11 +215,12 @@ class DataManager:
                         "key (screen_name))"))
         self.con.query(("create table if not exists user_following_status("
                         "id bigint,"
-                        "my_name varbinary(100),"
+                        "bot_id bigint,"
                         "following tinyint,"
                         "has_followed tinyint,"
                         "updated timestamp default current_timestamp on update current_timestamp,"
-                        "primary key(id, my_name))"))
+                        "primary key(id, bot_id),"
+                        "shard(id))"))
         self.con.query(("create table if not exists user_token_frequency("
                         "user_id bigint,"
                         "token bigint,"
@@ -266,6 +273,9 @@ class DataManager:
                         "cursr bigint not null,"                        
                         "primary key(bot_id, id, cursr),"
                         "processed datetime default null)"))
+        self.con.query(("create reference table if not exists bots("
+                        "id bigint primary key,"
+                        "screen_name varbinary(200))"))
         self.MakeViews()
                 
     def UpdateTweets(self):
@@ -347,9 +357,9 @@ class DataManager:
         if following == "1":
             updates.append("has_followed = 1")
         
-        q = ("insert into user_following_status values (%s,'%s',%s,%s,NOW()) "
+        q = ("insert into user_following_status values (%s,%d,%s,%s,NOW()) "
              "on duplicate key update %s")
-        q = q % (uid, self.g_data.myName, following, has_followed, ",".join(updates))
+        q = q % (uid, self.GetUserId(), following, has_followed, ",".join(updates))
         self.con.query(q)
         if user.GetProtected():
             self.InsertAfflicted(user.GetId(), AFFLICT_PROTECTED)
@@ -374,8 +384,8 @@ class DataManager:
         if self.con is None:
             return None
         rows = self.con.query(("select * from user_following_status "
-                               "where my_name = '%s' and id = %d and has_followed = 1 and following = 0")
-                              % (self.g_data.myName, uid))
+                               "where bot_id = %d and id = %d and has_followed = 1 and following = 0")
+                              % (self.GetUserId(), uid))
         if len(rows) == 1:
             self.InsertAfflicted(uid, AFFLICT_BLOCKER)
         elif self.EverFollowed(uid):
@@ -571,7 +581,7 @@ class DataManager:
         if len(user.profile_image_url) == 0:
             user.profile_image_url = "https://abs.twimg.com/sticky/default_profile_images/default_profile_2_normal.png"
         if not ignore_following_status:
-            q = "select * from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,user.GetId())
+            q = "select * from user_following_status where bot_id = %d and id = %d" % (self.GetUserId(),user.GetId())
             if not days_old is None:
                 q = q + " and updated > timestampadd(day, -%d, now())" % days_old
             row = self.con.query(q)
@@ -581,7 +591,7 @@ class DataManager:
         return user
 
     def EverFollowed(self, uid):
-        res = self.con.query("select has_followed from user_following_status where my_name = '%s' and id = %d" % (self.g_data.myName,uid))
+        res = self.con.query("select has_followed from user_following_status where bot_id = %d and id = %d" % (self.GetUserId(),uid))
         if len(res) == 0:
             return False
         return res[0]["has_followed"] == "1"
@@ -767,10 +777,10 @@ class DataManager:
 
     def UpdateUsers(self):
         q = ("select id from user_following_status "
-             "where has_followed = 1 and my_name = '%s' and "
+             "where has_followed = 1 and bot_id = %d and "
              "id not in (select id from user_afflictions where affliction in (%d,%d)) "
              "order by updated limit 75")
-        q = q % (self.g_data.myName, AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
+        q = q % (self.GetUserId(), AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
         result = self.TimedQuery(q, "UpdateUsers")
         count = 0
         for r in result:
@@ -799,36 +809,23 @@ class DataManager:
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
     def DropViews(self):
-        bot_views = self.con.query("show tables like 'tfidf_bot_distance%'")
-        for t in bot_views:
-            k = t.keys()[0]
-            if not t[k].endswith("internal"):
-                self.con.query("drop view %s" % t[k])
-                self.con.query("drop view if exists %s_internal" % t[k])            
-        for v in ["candidates_scored_view",
-                  "candidates_predictors_view",
-                  "candidates_predictors_no_distance_view",
-                  "candidates_view",
-                  "candidates_joined_filtered_view",
-                  "candidates_joined_view",
-                  "tweets_joined",
-                  "bots_tweets_joined",
-                  "tweets_joined_no_json",
-                  "tfidf_bot_distance_%s" % self.g_data.myName, "tfidf_bot_distance_%s_internal" % self.g_data.myName,
-                  "tfidf_distance_view",
-                  "tfidf_distance_view_internal",
-                  "tfidf_important_word_view","tfidf_important_word_view_internal",
-                  "tfidf_distance_numerator_view",
-                  "tfidf_norm_view","tfidf_user_norm_view",
-                  "tfidf_view", 
-                  "tfidf_view_internal", 
-                  "num_docs_view","max_df_view",
-                  "user_token_frequency_aggregated", "user_document_frequency"]:
-            self.con.query("drop view if exists %s" % v)
+        t0 = time.time()
+        while True:
+            views = [r["table_name"] for r in self.con.query("select table_name from information_schema.views where table_schema='tiaraboom'")]
+            if len(views) == 0:
+                break
+            for v in views:
+                try:
+                    self.con.query("drop view if exists %s" % v)
+                except Exception:
+                    pass
+        print "%f secs to drop views" % (time.time() - t0)
 
     def MakeViews(self):
         self.DropViews()
 
+        # views for convinience
+        #
         self.con.query(("create view tweets_joined as "
                         "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
                         "from tweets_storage ts join tweets "
@@ -841,7 +838,8 @@ class DataManager:
                         "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
                         "from tweets_storage ts join tweets "
                         "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-
+        # views for TFIDF
+        #
         self.con.query("create view user_document_frequency as "
                        "select token, count(distinct user_id) as count from user_token_frequency group by 1")
         self.con.query("create view max_df_view as "
@@ -874,25 +872,32 @@ class DataManager:
                        "from users join tfidf_distance_view_internal td "
                        "on users.id = td.user_id ")
 
+        # views for selecting users to follow
+        #
         self.con.query("create view candidates_joined_view as "
                        "select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, "
-                       "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_user_mentions, ts.language as tweet_language, ts.is_retweet, ts.ts, "
+                       "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_urls, ts.num_user_mentions, ts.language as tweet_language, "
+                       "       ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, "
                        "       tc.bot_id, tc.processed "
                        "from tweets_storage ts join users join target_candidates tc "
                        "on ts.user_id = tc.id and users.id = tc.id "
                        "where users.id not in (select id from user_afflictions) "
                        "and users.id not in (select id from user_following_status where has_followed)")
+
         self.con.query("create view candidates_joined_filtered_view as "
-                       "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts "
+                       "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker "
                        "from candidates_joined_view " 
-                       "where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 "
+                       "where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 "
                        "and not is_retweet and ts > processed - interval 7 day and ts < processed "
                        "and num_followers <= 2500 and num_friends <= 2500 and num_followers >= 100 and num_friends >= 100 "
                        "and language like 'en%' and tweet_language like 'en%' ")
+
         self.con.query("create view candidates_view as " 
-                       "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count, count(*)/timestampdiff(minute, min(ts), processed) as tweets_per_minute "
+                       "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count "
                        "from candidates_joined_filtered_view "
-                       "group by bot_id, uid ")
+                       "group by bot_id, uid "
+                       "having sum(is_followbacker) = 0 and avg(maybe_followbacker) < 0.5 and count(*) >= 10")
+
         self.con.query("create view candidates_predictors_no_distance_view as "
                        "select cv.bot_id, cv.screen_name, uid, "
                        "       3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, "
@@ -910,21 +915,38 @@ class DataManager:
                        "       follower_score + friend_score + count_score + dist_score as score "
                        "from candidates_predictors_view")
 
+        # bother targeting views
+        #
+        self.con.query("create view last_bothered_view as "
+                       "select user_id as bot_id, parent_id as user_id, max(ts) as ts "
+                       "from tweets_storage "
+                       "where user_id in (select sql_small_result id from bots) and parent_id is not null "
+                       "group by 1, 2 ")
+        self.con.query("create view botherable_friends_view as "
+                       "select ufs.bot_id, ufs.id as user_id "
+                       "from user_following_status ufs left join last_bothered_view ltv "
+                       "on ufs.bot_id = ltv.bot_id and ufs.id = ltv.user_id "
+                       "where ufs.following = 1 and (ltv.user_id is null or ts < now() - interval 7 day)")
+
 
 
     def UpdateArtRatTFIDF(self):
-        maxdf = self.con.query("select val from max_df_view")[0]["val"]
-        personality = self.g_data.SocialLogic().ArtRatPersonality()
-        q = ("select tr.id as token, log(1 + count(*)) * log(%s/(1+udf.count)) as tfidf "
-             "from %s_dependencies dp "
-             "straight_join token_representatives tr "
-             "straight_join user_document_frequency udf "
-             "on dp.dependant = tr.token and tr.id = udf.token "
-             "group by 1") % (maxdf, personality)
-        nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
-        self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
-        self.updatedArtratTFIDF = True
-
+        if self.g_data.SocialLogic().IsArtRat():
+            maxdf = self.con.query("select val from max_df_view")[0]["val"]
+            personality = self.g_data.SocialLogic().ArtRatPersonality()
+            q = ("select tr.id as token, log(1 + count(*)) * log(%s/(1+udf.count)) as tfidf "
+                 "from %s_dependencies dp "
+                 "straight_join token_representatives tr "
+                 "straight_join user_document_frequency udf "
+                 "on dp.dependant = tr.token and tr.id = udf.token "
+                 "group by 1") % (maxdf, personality)
+            nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
+            self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
+            self.updatedArtratTFIDF = True
+        else:
+            q = "insert into artrat_tfidf(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=0" % (self.GetUserId())
+            self.con.query(q)
+            
     def TFIDFDistance(self, uids=None):
         if not self.updatedArtratTFIDF:
             self.UpdateArtRatTFIDF()
@@ -1135,9 +1157,9 @@ class DataManager:
             ids, next_cursor = result
             try:
                 self.Begin()
+                self.con.query("update follower_cursors set processed=now() where bot_id = %s and id = %s and cursr = %s" % (row["bot_id"],row["id"],row["cursr"]))
                 if next_cursor != 0:
-                    self.con.query("update follower_cursors set processed=now() where bot_id = %s and id = %s and cursr = %s" % (row["bot_id"],row["id"],row["cursr"]))
-                self.con.query("insert into follower_cursors values(%s,%d,%d,null)" % (row["id"], self.GetUserId(), next_cursor))
+                    self.con.query("insert into follower_cursors values(%s,%d,%d,null)" % (row["id"], self.GetUserId(), next_cursor))
                 self.AddTargets(ids)
                 self.Commit()
             except Exception as e:
@@ -1156,7 +1178,9 @@ class DataManager:
             self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
 
     def NextTargetCandidate(self):
-        q = "select uid from target_candidates_scored order where bot_id = %d by score desc limit 1" % self.GetUserId()
+        if not self.updatedArtratTFIDF:
+            self.UpdateArtRatTFIDF()
+        q = "select uid from candidates_scored_view where bot_id = %d order by score desc limit 1" % (self.GetUserId())
         rows = self.TimedQuery(q, "NextTargetCandidate")
         if len(rows) == 0:
             return None
@@ -1168,8 +1192,7 @@ class DataManager:
             self.UpdateUsers()
         elif self.shard % MODES == 1:
             self.UpdateTweets()
-            if self.g_data.SocialLogic().IsArtRat():
-                self.UpdateArtRatTFIDF()
+            self.UpdateArtRatTFIDF()
         elif self.shard % MODES == 2:
             self.ProcessUnprocessedTweets()
             self.UpdateUsers()

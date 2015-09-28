@@ -255,8 +255,8 @@ class SocialLogic:
         uid = self.g_data.dbmgr.NextTargetCandidate()
         if uid is None:
             return None
-        result = self.g_data.ApiHandler().Follow(user_id=uid)
-        if result is None:
+        user = self.g_data.ApiHandler().Follow(user_id=uid)
+        if user is None:
             return None
         fn = random.choice([lambda : self.TweetFrom(user),
                             lambda : self.Bother(screen_name = user.GetScreenName())])
