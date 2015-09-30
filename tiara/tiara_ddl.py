@@ -6,7 +6,6 @@ def TiaraCreateTables(con):
                "user_id bigint not null,"                        
                "retweets bigint not null,"
                "favorites bigint not null,"
-               "parent bigint default null,"
                "primary key(user_id, id),"
                "shard (user_id),"
                "key(id))"))
@@ -211,7 +210,7 @@ def TiaraCreateViews(con):
     con.query("create view candidates_joined_view as "
               "select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, "
               "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_urls, ts.num_user_mentions, ts.language as tweet_language, "
-              "       ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, "
+              "       ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, ts.parent_id, "
               "       tc.bot_id, tc.processed "
               "from tweets_storage ts join users join target_candidates tc "
               "on ts.user_id = tc.id and users.id = tc.id "
@@ -250,17 +249,18 @@ def TiaraCreateViews(con):
     # bother targeting views
     #
     con.query("create view last_bothered_view as "
-              "select user_id as bot_id, parent_id as user_id, max(ts) as ts, count(*) as count_send,  "
+              "select user_id as bot_id, parent_id as user_id, max(ts) as ts, count(*) as count_send  "
               "from bot_tweets "
               "where user_id in (select sql_small_result id from bots) and parent_id is not null "
               "group by 1, 2 ")
     con.query("create view botherable_friends_view as "
               "select ufs.bot_id, ufs.id as user_id "
-              "from user_following_status ufs left join last_bothered_view ltv left join bot_tweets bt "
-              "on ufs.bot_id = ltv.bot_id and ufs.id = ltv.user_id and bs.user_id = ltv.user_id and bs.parent_id = ltv.bot_id "
+              "from user_following_status ufs "
+              "left join last_bothered_view ltv on ufs.bot_id = ltv.bot_id and ufs.id = ltv.user_id "
+              "left join bot_tweets bs on bs.user_id = ltv.user_id and bs.parent_id = ltv.bot_id "
               "where ufs.following = 1 and (ltv.user_id is null or ltv.ts < now() - interval 7 day) "
               "and ufs.id not in (select id from user_afflictions) "
-              "and users.id not in (select user_id from followbackers_view) "
+              "and ufs.id not in (select user_id from followbackers_view) "
               "group by ufs.bot_id, ufs.id "
               "having count(bs.user_id) > 0 or ltv.count_send <= 1")
     con.query("create view botherable_tweets_view as "
