@@ -288,6 +288,8 @@ class DataManager:
         values = " , ".join(values)
         values = "(%s)" % (values)
         jsdict = s.AsDict()
+        if "urls" in jsdict:
+            jsdict["urls"] = [{"url": u, "expanded_url" : v} for u,v in jsdict['urls'].iteritems()] if 'urls' in jsdict else []
         if "user" in jsdict:
             del jsdict["user"]
         del jsdict["created_at"]
@@ -381,7 +383,7 @@ class DataManager:
         assert 'entities' not in jsdict, jsdict
         jsdict['entities'] = {}
         jsdict['entities']['hashtags'] = [{"text":h} for h in jsdict['hashtags']] if 'hashtags' in jsdict else []
-        jsdict['entities']['urls'] = [{"url": u, "expanded_url" : v} for u,v in jsdict['urls'].iteritems()] if 'urls' in jsdict else []
+        jsdict['entities']['urls'] = jsdict['urls'] if 'urls' in jsdict else []
         jsdict['entities']['media'] = jsdict['media'] if 'media' in jsdict else []
         jsdict['entities']['user_mentions'] = jsdict['user_mentions'] if 'user_mentions' in jsdict else []
         s = Status.NewFromJsonDict(jsdict)
