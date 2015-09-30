@@ -3,6 +3,7 @@ import sys
 from util import *
 import server
 import database
+import tiara_ddl
 
 if __name__ == "__main__":
     g_data = g.GlobalData()
@@ -50,16 +51,16 @@ if __name__ == "__main__":
                     uid = uid.GetId()
                     g_data.dbmgr.AddSource(g_data.SocialLogic().params["reply"]["personality"], uid, confirmed=True)
     elif sys.argv[1] == "drop_views":
-        g_data.dbmgr.DropViews()
+        tiara_ddl.DropViews(g_data.dbmgr.con)
     elif sys.argv[1] == "update_artrat_tfidf":
         dbmgr = g.GlobalData(name=sys.argv[2]).dbmgr
         dbmgr.UpdateArtRatTFIDF()
     elif sys.argv[1] == "new_ddl":
-        g_data.dbmgr.DropViews()
+        tiara_ddl.DropViews(g_data.dbmgr.con)
         print "alter table"
 #        g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
         print "ddl"
-        g_data.dbmgr.DDL()
+        tiara_ddl.TiaraCreateTables(g_data.dbmgr.con)
         print "insert select"
         cols = ",".join([c['column_name'] for c in g_data.dbmgr.con.query("select column_name from information_schema.columns where table_name ='%s' and table_schema='tiaraboom' and extra != 'computed'" % sys.argv[2])])
         q = "insert into %s(%s) select %s from %s_bak" % (sys.argv[2], cols, cols, sys.argv[2])
@@ -73,7 +74,5 @@ if __name__ == "__main__":
     elif sys.argv[1] == "add_fc":
         uid = g.GlobalData(name=sys.argv[2]).ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()
         g_data.dbmgr.EnqueueFollower(uid)
-    elif sys.argv[1] == "target_views":
-        g_data.dbmgr.CreateTargetCandidatesViews()
     else:
         assert False
