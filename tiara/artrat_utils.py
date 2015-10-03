@@ -35,7 +35,7 @@ def ArtRatReplyTo(g_data, personality, tweet=None, user=None, retries=10, return
     import artrat.public as ar
     symbols = GetConversationSymbols(g_data, tweet=tweet,user=user)
     for i in xrange(retries):
-        result = ar.Generate(personality, symbols, requireSymbols = (tweet is not None))
+        result = ar.Generate(personality, symbols, requireSymbols = (tweet is not None), con=g_data.dbmgr.con)
         if result["success"]:
             g_data.TraceInfo("The symbol we used is %s" % result["symbols"])
             theresult = result["body"]
@@ -89,7 +89,7 @@ def ArticleRat(personalities, logfn):
 def Print(x):
     print x
 
-def InsertArticle(url, personality, logfn=Print):
+def InsertArticle(url, personality, con, logfn=Print):
     import artrat.article_rat as atc
     abs_prefix = os.path.join(os.path.dirname(__file__), "../artrat_data")
     directory = os.path.join(abs_prefix, personality)
@@ -98,7 +98,8 @@ def InsertArticle(url, personality, logfn=Print):
     atc.DownloadAndProcess(url,
                            directory,
                            personality,
-                           log=logfn)
+                           log=logfn,
+                           con=con)
 
 def ArticleInsertionThread(logfn=Print):
     dbmgr = data_gatherer.MakeFakeDataMgr()
@@ -111,7 +112,7 @@ def ArticleInsertionThread(logfn=Print):
             time.sleep(60 * 60)
             continue
         count = 0
-        InsertArticle(nxt[0], nxt[1], logfn)
+        InsertArticle(nxt[0], nxt[1], dbmgr.con, logfn)
         dbmgr.FinishArticle(nxt[0], nxt[1])
 
 def ArticleInsertionMultiThreaded(num_threads):
@@ -124,7 +125,7 @@ def ArticleInsertionMultiThreaded(num_threads):
             except Queue.Empty:
                 return
             InsertArticle(nxt[0], nxt[1])
-            worker_dbmgr.FinishArticle(nxt[0], nxt[1])
+            worker_dbmgr.FinishArticle(nxt[0], nxt[1], worker_dbmgr.con)
     dbmgr = data_gatherer.MakeFakeDataMgr()
     while True:
         arts = dbmgr.PopAllArticles()

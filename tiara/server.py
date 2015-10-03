@@ -30,7 +30,7 @@ def GDatas():
         port           = conf['port'] if 'port' in conf else 10001
         g_datas        = []
         for i in xrange(len(conf["bots"])):
-            g_datas.append(g.GlobalData(g_data = None if len(g_datas) == 0 else g_datas[0], conf=conf["bots"][i]))
+            g_datas.append(g.GlobalData(g_data = None if len(g_datas) == 0 else g_datas[0], conf=conf["bots"][i], dbHost=conf["dbHost"]))
             g_datas[-1].TraceInfo("Initialized!")
         for i in xrange(len(conf["bots"])):
             if g_datas[i].invalid:

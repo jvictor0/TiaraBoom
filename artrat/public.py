@@ -6,18 +6,20 @@ import traceback
 
 reload(sb)
 
-def Ingest(user, text):
-    con = database.ConnectToMySQL()
-    con.query("use tiaraboom")
+def Ingest(user, text, con=None):
+    if con is None:
+        con = database.ConnectToMySQL()
+        con.query("use tiaraboom")
     try:
         sb.Ingest(con, text, user)
         return { "success": True }
     except Exception as e:  # Complain if nessesary
         return { "success": False, "error": str(e) }
 
-def IngestFile(user, text, log=sb.Print):
-    con = database.ConnectToMySQL()
-    con.query("use tiaraboom")
+def IngestFile(user, text, con=None,log=sb.Print):
+    if con is None:
+        con = database.ConnectToMySQL()
+        con.query("use tiaraboom")
     try:
         sb.IngestFile(con, text, user, log=log)
         return { "success": True }
@@ -25,9 +27,10 @@ def IngestFile(user, text, log=sb.Print):
         con.query("rollback")
         return { "success": False, "error": str(e) }
 
-def Generate(user, symbols, requireSymbols=False):
-    con = database.ConnectToMySQL()
-    con.query("use tiaraboom")
+def Generate(user, symbols, requireSymbols=False, con=None):
+    if con is None:
+        con = database.ConnectToMySQL()
+        con.query("use tiaraboom")        
     dbs = {}
     try:
         gend, syms = sb.GenerateWithSymbols(con, user, symbols,requireSymbols=requireSymbols)

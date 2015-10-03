@@ -31,11 +31,6 @@ class SocialLogic:
         SKD("mean_follow_time",          self.params, 4 * 60)
         SKD("mean_bother_time",          self.params, 4 * 60)
         SKD("reply",                     self.params, {"mode" : "classic", "alliteration_mode" : False })
-        SKD("gravitation_parameter",     self.params, 0.0)
-        SKD("gravitation_targets",       self.params, [])
-        SKD("friend_score_coefficients", self.params, {})
-        if len(self.params["gravitation_targets"]) == 0:
-            self.params["gravitation_parameter"] = 0.0
 
         SKD("practice-mode", self.params["reply"], False)
 
@@ -55,24 +50,11 @@ class SocialLogic:
             self.invalid = True
             return
             
-        if len(self.params) != 6:
-            print "not 6"
+        if len(self.params) != 3:
+            print "not 4", (len(self.params),self.params)
             self.invalid = True
             return
 
-        fsc = self.params["friend_score_coefficients"]
-        SKD("favorites"     , fsc, 0.25)
-        SKD("retweets"      , fsc, 0.25)
-        SKD("conversations" , fsc, 1.0)
-        SKD("avg_convo_len" , fsc, 0.0)
-        SKD("decayed_convo_len" , fsc, 2.0)
-        SKD("response_prob" , fsc, 1.0)
-        SKD("virginity"     , fsc, 1.0)
-        if len(fsc) != 7:
-            print "not 7"
-            self.invalid = True
-            return
-        
         self.tickers.append(t.Ticker(g_data, self.params["mean_follow_time"], lambda: self.Follow(), "Follow"))
         self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.BotherRandom(), "BotherRandom"))
         self.tickers.append(t.Ticker(g_data, 16, lambda: self.g_data.dbmgr.Act(), "ManageDb", exponential=False))
@@ -296,25 +278,6 @@ class SocialLogic:
                  "favorites" : favs,
                  "retweets"  : rts
                  }
-
-    # def ScoreFriendFeatures(self, user):
-    #     stats = self.HistoryStatistics(user=user)
-    #     return {
-    #         "favorites"     : stats["favorites"],
-    #         "retweets"      : stats["retweets"],
-    #         "conversations" : stats["conversations"],
-    #         "avg_convo_len" : float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0,
-    #         "decayed_convo_len" : Decay(float(stats["responses"])/stats["conversations"] if stats["conversations"] != 0 else 0.0),
-    #         "response_prob" : float(stats["conversations"])/stats["attempts"]  if stats["attempts"] != 0 else 0.0,
-    #         "virginity"     : 1.0/(2**stats["attempts"]),
-    #         }
-
-    # def ScoreFriend(self, user):
-    #     if not self.BotherUserAppropriate(user):
-    #         return -1
-    #     coefs = self.params["friend_score_coefficients"]
-    #     features = self.ScoreFriendFeatures(user)
-    #     return sum([coefs[k] * features[k] for k in features.keys()])
 
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  

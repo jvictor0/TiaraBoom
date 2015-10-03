@@ -71,3 +71,4 @@ client/*.json
 artrat_data/*
 
 stanford-corenlp-full*
+venv/*

@@ -58,7 +58,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "new_ddl":
         tiara_ddl.DropViews(g_data.dbmgr.con)
         print "alter table"
-#        g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
+        g_data.dbmgr.con.query("alter table %s rename %s_bak" % (sys.argv[2],sys.argv[2]))
         print "ddl"
         tiara_ddl.TiaraCreateTables(g_data.dbmgr.con)
         print "insert select"

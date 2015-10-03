@@ -52,7 +52,8 @@ def TiaraCreateTables(con):
     con.query(("create table if not exists user_afflictions("
                "id bigint,"
                "affliction int,"
-               "primary key(id, affliction))"))
+               "primary key(id, affliction),"
+               "shard(id))"))
     
     con.query(("create table if not exists users("
                "id bigint primary key,"
@@ -127,10 +128,11 @@ def TiaraCreateTables(con):
     #
     con.query(("create table if not exists ignored_users("
                "id bigint primary key)"))
-    con.query(("create reference table if not exists target_candidates("
+    con.query(("create table if not exists target_candidates("
                "id bigint not null,"
                "bot_id bigint not null,"
                "primary key(bot_id, id),"
+               "shard(id),"
                "processed datetime default null)"))
     con.query(("create reference table if not exists follower_cursors("
                "id bigint not null,"
@@ -175,26 +177,30 @@ def TiaraCreateViews(con):
     #
     con.query("create view user_document_frequency as "
               "select token, count(distinct user_id) as count from user_token_frequency group by 1")
-    con.query("create view max_df_view as "
-              "select max(count) as val from user_document_frequency")
     con.query("create view user_token_frequency_aggregated "
               "as select user_id, token, sum(count) as count "
               "from user_token_frequency "
               "group by 1,2")
+    con.query("create view max_df_view as "
+              "select max(count) as val from user_document_frequency")
     con.query("create view tfidf_view_internal as "
               "select termfreq.token, termfreq.user_id, termfreq.count as tf, docfreq.count as df, "
-              "log(1+termfreq.count) * log((select val from max_df_view)/(1+docfreq.count)) as tfidf "
+              "sqrt(termfreq.count) * log((select val from max_df_view)/(1+docfreq.count)) as tfidf "
               "from user_token_frequency_aggregated termfreq join user_document_frequency docfreq "
               "on termfreq.token = docfreq.token")
     con.query("create view tfidf_view as "
-              "select tid.token, tf.user_id, tf.tf, tf.df, tf.tfidf "
+              "select tid.token, tid.id as token_id, tf.user_id, tf.tf, tf.df, tf.tfidf "
               "from tfidf_view_internal tf join token_id tid "
-              "on tf.token = tid.id")
+              "on tf.token = tid.id ")
+    con.query("create view important_words_view as "
+              "select bots.screen_name as bot_name, tv.user_id, tv.token_id, tv.token, art.tfidf_norm as artrat_tfidf, tv.tfidf as user_tfidf, art.tfidf_norm * tv.tfidf importance "
+              "from tfidf_view tv join artrat_tfidf art join bots "
+              "on art.token = tv.token_id and art.user_id = bots.id ")
     con.query("create view tfidf_distance_view_internal as "
               "select t1.user_id as bot_id, t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
               "from artrat_tfidf t1 right join tfidf_view_internal t2 "
               "on t1.token = t2.token "
-              "group by bot_id, t2.user_id "
+              "group by t1.user_id, t2.user_id "
               "having count(t1.token) > 0")
     con.query("create view tfidf_distance_view as "
               "select bot_id, users.screen_name, users.id as user_id, td.dist "
@@ -213,10 +219,10 @@ def TiaraCreateViews(con):
               "       ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, ts.parent_id, "
               "       tc.bot_id, tc.processed "
               "from tweets_storage ts join users join target_candidates tc "
-              "on ts.user_id = tc.id and users.id = tc.id "
-              "where users.id not in (select id from user_afflictions) "
-              "and users.id not in (select user_id from followbackers_view) "
-              "and users.id not in (select id from user_following_status where has_followed)")
+              "on ts.user_id = users.id and users.id = tc.id "
+              "where users.id not in (select user_id from followbackers_view) "
+              "and users.id not in (select id from user_following_status where has_followed) "
+              "and users.id not in (select id from user_afflictions)")
     con.query("create view candidates_joined_filtered_view as "
               "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker "
               "from candidates_joined_view " 

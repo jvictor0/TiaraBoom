@@ -19,12 +19,14 @@ class EmptySocialLogic:
         pass
 
 class GlobalData:
-    def __init__(self, g_data=None, conf=None, name=None):
+    def __init__(self, g_data=None, conf=None, name=None, dbHost=None):
 
         abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
         if conf is None:
             with open(abs_prefix + '/config.json','r') as f:
-                confs = json.load(f)["bots"]
+                confs = json.load(f)
+                dbHost = confs["dbHost"]
+                confs = confs["bots"]
                 if not g_data is None:
                     name = g_data.myName
                 if name is None:
@@ -81,7 +83,7 @@ class GlobalData:
         self.read_only_mode = conf["read_only_mode"] if "read_only_mode" in conf else False
         if self.read_only_mode:
             self.TraceInfo("In Read Only Mode!")
-        self.dbmgr = data_gatherer.DataManager(self, conf)
+        self.dbmgr = data_gatherer.DataManager(self, dbHost)
         
         self.socialLogic = social_logic.SocialLogic(self, conf["social_logic"])
         if self.socialLogic.invalid:

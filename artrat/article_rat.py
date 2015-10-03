@@ -28,7 +28,7 @@ def RefreshArticles(domain, directory, personality, log=Print, timeout=None):
             return
         DownloadAndProcess(url, directory, personality, log=log)
         
-def DownloadAndProcess(url, directory, personality, log=Print):
+def DownloadAndProcess(url, directory, personality, con, log=Print):
     art = np.Article(url)
     hashd_fn = hashlib.sha256(unidecode(art.url)).hexdigest()
     base_fn = directory + "/" + hashd_fn
@@ -44,7 +44,7 @@ def DownloadAndProcess(url, directory, personality, log=Print):
         with open(orig_fn,"w") as f:
             text = unidecode(extractor.getText())
             print >>f, text
-        result = Process(directory, hashd_fn, personality, log=log)
+        result = Process(directory, hashd_fn, personality, con, log=log)
         assert result["success"], result
 
 def VirginProcess(directory, filename, personality, log=Print):
@@ -52,12 +52,12 @@ def VirginProcess(directory, filename, personality, log=Print):
     call("mv '%s' '%s'" % (fn, fn + "_original"), shell=True)
     Process(directory, filename, personality, log=log)
 
-def Process(directory, filename, personality, log=Print):
+def Process(directory, filename, personality, con, log=Print):
     fn = directory + "/" + filename + "_original"
     outfn = directory + "/" + filename + "_processed"
     call("cp '%s' '%s'" % (fn, outfn), shell=True)
     call("sed -i 's/\[[0-9]*\]//g' '" + outfn + "'", shell=True)
-    return public.IngestFile(personality, outfn, log=log)
+    return public.IngestFile(personality, outfn, con, log=log)
 
 def Reset(directory, personality, log=Print):
     public.Reset(personality)

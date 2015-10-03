@@ -46,17 +46,16 @@ class FakeGData:
 def MakeFakeDataMgr(name = ""):
     abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
     with open(abs_prefix + '/config.json','r') as f:
-        confs = json.load(f)["bots"][0]
-        dbname = confs["database"]
-        dbhost = confs["dbhost"]
-    return DataManager(FakeGData(name), { "database" : dbname, "dbhost" : dbhost}, no_ddl = True)
+        confs = json.load(f)
+        dbhost = confs["dbHost"]
+    return DataManager(FakeGData(name), dbhost, no_ddl = True)
 
 class DataManager:
-    def __init__(self, g_data, config, no_ddl=False):
+    def __init__(self, g_data, host, no_ddl=False):
         self.con = None
         self.g_data = g_data
         self.shard = 0
-        self.con = db.ConnectToMySQL(host=config["dbhost"])
+        self.con = db.ConnectToMySQL(host=host)
         self.con.query("create database if not exists tiaraboom")
         self.con.query("use tiaraboom")
         self.con.query('set names "utf8mb4" collate "utf8mb4_bin"')
@@ -68,10 +67,7 @@ class DataManager:
         self.timedQueryLimit = 1.0
         if no_ddl:
             return
-        if "gatherer_authentication" in config:
-            self.apiHandler = api_handler.ApiHandler(config["gatherer_authentication"])
-        else:
-            self.apiHandler = g_data.ApiHandler()
+        self.apiHandler = g_data.ApiHandler()
         self.DDL()
         self.updatedArtratTFIDF = False
         try:
