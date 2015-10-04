@@ -172,6 +172,10 @@ def TiaraCreateViews(con):
                "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
                "from tweets_storage ts join tweets "
                "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
+    con.query(("create view artrat_tfidf_view as "
+               "select bots.screen_name, ti.token, art.tfidf_norm "
+               "from bots join artrat_tfidf art join token_id ti "
+               "on bots.id = art.user_id and art.token = ti.id "))               
 
     # views for TFIDF
     #
@@ -203,9 +207,9 @@ def TiaraCreateViews(con):
               "group by t1.user_id, t2.user_id "
               "having count(t1.token) > 0")
     con.query("create view tfidf_distance_view as "
-              "select bot_id, users.screen_name, users.id as user_id, td.dist "
-              "from users join tfidf_distance_view_internal td "
-              "on users.id = td.user_id ")
+              "select bots.screen_name as bot_name, bots.id as bot_id, users.screen_name, users.id as user_id, td.dist "
+              "from users join tfidf_distance_view_internal td join bots "
+              "on users.id = td.user_id and td.bot_id = bots.id ")
 
     # views for selecting users to follow
     #

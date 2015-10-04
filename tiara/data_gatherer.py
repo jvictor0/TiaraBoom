@@ -1,3 +1,4 @@
+
 import database as db
 import vocab as v
 
@@ -71,7 +72,7 @@ class DataManager:
         self.DDL()
         self.updatedArtratTFIDF = False
         try:
-            self.con.query("insert into bots values (%d,'%s')" % (self.GetUserId(), self.g_data.myName))
+            self.con.query("insert into bots values (%d,'%s', 10)" % (self.GetUserId(), self.g_data.myName))
         except Exception as e:
             assert e[0] == 1062, e # dup key        
 
@@ -311,7 +312,7 @@ class DataManager:
                 if s.GetUser().GetId() in self.GetBotIds() or s.GetInReplyToUserId() in self.GetBotIds():
                     self.needsUpdateBotTweets = True
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
-                self.InsertTweetTokens(s.GetUser().GetId(), s.GetText(), single_xact=False)
+                self.InsertTweetTokens(s.GetId(), s.GetUser().GetId(), s.GetText(), single_xact=False)
             if insert_user:
                 self.InsertUser(s.GetUser())
             if single_xact:
@@ -682,17 +683,38 @@ class DataManager:
 
     def UpdateArtRatTFIDF(self):
         if self.g_data.SocialLogic().IsArtRat():
-            maxdf = self.con.query("select val from max_df_view")[0]["val"]
-            personality = self.g_data.SocialLogic().ArtRatPersonality()
-            q = ("select tr.id as token, log(1 + count(*)) * log(%s/(1+udf.count)) as tfidf "
-                 "from %s_dependencies dp "
-                 "straight_join token_representatives tr "
-                 "straight_join user_document_frequency udf "
-                 "on dp.dependant = tr.token and tr.id = udf.token "
-                 "group by 1") % (maxdf, personality)
-            nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
-            self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
-            self.updatedArtratTFIDF = True
+            min_normalizer = 0.0
+            max_normalizer = None
+            for i in xrange(10):
+                maxdf = self.con.query("select val from max_df_view")[0]["val"]
+                normalizer = float(self.con.query("select normalizer from bots where id = %d" % self.GetUserId())[0]['normalizer'])
+                personality = self.g_data.SocialLogic().ArtRatPersonality()
+                q = ("select tr.id as token, exp(log(1 + count(*)) * log(%s/(1+udf.count))/%f) as tfidf "
+                     "from %s_dependencies dp "
+                     "straight_join token_representatives tr "
+                     "straight_join user_document_frequency udf "
+                     "on dp.dependant = tr.token and tr.id = udf.token "
+                     "group by 1") % (maxdf, normalizer, personality)
+                nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
+                self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
+                self.updatedArtratTFIDF = True
+                
+                frac = float(self.con.query("select sqrt(sum(tfidf_norm * tfidf_norm)) as frac "
+                                            "from (select tfidf_norm from artrat_tfidf where user_id=%d order by tfidf_norm desc limit 100) sub "
+                                            % self.GetUserId())[0]['frac'])
+                new_normalizer = None
+                if frac < 0.45:
+                    max_normalizer = normalizer
+                    new_normalizer = (normalizer + min_normalizer)/2
+                elif frac > 0.55:
+                    min_normalizer = normalizer
+                    if max_normalizer is None:
+                        new_normalizer = 2 * normalizer
+                    else:
+                        new_normalizer = (normalizer + max_normalizer)/2                        
+                else:
+                    break
+                self.con.query("update bots set normalizer = %f where id = %d" % (new_normalizer, self.GetUserId()))
         else:
             q = "insert into artrat_tfidf(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=0" % (self.GetUserId())
             self.con.query(q)
@@ -723,14 +745,14 @@ class DataManager:
         else:
             return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
 
-    def InsertTweetTokens(self, uid, tweet, single_xact=True):
+    def InsertTweetTokens(self, tid, uid, tweet, single_xact=True):
         if single_xact:
             self.Begin()
         else:
             assert self.xact, "must have began xaction in InsertTweetTokens"
         try:
             tokens = [self.Feat2Id(a) for a in set(v.Vocab(self.g_data).Tokenize(tweet))]
-            self.InsertTweetTokensById(uid, tokens)
+            self.InsertTweetTokensById(tid, uid, tokens)
             if single_xact:
                 self.Commit()
         except Exception as e:
@@ -739,8 +761,9 @@ class DataManager:
             self.Rollback()
             raise e
 
-    def InsertTweetTokensById(self, uid, tokens):
+    def InsertTweetTokensById(self, tid, uid, tokens):
         for t in tokens:
+            self.Horde("tweet_tokens","(%s,%s,%s)" % (uid,tid,t))
             self.HordeUpsert("user_token_frequency", (uid, int(t)), 1, None)
             self.HordeUpsert("tweet_document_frequency", (int(t),), 1, "count=count+values(count)")
 
@@ -775,35 +798,31 @@ class DataManager:
             self.Rollback()
             raise e
 
-    def InsertAllTweetTokens(self, blocksize = 1000, dbhost="127.0.0.1:3308"):
-        self.con.query("truncate table user_token_frequency") # because fuck you thats why!
-        self.con.query("truncate table tweet_document_frequency")
+    def InsertAllTweetTokens(self, blocksize = 1000):
+        self.con.query("delete from tweet_tokens") # because fuck you thats why!
         lkt = { r["token"] : r["id"] for r in self.con.query("select * from token_id") }
         voc = v.Vocab(self.g_data)
         total_size = int(self.con.query("select max(user_id) as a from tweets_storage")[0]["a"])
         max_user = [0]
-        lock = threading.Lock()
-        def InsertAllTweetTokensWorker():
-            mycon =  db.ConnectToMySQL(host=dbhost)
-            mycon.query("use tiaraboom")
+        if True:
             while True:
-                lock.acquire()
-                users = [int(r['id']) for r in self.con.query("select id from users where id > %d order by id limit %d" % (max_user[0],blocksize))]
+                users = [int(r['id']) for r in self.TimedQuery("select id from users where id > %d order by id limit %d" % (max_user[0],blocksize), "getusers")]
                 if len(users) == 0:
                     return
                 new_max_user = max(users)
-                tweets = self.con.query("select user_id, body from tweets_storage where user_id > %d and user_id <= %d " % (max_user[0], new_max_user))
+                tweets = self.TimedQuery("select id, user_id, body from tweets_storage where user_id > %d and user_id <= %d " % (max_user[0], new_max_user), "get tweets")
                 max_user[0] = new_max_user
                 print float(max_user[0])/total_size
                 print "processing %d tweets" % len(tweets)
-                lock.release()
+                values = []
+                t0 = time.time()
                 for i,r in enumerate(tweets): # am i insane or genious?
                     tokens = [lkt[a] for a in set(voc.Tokenize(r["body"]))]
-                    q = "insert into user_token_frequency (user_id, token, count) values (%s,%%s,1) on duplicate key update count = count + 1" % (r["user_id"])
                     for t in tokens:
-                        mycon.query(q,t)
-        InsertAllTweetTokensWorker()
-        self.RepairDocFreq()
+                        values.append("(%s,%s,%s)" % (r["id"],r["user_id"],t))
+                tt = time.time() - t0
+                print "created insert of length %d in %f secs (%f rps, %f tps)" % (len(values), tt, len(tweets)/tt, len(values)/tt)
+                self.TimedQuery("insert into tweet_tokens(id,user_id,token) values %s" % ",".join(values), "do insert")
 
 
     def RepairDocFreq(self):

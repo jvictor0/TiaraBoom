@@ -74,5 +74,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "add_fc":
         uid = g.GlobalData(name=sys.argv[2]).ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()
         g_data.dbmgr.EnqueueFollower(uid)
+    elif sys.argv[1] == "insert_all_tweet_tokens":
+        g_data.dbmgr.InsertAllTweetTokens()
     else:
         assert False
