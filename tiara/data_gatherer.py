@@ -715,9 +715,10 @@ class DataManager:
                 else:
                     break
                 self.con.query("update bots set normalizer = %f where id = %d" % (new_normalizer, self.GetUserId()))
-        else:
-            q = "insert into artrat_tfidf(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=0" % (self.GetUserId())
-            self.con.query(q)
+                
+        q = ("insert into artrat_tfidf(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=tfidf_norm" 
+             % (self.GetUserId()))
+        self.con.query(q)
             
     def TFIDFDistance(self, uids=None):
         if not self.updatedArtratTFIDF:

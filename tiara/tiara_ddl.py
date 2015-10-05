@@ -100,7 +100,7 @@ def TiaraCreateTables(con):
                "token bigint not null,"
                "shard(user_id),"
                "key(user_id, id, token) using clustered columnstore)"))
-    con.query(("create table if not exists tweet_document_frequency("
+    con.query(("create reference table if not exists tweet_document_frequency("
                "token bigint not null,"
                "count bigint not null,"
                "primary key(token))"))
@@ -177,7 +177,7 @@ def TiaraCreateViews(con):
                "from bots join artrat_tfidf art join token_id ti "
                "on bots.id = art.user_id and art.token = ti.id "))               
 
-    # views for TFIDF
+    # views for user level TFIDF
     #
     con.query("create view user_document_frequency as "
               "select token, count(distinct user_id) as count from user_token_frequency group by 1")
@@ -189,7 +189,7 @@ def TiaraCreateViews(con):
               "select max(count) as val from user_document_frequency")
     con.query("create view tfidf_view_internal as "
               "select termfreq.token, termfreq.user_id, termfreq.count as tf, docfreq.count as df, "
-              "sqrt(termfreq.count) * log((select val from max_df_view)/(1+docfreq.count)) as tfidf "
+              "log(1 + termfreq.count) * log((select val from max_df_view)/(1+docfreq.count)) as tfidf "
               "from user_token_frequency_aggregated termfreq join user_document_frequency docfreq "
               "on termfreq.token = docfreq.token")
     con.query("create view tfidf_view as "
@@ -202,7 +202,7 @@ def TiaraCreateViews(con):
               "on art.token = tv.token_id and art.user_id = bots.id ")
     con.query("create view tfidf_distance_view_internal as "
               "select t1.user_id as bot_id, t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
-              "from artrat_tfidf t1 right join tfidf_view_internal t2 "
+              "from artrat_tfidf t1 join tfidf_view_internal t2 "
               "on t1.token = t2.token "
               "group by t1.user_id, t2.user_id "
               "having count(t1.token) > 0")
@@ -210,6 +210,23 @@ def TiaraCreateViews(con):
               "select bots.screen_name as bot_name, bots.id as bot_id, users.screen_name, users.id as user_id, td.dist "
               "from users join tfidf_distance_view_internal td join bots "
               "on users.id = td.user_id and td.bot_id = bots.id ")
+
+    # views for tweet level TFIDF
+    #
+    con.query("create view max_tweet_df_view as "
+              "select max(count) as val from tweet_document_frequency ")
+    con.query("create view tweet_tfidf_view_internal as "
+              "select user_id, id, tt.token, "
+              "log((select val from max_tweet_df_view)/(1+tdf.count)) as tfidf "
+              "from tweet_tokens tt join tweet_document_frequency tdf "
+              "on tt.token = tdf.token " )
+    con.query("create view tweet_tfidf_distance_view_internal as "
+              "select t1.user_id as bot_id, t2.user_id, t2.id, "
+              "       sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist, "
+              "       count(*) as count "
+              "from artrat_tfidf t1 join tweet_tfidf_view_internal t2 "
+              "on t1.token = t2.token "
+              "group by t2.user_id, t2.id, t1.user_id ")
 
     # views for selecting users to follow
     #
@@ -260,24 +277,49 @@ def TiaraCreateViews(con):
     #
     con.query("create view last_bothered_view as "
               "select user_id as bot_id, parent_id as user_id, max(ts) as ts, count(*) as count_send  "
-              "from bot_tweets "
-              "where user_id in (select sql_small_result id from bots) and parent_id is not null "
+              "from bot_tweets join bots "
+              "on bot_tweets.user_id = bots.id "
+              "where parent_id is not null "
               "group by 1, 2 ")
     con.query("create view botherable_friends_view as "
               "select ufs.bot_id, ufs.id as user_id "
               "from user_following_status ufs "
-              "left join last_bothered_view ltv on ufs.bot_id = ltv.bot_id and ufs.id = ltv.user_id "
-              "left join bot_tweets bs on bs.user_id = ltv.user_id and bs.parent_id = ltv.bot_id "
-              "where ufs.following = 1 and (ltv.user_id is null or ltv.ts < now() - interval 7 day) "
+              "left join bot_tweets bs on bs.user_id = ufs.id and bs.parent_id = ufs.bot_id "
+              "left join last_bothered_view ltv on ufs.id = ltv.user_id "#and ufs.bot_id = ltv.bot_id "
+              "where ufs.following = 1 "
+              "and (ltv.ts is null or ltv.ts < now() - interval 7 day) "
               "and ufs.id not in (select id from user_afflictions) "
               "and ufs.id not in (select user_id from followbackers_view) "
               "group by ufs.bot_id, ufs.id "
-              "having count(bs.user_id) > 0 or ltv.count_send <= 1")
+              "having count(bs.user_id) > 0 or ltv.count_send is null or ltv.count_send <= 1")
     con.query("create view botherable_tweets_view as "
-              "select bfv.bot_id, bfv.user_id, ts.id "
-              "from botherable_friends_view bfv join tweets_storage ts "
-              "on bfv.user_id = ts.user_id "
+              "select bfv.bot_id, bfv.user_id, ts.id, timestampdiff(second, ts.ts, now()) as recentness, "
+              "       tweets.favorites, tweets.retweets "
+              "from botherable_friends_view bfv join tweets_storage ts join tweets "
+              "on bfv.user_id = ts.user_id and ts.user_id = tweets.user_id and ts.id = tweets.id "
               "where ts.num_user_mentions = 0 and ts.num_media = 0 and ts.num_hashtags <= 2 and ts.num_urls = 0 "
-              "and ts.parent_id is null and not ts.is_retweet and ts.ts < now() - interval 7 day "
+              "and ts.parent_id is null and not ts.is_retweet and ts.ts > now() - interval 7 day "
               "and ts.maybe_followbacker = 0 "
               "and ts.language like 'en%' ")
+    con.query("create view botherable_tweets_predictors_view as "
+              "select btv.bot_id, btv.user_id, btv.id, "
+              "       3 * count(*) as count_score, "
+              "       250 * sum(art.tfidf_norm * tt.tfidf)/sqrt(sum(tt.tfidf*tt.tfidf))  as dist_score, "
+              "       - recentness / (24 * 60 * 60) as recentness_score, "
+              "       2 * (1 - (favorites/2 - 1) * (favorites/2 - 1)) as favorites_score, "
+              "       2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score "
+              "from botherable_tweets_view btv join tweet_tfidf_view_internal tt join artrat_tfidf art "
+              "on btv.user_id = tt.user_id and btv.id = tt.id "
+              "and art.token = tt.token and art.user_id = btv.bot_id "
+              "group by 1,2,3")
+    con.query("create view botherable_tweets_scored_view_internal as "
+              "select bot_id, user_id, id, "
+              "       count_score , dist_score , recentness_score , favorites_score , retweets_score , "
+              "       count_score + dist_score + recentness_score + favorites_score + retweets_score as score "
+              "from botherable_tweets_predictors_view")
+    con.query("create view botherable_tweets_scored_view as "
+              "select bots.screen_name as bot_name, users.screen_name, csv.id, "
+              "       count_score , dist_score , recentness_score , favorites_score , retweets_score , score "
+              "from botherable_tweets_scored_view_internal csv join bots join users "
+              "on bots.id = csv.bot_id and users.id = csv.user_id ")
+
