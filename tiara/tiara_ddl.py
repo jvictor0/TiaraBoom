@@ -143,6 +143,17 @@ def TiaraCreateTables(con):
     con.query(("create reference table if not exists bots("
                "id bigint primary key,"
                "screen_name varbinary(200))"))
+
+    # materialized view for targeting state
+    #
+    con.query(("create table targeting_state("
+               "bot_id bigint not null,"
+               "user_id bigint not null,"
+               "last_targeted datetime not null,"
+               "tweets_to bigint not null,"
+               "primary key(bot_id, user_id),"
+               "shard(user_id))"))
+
     
 def DropViews(con):
     while True:
@@ -275,8 +286,8 @@ def TiaraCreateViews(con):
 
     # bother targeting views
     #
-    con.query("create view last_bothered_view as "
-              "select user_id as bot_id, parent_id as user_id, max(ts) as ts, count(*) as count_send  "
+    con.query("create view targeting_state_view as "
+              "select user_id as bot_id, parent_id as user_id, max(ts) as last_targeted, count(*) as tweets_to "
               "from bot_tweets join bots "
               "on bot_tweets.user_id = bots.id "
               "where parent_id is not null "
@@ -285,7 +296,7 @@ def TiaraCreateViews(con):
               "select ufs.bot_id, ufs.id as user_id "
               "from user_following_status ufs "
               "left join bot_tweets bs on bs.user_id = ufs.id and bs.parent_id = ufs.bot_id "
-              "left join last_bothered_view ltv on ufs.id = ltv.user_id "#and ufs.bot_id = ltv.bot_id "
+              "left join targeting_state ltv on ufs.id = ltv.user_id and ufs.bot_id = ltv.bot_id "
               "where ufs.following = 1 "
               "and (ltv.ts is null or ltv.ts < now() - interval 7 day) "
               "and ufs.id not in (select id from user_afflictions) "
@@ -323,3 +334,13 @@ def TiaraCreateViews(con):
               "from botherable_tweets_scored_view_internal csv join bots join users "
               "on bots.id = csv.bot_id and users.id = csv.user_id ")
 
+    # web populating views
+    con.query("create view conversations_view as "
+              "select conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
+              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.id) as bot_involved, "
+              "       sum((not isnull(bots2.id)) * favorites) as bot_favorites, "
+              "       sum((not isnull(bots2.id)) * retweets)  as bot_retweets   "
+              "from bot_tweets "
+              "     left join bots bots  on bot_tweets.parent_id = bots.id "
+              "     left join bots bots2 on bot_tweets.user_id = bots2.id "
+              "group by conversation_id")

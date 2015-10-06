@@ -591,7 +591,13 @@ class DataManager:
             if self.MoveBotTweets(rows, "which are replies from bot_tweets"):
                 continue
             
-            break
+            break        
+
+    def UpdateTargetingState(self, full):
+        if full:
+            self.con.query("delete from targeting_state")
+        q = "insert into targeting_state select * from targeting_state_view on duplicate key update last_targeted=values(last_targeted), tweets_to=values(tweets_to)"
+        self.TimedQuery(q, "UpdateTargetingState")
 
     def UpdateConversationIds(self):
         assert not self.xact
@@ -615,14 +621,20 @@ class DataManager:
                     self.con.query("update bot_tweets set conversation_id = %s where user_id = %s and id = %s" % (r["conversation_id"], r["user_id"],r["id"]))
                 continue
             break
+        self.UpdateTargetingState(full=False)
         
     # Int -> [[Status]]
-    def RecentConversations(self, limit, min_length=2, bots=None):
-        q = ("select * from bot_tweets_joined "
-             "where conversation_id in "
-             "   (select conversation_id from bot_tweets group by 1 having count(*) > %d order by 1 desc limit %d) "
-             "order by -conversation_id, id ")
-        q = q % (min_length, limit)
+    def RecentConversations(self, limit):
+        q = ("""select *                                                           
+                from bot_tweets_joined join                                        
+                (
+                      select conversation_id, max_id from conversations_view        
+                      where to_bots > 1                                             
+                      order by max_id desc limit %d
+                ) conversations                  
+                on conversations.conversation_id=bot_tweets_joined.conversation_id 
+                order by max_id desc""")
+        q = q % limit
         rows = self.con.query(q)
         users = self.LookupUsers([r["user_id"] for r in rows], ignore_following_status=True)        
         result = []
