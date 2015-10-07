@@ -146,7 +146,7 @@ def TiaraCreateTables(con):
 
     # materialized view for targeting state
     #
-    con.query(("create table targeting_state("
+    con.query(("create table if not exists targeting_state("
                "bot_id bigint not null,"
                "user_id bigint not null,"
                "last_targeted datetime not null,"
@@ -298,11 +298,11 @@ def TiaraCreateViews(con):
               "left join bot_tweets bs on bs.user_id = ufs.id and bs.parent_id = ufs.bot_id "
               "left join targeting_state ltv on ufs.id = ltv.user_id and ufs.bot_id = ltv.bot_id "
               "where ufs.following = 1 "
-              "and (ltv.ts is null or ltv.ts < now() - interval 7 day) "
+              "and (ltv.last_targeted is null or ltv.last_targeted < now() - interval 7 day) "
               "and ufs.id not in (select id from user_afflictions) "
               "and ufs.id not in (select user_id from followbackers_view) "
               "group by ufs.bot_id, ufs.id "
-              "having count(bs.user_id) > 0 or ltv.count_send is null or ltv.count_send <= 1")
+              "having count(bs.user_id) > 0 or ltv.tweets_to is null or ltv.tweets_to <= 1")
     con.query("create view botherable_tweets_view as "
               "select bfv.bot_id, bfv.user_id, ts.id, timestampdiff(second, ts.ts, now()) as recentness, "
               "       tweets.favorites, tweets.retweets "
@@ -313,7 +313,7 @@ def TiaraCreateViews(con):
               "and ts.maybe_followbacker = 0 "
               "and ts.language like 'en%' ")
     con.query("create view botherable_tweets_predictors_view as "
-              "select btv.bot_id, btv.user_id, btv.id, "
+              "select art.user_id as bot_id, tt.user_id, tt.id, "
               "       3 * count(*) as count_score, "
               "       250 * sum(art.tfidf_norm * tt.tfidf)/sqrt(sum(tt.tfidf*tt.tfidf))  as dist_score, "
               "       - recentness / (24 * 60 * 60) as recentness_score, "
@@ -334,6 +334,7 @@ def TiaraCreateViews(con):
               "from botherable_tweets_scored_view_internal csv join bots join users "
               "on bots.id = csv.bot_id and users.id = csv.user_id ")
 
+    return
     # web populating views
     con.query("create view conversations_view as "
               "select conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
