@@ -9,14 +9,6 @@ import sys
 import artrat_utils as au
 import server
 
-BUA_FILTERS = [
-    "not is_retweet",
-    "num_user_mentions = 0",
-    "num_hashtags <= 2",
-    "num_media = 0",
-    "language = 'en'"
-]
-
 class SocialLogic:
     def __init__(self, g_data, args):
         self.g_data = g_data
@@ -51,12 +43,12 @@ class SocialLogic:
             return
             
         if len(self.params) != 3:
-            print "not 4", (len(self.params),self.params)
+            print "not 3", (len(self.params),self.params)
             self.invalid = True
             return
 
         self.tickers.append(t.Ticker(g_data, self.params["mean_follow_time"], lambda: self.Follow(), "Follow"))
-        self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.BotherRandom(), "BotherRandom"))
+        self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.Bother(), "BotherRandom"))
         self.tickers.append(t.Ticker(g_data, 16, lambda: self.g_data.dbmgr.Act(), "ManageDb", exponential=False))
         if self.params["reply"]["mode"] == "artrat":
             self.tickers.append(t.Ticker(g_data, 16, lambda: self.GatherSources(), "GatherSources", exponential=False))
@@ -112,32 +104,16 @@ class SocialLogic:
         return None
             
 
-    def BotherRandom(self):
-        result = self.g_data.ApiHandler().GetFriendIDs(screen_name=self.g_data.myName)
-        if result is None or result == []:
-            return None
-        random.shuffle(result)
-        for uid in result[:min(30,len(result))]:
-            u = self.g_data.ApiHandler().ShowUser(user_id = uid)
-            if u is None:
-                return None
-            if self.BotherUserAppropriate(u):
-                if self.Bother(user_id=uid):
-                    return True
-
-    def Bother(self, screen_name=None, user_id=None):
-        if not screen_name is None:
-            self.g_data.TraceInfo("Bothering @%s" % screen_name)
-        else:
+    def Bother(self, screen_name=None,user_id=None):
+        if screen_name is not None:
+            u = self.g_data.ApiHandler().ShowUser(screen_name=screen_name)
+            user_id=u.GetId()
+        if user_id is not None:
             self.g_data.TraceInfo("Bothering id = %s" % user_id)
-        tweets = self.g_data.ApiHandler().ShowStatuses(screen_name = screen_name, user_id=user_id)
-        if tweets is None or len(tweets) == 0:
-            return None
-        for t in tweets:
-            assert not t is None, tweets
-            if self.BotherAppropriate(t):
-                return self.ReplyTo(t)
-        self.g_data.TraceWarn("No tweet by @%s was found botherable!" % tweets[0].GetUser().GetScreenName())
+        s = self.g_data.dbmgr.NextTargetStatus(user_id)
+        if s is not None:
+            return self.ReplyTo(s)
+        self.g_data.TraceWarn("No tweet was found botherable!")
         return None
     
     def TweetFrom(self, user):
@@ -161,78 +137,6 @@ class SocialLogic:
         self.g_data.TraceWarn("Failed to tweet from @%s" % user.GetScreenName())
         return None
 
-    def BotherAppropriate(self, tweet):
-        if not tweet.lang.startswith("en"):
-            return False
-        if len(tweet.hashtags) > 2:
-            return False
-        if len(tweet.media) != 0:
-            return False
-        if len(tweet.user_mentions) != 0:
-            return False
-        if not tweet.GetRetweeted_status() is None:
-            return False
-        if self.IsFollowback(tweet.GetText()):
-            return False
-        if OlderThan(MySQLTimestampToPython(TwitterTimestampToMySQL(tweet.GetCreatedAt())), 7):
-            return False
-        return True
-
-    def BotherUserAppropriate(self, user, tweets = None, verbose=False):
-        t0 = time.time()
-        if not user.GetLang().startswith('en'):
-            if verbose: print "lang"
-            return False
-        if self.UserInactive(user):
-            if verbose: print "inactive"
-            return False
-        if self.RecentlyTargeted(user):
-            if verbose: print "recent"
-            return False
-        #if self.UserOverActive(user):
-        #    return False
-        if len(self.g_data.dbmgr.GetAffliction(user.GetId())) > 0:
-            if verbose: print "afflicted"
-            return False
-        stats = self.HistoryStatistics(user)
-        if stats["attempts"] > 1 and stats["conversations"] == 0: # they probably aren't into it
-            if verbose: print "history"
-            return False
-        if tweets is None:
-            tweets = self.g_data.dbmgr.LookupStatusesFromUsers(uids = [user.GetId()], skip_rts=True, filters=BUA_FILTERS, json=False)
-        if len([t for t in tweets if self.BotherAppropriate(t)]) == 0:
-            if verbose: print "unbotherable"
-            return False
-        if self.UserFollowbacker(tweets):
-            if verbose: print "followbacker"
-            return False
-        if verbose: 
-            print "took %f secs" % (time.time() - t0)
-        return True
-
-    def UserInactive(self, user):
-        ts = self.g_data.dbmgr.MostRecentTweet(user.GetId())
-        return ts is None or OlderThan(ts, 7)
-    
-    def RecentlyTargeted(self, user):
-        ts = self.g_data.dbmgr.MostRecentTweetAt(user.GetId())
-        return ts is not None and not OlderThan(ts, 7)
-
-    def UserOveractive(self, user):
-        times = self.g_data.dbmgr.UnixTimes(user.GetId())
-        median = Median(Differences(times))
-        return median < (60 * 5)
-
-    def UserFollowbacker(self, tweets):
-        return float(len([t for t in tweets if self.IsFollowback(t.GetText())]))/len(tweets) > 0.25
-
-    def IsFollowback(self, text):
-        text = text.lower()
-        for fl in ['follow','seguro','retweet','mgwv']:
-            if re.search("[^a-z]*".join(fl),text) is not None:
-                return True
-        return False
-
     def Follow(self):
         uid = self.g_data.dbmgr.NextTargetCandidate()
         if uid is None:
@@ -240,45 +144,11 @@ class SocialLogic:
         user = self.g_data.ApiHandler().Follow(user_id=uid)
         if user is None:
             return None
+        self.g_data.ApiHandler().ShowStatuses(user_id=user.GetId())
         fn = random.choice([lambda : self.TweetFrom(user),
-                            lambda : self.Bother(screen_name = user.GetScreenName())])
+                            lambda : self.Bother(user.GetId())])
         return fn()
         
-
-    def HistoryStatistics(self, user=None, uid=None):
-        if uid is None:
-            uid = user.GetId()
-        tweets = self.g_data.dbmgr.TweetHistory(uid)
-        ids = set([t.GetId() for t,s in tweets] + [s.GetId() for t,s in tweets])
-        roots = set([])
-        rootUrls = []
-        initiatesUrls = []
-        initiates = 0
-        for c,p in tweets:
-            if not p.GetInReplyToStatusId() in ids:
-                if p.GetUser().GetId() == uid and p.GetInReplyToUserId() != self.g_data.dbmgr.GetUserId():
-                    rootUrls.append(GetURL(p))
-                    roots.add(c.GetId())
-                else:
-                    initiatesUrls.append(GetURL(p))
-                    initiates = initiates + 1
-        responses = len([t for t,s in tweets if t.GetUser().GetId() == uid])
-        favs = sum([t.GetFavoriteCount() for t,s in tweets if t.GetUser().GetScreenName() == self.g_data.myName])
-        rts =  sum([t.GetRetweetCount()  for t,s in tweets if t.GetUser().GetScreenName() == self.g_data.myName])
-        conversations = initiates
-        for c,p in tweets:
-            if p.GetId() in roots:
-                conversations += 1
-        return { "attempts" : len(roots),
-                 "initiates" : initiates,
-                 "conversations" : conversations,
-                 "responses" : responses,
-                 "initiatesUrls" : initiatesUrls,
-                 "conversationUrls" : rootUrls,
-                 "favorites" : favs,
-                 "retweets"  : rts
-                 }
-
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
 

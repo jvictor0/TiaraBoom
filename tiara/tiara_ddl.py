@@ -228,7 +228,7 @@ def TiaraCreateViews(con):
               "select max(count) as val from tweet_document_frequency ")
     con.query("create view tweet_tfidf_view_internal as "
               "select user_id, id, tt.token, "
-              "log((select val from max_tweet_df_view)/(1+tdf.count)) as tfidf "
+              "log(1000000/(1+tdf.count)) as tfidf "
               "from tweet_tokens tt join tweet_document_frequency tdf "
               "on tt.token = tdf.token " )
     con.query("create view tweet_tfidf_distance_view_internal as "
@@ -314,10 +314,10 @@ def TiaraCreateViews(con):
               "and ts.language like 'en%' ")
     con.query("create view botherable_tweets_predictors_view as "
               "select art.user_id as bot_id, tt.user_id, tt.id, "
-              "       3 * count(*) as count_score, "
+              "       4 * (1 - (count(*)/4 - 1) * (count(*)/4 - 1)) as count_score, "
               "       250 * sum(art.tfidf_norm * tt.tfidf)/sqrt(sum(tt.tfidf*tt.tfidf))  as dist_score, "
               "       - recentness / (24 * 60 * 60) as recentness_score, "
-              "       2 * (1 - (favorites/2 - 1) * (favorites/2 - 1)) as favorites_score, "
+              "       2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, "
               "       2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score "
               "from botherable_tweets_view btv join tweet_tfidf_view_internal tt join artrat_tfidf art "
               "on btv.user_id = tt.user_id and btv.id = tt.id "
@@ -329,18 +329,17 @@ def TiaraCreateViews(con):
               "       count_score + dist_score + recentness_score + favorites_score + retweets_score as score "
               "from botherable_tweets_predictors_view")
     con.query("create view botherable_tweets_scored_view as "
-              "select bots.screen_name as bot_name, users.screen_name, csv.id, "
+              "select bots.screen_name as bot_name, concat('www.twitter.com/', users.screen_name, '/status/',csv.id) as url, "
               "       count_score , dist_score , recentness_score , favorites_score , retweets_score , score "
               "from botherable_tweets_scored_view_internal csv join bots join users "
               "on bots.id = csv.bot_id and users.id = csv.user_id ")
 
-    return
     # web populating views
     con.query("create view conversations_view as "
               "select conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
-              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.id) as bot_involved, "
-              "       sum((not isnull(bots2.id)) * favorites) as bot_favorites, "
-              "       sum((not isnull(bots2.id)) * retweets)  as bot_retweets   "
+              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.id) as bot_involved "
+#              "       sum((not isnull(bots2.id)) * favorites) as bot_favorites, "
+#              "       sum((not isnull(bots2.id)) * retweets)  as bot_retweets   "
               "from bot_tweets "
               "     left join bots bots  on bot_tweets.parent_id = bots.id "
               "     left join bots bots2 on bot_tweets.user_id = bots2.id "

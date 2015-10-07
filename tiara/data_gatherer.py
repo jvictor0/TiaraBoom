@@ -968,6 +968,16 @@ class DataManager:
             return None
         return int(rows[0]['uid'])
 
+    def NextTargetStatus(self, user_id=None):
+        if not self.updatedArtratTFIDF:
+            self.UpdateArtRatTFIDF()
+        q = "select user_id, id from botherable_tweets_scored_view_internal where bot_id = %d %s order by score desc limit 1" 
+        q = q % (self.GetUserId(), "" if user_id is None else ("and user_id = %d" % user_id))
+        rows = self.TimedQuery(q, "NextTargetStatus")
+        if len(rows) == 0:
+            return None
+        return self.LookupStatus(int(rows[0]["id"]), int(rows[0]["user_id"]))
+
     def Act(self):
         self.ProcessFollowerCursors()
         if self.shard % MODES == 0:
