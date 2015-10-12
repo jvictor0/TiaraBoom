@@ -7,8 +7,7 @@ def TiaraCreateTables(con):
                "retweets bigint not null,"
                "favorites bigint not null,"
                "primary key(user_id, id),"
-               "shard (user_id),"
-               "key(id))"))
+               "shard (user_id))"))
     followback_terms = ['follow','seguro','retweet','mgwv','followback','followtrain','followtrick','teamfollowback']
     followbacker_regex = " + ".join([("(lcase_body regexp '%s')" % ("[^a-z][^a-z]*".join(fl))) for fl in followback_terms])
     maybe_followbacker_regex = " + ".join([("(lcase_body regexp '%s')" % fl) for fl in followback_terms])

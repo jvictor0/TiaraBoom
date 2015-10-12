@@ -71,23 +71,29 @@ def Reset(con, user):
 def DDL(con, user):
     con.query("use tiaraboom")
     con.query(("create table if not exists %s_dependencies"
-               "(sentence_id bigint"
-               ",arctype varbinary(255)"
-               ",governor varbinary(255)"
-               ",dependant varbinary(255)"
+               "(sentence_id bigint not null"
+               ",arctype varbinary(255) not null"
+               ",governor varbinary(255) not null"
+               ",dependant varbinary(255) not null"
+               ",governor_id int not null"
+               ",dependant_id int not null"
+               ",primary key(sentence_id,dependant_id)"
+               ")") % user)
+    con.query(("create table if not exists %s_procd"
+               "(sentence_id bigint not null"
+               ",arctype varbinary(255) not null"
+               ",governor varbinary(255) not null"
+               ",dependant varbinary(255) not null"
                ",governor_id int not null"
                ",dependant_id int not null"
                ",primary key(sentence_id,dependant_id)"
                ",shard(sentence_id)"
-               ",key(governor, governor_id)" 
-               ",key(dependant, arctype, dependant_id)"
-               ",key(sentence_id,governor_id)"
+               ",key(arctype, governor, dependant)" 
                ")") % user)
     con.query(("create table if not exists %s_sentences"
                "(id bigint primary key auto_increment"
                ",sentence blob"
                ",source blob default null)") % user)
-    con.query("create table if not exists %s_procd like %s_dependencies" % (user,user))
 
 def UpdateProcd(con, user):
     con.query("drop table %s_procd" % user)
