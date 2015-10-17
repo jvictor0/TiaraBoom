@@ -5845,16 +5845,22 @@ button.close {
   .hidden-print {
     display: none !important; } }
 
-.tweet {
-  margin-top: 5px;
-  margin-bottom: 10px;
-  margin-left: 32%;
-  margin-right: 32%;
-  width: 36%;
+.conversation {
   border: solid;
   border-width: 1px;
-  border-radius: 25px;
-  font-size: 16px; }
+  border-width: 1px;
+  font-size: 16px;
+  height: auto;
+  padding: 0px 25px 0px 25px;
+  margin-bottom: 20px;
+  border-radius: 5px; }
+
+.tweet {
+  border-top: dashed;
+  border-width: 1px;
+  padding: 25px 10px 25px 10px; }
+  .tweet:first-child {
+    border-top: none; }
   .tweet hr {
     margin: 10px 20px 10px 20px; }
   .tweet img {
@@ -5863,11 +5869,9 @@ button.close {
     border-width: 1px; }
     .tweet img:hover {
       opacity: 0.8; }
-  .tweet .row.tweet-top-row {
-    margin-top: 10px; }
-    .tweet .row.tweet-top-row p {
-      margin-top: 10%;
-      margin-bottom: 10%; }
+  .tweet .row.tweet-top-row p {
+    margin-top: 10%;
+    margin-bottom: 10%; }
   .tweet p.tweet-text {
     margin: 5px 20px 10px 20px; }
   .tweet a:hover, .tweet a:focus {

@@ -1,5 +1,5 @@
 function makeTweet(t) {
-    var $tweet = $('<div>').addClass('col-md-6 col-md-offset-3 tweet');
+    var $tweet = $('<div>').addClass('tweet');
     var $top_row = $('<div>').addClass('row tweet-top-row');
     
     var make_link = function(inner) {
@@ -24,15 +24,13 @@ function makeTweet(t) {
 $( document ).ready(function() {
     $( ".tweets").empty();
     for (var c in convos) {
+        $( ".tweets" ).append($('<div>').addClass('col-md-6 col-md-offset-3 conversation'));
         var count = 0;
         for (tweet in c) {
             if (convos.hasOwnProperty(c)) {
                 if(convos[c].hasOwnProperty(tweet)) {
-                    if(count < 2) {
-                        $( ".tweets" ).append(makeTweet(convos[c][tweet]));
-                        count++;
-                        console.log(count);
-                    }
+                    $( ".conversation" ).last().append(makeTweet(convos[c][tweet]));
+                    count++;
                 }
             }
         }

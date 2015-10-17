@@ -1,13 +1,20 @@
-.tweet {
-    margin-top: 5px;
-    margin-bottom: 10px;
-    margin-left: 32%;
-    margin-right: 32%;
-    width: 36%;
+.conversation {
     border: solid;
     border-width: 1px;
-    border-radius: 25px;
+    border-width: 1px;
     font-size: 16px;
+    height: auto;
+    padding: 0px 25px 0px 25px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+.tweet {
+    &:first-child {
+        border-top: none;
+    }
+    border-top: dashed;
+    border-width: 1px;
+    padding: 25px 10px 25px 10px;
 
     hr { 
         margin: 10px 20px 10px 20px;
@@ -23,7 +30,6 @@
     }
 
     .row.tweet-top-row {
-        margin-top: 10px;
         p {
             margin-top: 10%;
             margin-bottom: 10%;
