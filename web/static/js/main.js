@@ -21,19 +21,37 @@ function makeTweet(t) {
     return $tweet;
 }
 
-$( document ).ready(function() {
-    $( ".tweets").empty();
-    for (var c in convos) {
-        $( ".tweets" ).append($('<div>').addClass('col-md-6 col-md-offset-3 conversation'));
+function makeConvo(mini, convo) {
+    $convo_div = $('<div>').addClass('col-md-6 col-md-offset-3 conversation')
+    if (mini) {
         var count = 0;
-        for (tweet in c) {
-            if (convos.hasOwnProperty(c)) {
-                if(convos[c].hasOwnProperty(tweet)) {
-                    $( ".conversation" ).last().append(makeTweet(convos[c][tweet]));
+        for (tweet in convo) {
+            if (convos.hasOwnProperty(convo)) {
+                if(convos[convo].hasOwnProperty(tweet) && count < 2) {
+                    $convo_div.append(makeTweet(convos[convo][tweet]));
                     count++;
                 }
             }
         }
+    } else {
+        for (tweet in convo) {
+            if (convos.hasOwnProperty(convo)) {
+                if(convos[convo].hasOwnProperty(tweet)) {
+                    $convo_div.append(makeTweet(convos[convo][tweet]));
+                }
+            }
+        }
+    }
+    $show_more = $('<div>').addClass('text-center').css('margin-bottom','10px').append($('<a>').html("Show more &#9660;"));
+    $convo_div.append($show_more);
+    return $convo_div;
+}
+
+$( document ).ready(function() {
+    $( ".tweets").empty();
+    for (var c in convos) {
+        $( ".tweets" ).append(makeConvo(false, c));
+        
     }
 });
 
