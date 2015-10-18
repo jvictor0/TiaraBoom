@@ -918,8 +918,8 @@ class DataManager:
         self.con.query("insert into ignored_users select id from users where screen_name = '%s'" % user_name)
 
     def AddTargets(self, ids):
-        values = ",".join(["(%d,%d,null)" % (i,self.GetUserId()) for i in ids])
-        self.con.query("insert into target_candidates values %s on duplicate key update processed=processed" % values)
+        values = ",".join(["(%d,%d,null,0)" % (i,self.GetUserId()) for i in ids])
+        self.con.query("insert into target_candidates(id, bot_id, processed, eliminated) values %s on duplicate key update processed=processed" % values)
 
     def EnqueueFollower(self, uid):
         try:
@@ -958,6 +958,11 @@ class DataManager:
             self.ApiHandler().ShowStatuses(user_id=u)
         if len(users) > 0:
             self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
+
+    def EliminateTargetCandidates(self):
+        rows = ",".join([a["uid"] for a in self.con.query("select uid from candidates_predictors_no_distance_view")])
+        if len(rows) != 0:
+            self.con.query("update target_candidates set eliminated=1 where processed is not null and id not in (%s)" % rows)
 
     def NextTargetCandidate(self):
         if not self.updatedArtratTFIDF:

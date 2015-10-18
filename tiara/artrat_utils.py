@@ -114,6 +114,7 @@ def ArticleInsertionThread(logfn=Print):
         count = 0
         InsertArticle(nxt[0], nxt[1], dbmgr.con, logfn)
         dbmgr.FinishArticle(nxt[0], nxt[1])
+        time.sleep(60) # chil out
 
 def ArticleInsertionMultiThreaded(num_threads):
     queue = Queue.Queue()

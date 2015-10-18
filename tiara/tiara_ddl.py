@@ -132,7 +132,8 @@ def TiaraCreateTables(con):
                "bot_id bigint not null,"
                "primary key(bot_id, id),"
                "shard(id),"
-               "processed datetime default null)"))
+               "processed datetime default null,"
+               "eliminated tinyint not null)"))
     con.query(("create reference table if not exists follower_cursors("
                "id bigint not null,"
                "bot_id bigint not null,"
@@ -251,7 +252,8 @@ def TiaraCreateViews(con):
               "       tc.bot_id, tc.processed "
               "from tweets_storage ts join users join target_candidates tc "
               "on ts.user_id = users.id and users.id = tc.id "
-              "where users.id not in (select user_id from followbackers_view) "
+              "where not tc.eliminated "
+              "and users.id not in (select user_id from followbackers_view) "
               "and users.id not in (select id from user_following_status where has_followed) "
               "and users.id not in (select id from user_afflictions)")
     con.query("create view candidates_joined_filtered_view as "
