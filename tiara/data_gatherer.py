@@ -628,12 +628,13 @@ class DataManager:
         q = ("""select *                                                           
                 from bot_tweets_joined join                                        
                 (
-                      select conversation_id, max_id from conversations_view        
-                      where to_bots > 1                                             
+                      select conversation_id, max_id 
+                      from conversations_view        
+                      where to_bots >= 1
                       order by max_id desc limit %d
                 ) conversations                  
                 on conversations.conversation_id=bot_tweets_joined.conversation_id 
-                order by max_id desc""")
+                order by max_id desc, id""")
         q = q % limit
         rows = self.con.query(q)
         users = self.LookupUsers([r["user_id"] for r in rows], ignore_following_status=True)        
