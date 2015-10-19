@@ -46,10 +46,11 @@ def TiaraCreateTables(con):
     con.query(("create table if not exists ungettable_tweets("
                "id bigint primary key,"
                "errorcode int)"))
-    con.query(("create reference table conversation_upvotes("
+    con.query(("create reference table if not exists conversation_upvotes("
                "user_id bigint not null,"
                "conversation_id bigint not null,"
-               "upvotes int not null)"))
+               "upvotes int not null,"
+               "primary key(user_id, conversation_id))"))
 
 
     # user tables
@@ -351,4 +352,4 @@ def TiaraCreateViews(con):
               "     left join bots bots  on bot_tweets.parent_id = bots.id "
               "     left join bots bots2 on bot_tweets.user_id = bots2.id "
               "     left join conversation_upvotes cu on cu.conversation_id = bot_tweets.conversation_id "
-              "group by conversation_id")
+              "group by bot_tweets.conversation_id")
