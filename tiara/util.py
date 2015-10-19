@@ -87,6 +87,11 @@ def ToWordForm(g_data,word,form):
 
 def LKD(d,a,r=None):
     return d[a] if a in d else r
+def LKDI(d,a,r):
+    try:
+        return int(LKD(d,a,r))
+    except Exception:
+        return r
 
 def LKDT(d,a):
     return LKD(d,a,True)

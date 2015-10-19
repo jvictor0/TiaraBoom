@@ -625,20 +625,20 @@ class DataManager:
         
     # Int -> [[Status]]
     def RecentConversations(self, args):
-        limit = LKD(args, "limit", 10)
-        offset = LKD(args, "offset", 0)        
-        convid = LKD(args, "conversation_id", None)
+        limit = LKDI(args, "limit", 10)
+        offset = LKDI(args, "offset", 0)        
+        convid = LKDI(args, "conversation_id", None)
         if convid is None:
             where_clause = "to_bots > 0"
         else:
-            where_clause = "conversation_id=%s" % convid
+            where_clause = "conversation_id=%d" % convid
         q = ("""select *                                                           
                 from bot_tweets_joined join                                        
                 (
                       select conversation_id, max_id 
                       from conversations_view        
                       where %s
-                      order by max_id desc limit %s, %s
+                      order by max_id desc limit %d, %d
                 ) conversations                  
                 on conversations.conversation_id=bot_tweets_joined.conversation_id 
                 order by max_id desc, id""")
