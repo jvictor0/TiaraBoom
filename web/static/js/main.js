@@ -16,7 +16,7 @@ function makeTweet(t) {
 
     $top_row.append(make_link("img").addClass("col-md-3")).append(make_link("sn").addClass("col-md-4")); 
     $tweet.append($top_row);
-    var inner = t.text + '&nbsp;<a href="https://www.twitter.com/' + t.sn  + '/status/' + t.tweet_id + '"> Go to tweet&nbsp;&raquo;</a>'; 
+    var inner = t.text + '&nbsp;<a href="https://www.twitter.com/' + t.sn  + '/status/' + t.tweet_id + '" target="_blank"> Go to tweet&nbsp;&raquo;</a>'; 
     $tweet.append($('<div>').addClass("row").append($('<div>').addClass("col-md-12").append($('<p>').addClass("tweet-text").html(inner))));
     return $tweet;
 }
