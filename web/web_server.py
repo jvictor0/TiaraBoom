@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import tiara.data_gatherer as dg
 import sys, pickle
 
@@ -9,7 +9,8 @@ app = Flask(__name__)
 
 # returns a list of lists of tweets, representing recent conversations between bots and the outside world
 def GetConversations():
-    return dg.MakeFakeDataMgr("").RecentConversations(10)
+    all_args = { k: v[0] for k,v in request.args.lists() } 
+    return dg.MakeFakeDataMgr("").RecentConversations(all_args)
 
 @app.route('/')
 def hello_world():
@@ -19,7 +20,7 @@ def hello_world():
 
     jconvos = {}
 
-    for i in range(10):
+    for i in range(len(convos)):
         tweets = []
         for tweet in convos[i]:
             t = {}
