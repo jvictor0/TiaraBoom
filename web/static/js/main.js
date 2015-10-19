@@ -34,7 +34,7 @@ function makeConvo(mini, convo) {
             }
         }
     } else {
-        for (tweet in convo) {
+        for (tweet in convos[convo]) {
             if (convos.hasOwnProperty(convo)) {
                 if(convos[convo].hasOwnProperty(tweet)) {
                     $convo_div.append(makeTweet(convos[convo][tweet]));
