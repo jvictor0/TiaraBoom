@@ -13,9 +13,9 @@ def GetConversations():
 
 @app.route('/')
 def hello_world():
-#    with open('convos.p', 'rb') as f:
-#        convos = pickle.load(f)
-    convos = GetConversations()
+    with open('convos.p', 'rb') as f:
+        convos = pickle.load(f)
+    #convos = GetConversations()
 
     jconvos = {}
 
@@ -31,3 +31,6 @@ def hello_world():
         jconvos['convo' + str(i)] = tweets  
     return render_template('bots.html', convos=jconvos)
 
+def run():
+    app.debug = True
+    app.run()

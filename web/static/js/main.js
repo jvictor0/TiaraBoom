@@ -25,7 +25,7 @@ function makeConvo(mini, convo) {
     $convo_div = $('<div>').addClass('col-md-6 col-md-offset-3 conversation')
     if (mini) {
         var count = 0;
-        for (tweet in convo) {
+        for (tweet in convos[convo]) {
             if (convos.hasOwnProperty(convo)) {
                 if(convos[convo].hasOwnProperty(tweet) && count < 2) {
                     $convo_div.append(makeTweet(convos[convo][tweet]));
