@@ -639,9 +639,9 @@ class DataManager:
         if convid is None:
 
             if order_by == "recent":
-                order_by = "order by max_id desc"
+                order_by_clause = "order by max_id desc"
             elif order_by == "popular":
-                order_by = "order by upvotes desc, max_id desc "
+                order_by_clause = "order by upvotes desc, max_id desc "
 
             or_preds = ["to_bots > 0","upvotes > 0"]            
             if include_singletons:
@@ -656,7 +656,8 @@ class DataManager:
 
         else:
             where_clause = "conversation_id=%d" % convid
-            order_by_clause + ""
+            order_by_clause = ""
+        order_by_clause_2 = "" if len(order_by_clause) == 0 else order_by_clause + ", id "
         q = ("""select *                                                           
                 from bot_tweets_joined join                                        
                 (
@@ -667,9 +668,11 @@ class DataManager:
                       limit %d, %d
                 ) conversations                  
                 on conversations.conversation_id=bot_tweets_joined.conversation_id 
-                order by max_id desc, id""")
-        q = q % (where_clause, offset, limit)
+                %s""")
+        q = q % (where_clause, order_by_clause, offset, limit, order_by_clause_2)
         rows = self.con.query(q)
+        if len(rows) == 0:
+            return []
         users = self.LookupUsers([r["user_id"] for r in rows], ignore_following_status=True)        
         result = []
         conversation_id = ""
