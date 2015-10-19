@@ -22,21 +22,12 @@ def hello_world():
     for i in range(10):
         tweets = []
         for tweet in convos[i]:
-            print tweet
             t = {}
             t['sn'] = tweet.user.screen_name
             t['pic'] = tweet.user.profile_image_url
             t['text'] = tweet.text
             t['tweet_id'] = str(tweet.id)
             tweets.append(t)
-            print t['tweet_id']
         jconvos['convo' + str(i)] = tweets  
     return render_template('bots.html', convos=jconvos)
 
-def run():
-    app.debug = True
-    app.run()
-
-
-
-    
