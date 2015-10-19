@@ -657,7 +657,7 @@ class DataManager:
         else:
             where_clause = "conversation_id=%d" % convid
             order_by_clause = ""
-        order_by_clause_2 = "" if len(order_by_clause) == 0 else order_by_clause + ", id "
+        order_by_clause_2 = "order by id" if len(order_by_clause) == 0 else order_by_clause + ", id "
         q = ("""select *                                                           
                 from bot_tweets_joined join                                        
                 (

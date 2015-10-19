@@ -16,7 +16,9 @@ function makeTweet(t) {
 
     $top_row.append(make_link("img").addClass("col-md-3")).append(make_link("sn").addClass("col-md-4")); 
     $tweet.append($top_row);
-    var inner = t.text + '&nbsp;<a href="https://www.twitter.com/' + t.sn  + '/status/' + t.tweet_id + '"> Go to tweet&nbsp;&raquo;</a>'; 
+    var tweet_text = t.text.replace(/#([0-9A-Za-z_]*)/g, '<a href="https://twitter.com/hashtag/$1" target="_blank">&#35;$1</a>')
+    tweet_text = tweet_text.replace(/@([0-9A-Za-z_]*)/g,'<a href="https://twitter.com/$1" target=\"_blank\">@$1</a>')
+    var inner = tweet_text + '&nbsp;<a href="https://www.twitter.com/' + t.sn  + '/status/' + t.tweet_id + '"> Go to tweet&nbsp;&raquo;</a>'; 
     $tweet.append($('<div>').addClass("row").append($('<div>').addClass("col-md-12").append($('<p>').addClass("tweet-text").html(inner))));
     return $tweet;
 }
