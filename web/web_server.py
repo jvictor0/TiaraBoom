@@ -8,15 +8,15 @@ sys.setdefaultencoding("utf-8")
 app = Flask(__name__)
 
 # returns a list of lists of tweets, representing recent conversations between bots and the outside world
-def GetConversations():
+def GetConversations(limit, offset):
     all_args = { k: len(v) == 0 or v[0] for k,v in request.args.lists() } 
-    return dg.MakeFakeDataMgr("").RecentConversations(all_args)
+    return dg.MakeFakeDataMgr("").RecentConversations(limit, offset, all_args)
 
 @app.route('/')
 def hello_world():
 #    with open('convos.p', 'rb') as f:
 #        convos = pickle.load(f)
-    convos = GetConversations()
+    convos = GetConversations(10, 0)
 
     jconvos = {}
 

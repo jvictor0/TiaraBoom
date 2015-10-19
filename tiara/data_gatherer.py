@@ -625,9 +625,7 @@ class DataManager:
         self.UpdateTargetingState(full=False)
         
     # Int -> [[Status]]
-    def RecentConversations(self, args):
-        limit  = LKDI(args, "limit", 10)
-        offset = LKDI(args, "offset", 0)        
+    def RecentConversations(self, limit, offset, args):
         convid = LKDI(args, "conversation_id", None)
         include_singletons = LKDB(args, "include_singletons", False)
         include_all        = LKDB(args, "include_all", False)
