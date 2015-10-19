@@ -13,9 +13,9 @@ def GetConversations():
 
 @app.route('/')
 def hello_world():
-    with open('convos.p', 'rb') as f:
-        convos = pickle.load(f)
-    #convos = GetConversations()
+#    with open('convos.p', 'rb') as f:
+#        convos = pickle.load(f)
+    convos = GetConversations()
 
     jconvos = {}
 
