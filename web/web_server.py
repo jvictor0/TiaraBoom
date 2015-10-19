@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 # returns a list of lists of tweets, representing recent conversations between bots and the outside world
 def GetConversations():
-    all_args = { k: v[0] for k,v in request.args.lists() } 
+    all_args = { k: len(v) == 0 or v[0] for k,v in request.args.lists() } 
     return dg.MakeFakeDataMgr("").RecentConversations(all_args)
 
 @app.route('/')
@@ -22,7 +22,7 @@ def hello_world():
 
     for i in range(len(convos)):
         tweets = []
-        for tweet in convos[i]:
+        for tweet in convos[i].tweets:
             t = {}
             t['sn'] = tweet.user.screen_name
             t['pic'] = tweet.user.profile_image_url

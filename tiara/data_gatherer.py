@@ -1,6 +1,7 @@
 
 import database as db
 import vocab as v
+import conversation
 
 import random
 import time
@@ -625,20 +626,45 @@ class DataManager:
         
     # Int -> [[Status]]
     def RecentConversations(self, args):
-        limit = LKDI(args, "limit", 10)
+        limit  = LKDI(args, "limit", 10)
         offset = LKDI(args, "offset", 0)        
         convid = LKDI(args, "conversation_id", None)
+        include_singletons = LKDB(args, "include_singletons", False)
+        include_all        = LKDB(args, "include_all", False)
+        include_favs       = LKDB(args, "include_favs", False)
+        include_rts        = LKDB(args, "include_rts", False)
+        order_by           = LKD(args, "order_by", "recent")
+        if order_by not in ["recent","popular"]:
+            order_by = "recent"
         if convid is None:
-            where_clause = "to_bots > 0"
+
+            if order_by == "recent":
+                order_by = "order by max_id desc"
+            elif order_by == "popular":
+                order_by = "order by upvotes desc, max_id desc "
+
+            or_preds = ["to_bots > 0","upvotes > 0"]            
+            if include_singletons:
+                or_preds.append("count = 1")
+            if include_favs:
+                pass
+            if include_rts:
+                pass
+            if include_all:
+                or_preds = ["true"]
+            where_clause = " or ".join(or_preds)
+
         else:
             where_clause = "conversation_id=%d" % convid
+            order_by_clause + ""
         q = ("""select *                                                           
                 from bot_tweets_joined join                                        
                 (
-                      select conversation_id, max_id 
+                      select conversation_id, max_id, upvotes
                       from conversations_view        
                       where %s
-                      order by max_id desc limit %d, %d
+                      %s
+                      limit %d, %d
                 ) conversations                  
                 on conversations.conversation_id=bot_tweets_joined.conversation_id 
                 order by max_id desc, id""")
@@ -650,11 +676,17 @@ class DataManager:
         for r in rows:
             status = self.RowToStatus(r, users[int(r["user_id"])])
             if r["conversation_id"] != conversation_id:
-                result.append([])
                 conversation_id = r["conversation_id"]
-            result[-1].append(status)
+                result.append(conversation.Conversation(r))
+            result[-1].tweets.append(status)
         return result
 
+    def Upvote(self, user_id, convo_id, amount=1):
+        self.con.query("insert into conversation_upvotes(user_id, conversation_id, upvotes) values (%d, %d, %d) on duplicate key update amount = values(amount)" % (user_id, convo_id, amount))
+
+    def Downvote(self, user_id, convo_id):
+        self.con.query("delete from conversation_upvotes where user_id = %d and conversation_id = %d" % (user_id, convo_id, amount))
+    
     def GetUserId(self, screen_name = None):
         if screen_name is None:
             screen_name = self.g_data.myName

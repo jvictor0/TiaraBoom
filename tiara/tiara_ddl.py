@@ -46,7 +46,12 @@ def TiaraCreateTables(con):
     con.query(("create table if not exists ungettable_tweets("
                "id bigint primary key,"
                "errorcode int)"))
-    
+    con.query(("create reference table conversation_upvotes("
+               "user_id bigint not null,"
+               "conversation_id bigint not null,"
+               "upvotes int not null)"))
+
+
     # user tables
     con.query(("create table if not exists user_afflictions("
                "id bigint,"
@@ -337,11 +342,13 @@ def TiaraCreateViews(con):
 
     # web populating views
     con.query("create view conversations_view as "
-              "select conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
-              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.id) as bot_involved "
+              "select bot_tweets.conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
+              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.screen_name) as bot_involved, "
+              "       ifnull(sum(cu.upvotes), 0) as upvotes "
 #              "       sum((not isnull(bots2.id)) * favorites) as bot_favorites, "
 #              "       sum((not isnull(bots2.id)) * retweets)  as bot_retweets   "
               "from bot_tweets "
               "     left join bots bots  on bot_tweets.parent_id = bots.id "
               "     left join bots bots2 on bot_tweets.user_id = bots2.id "
+              "     left join conversation_upvotes cu on cu.conversation_id = bot_tweets.conversation_id "
               "group by conversation_id")

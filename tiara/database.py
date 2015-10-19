@@ -142,6 +142,11 @@ class Connection(object):
         self._db.query(query)
         self._rowcount = self._db.affected_rows()
 
+    def EscapeForSQL(self, p):
+        p = unidecode(p) if isinstance(p,unicode) else p
+        return self._db.escape(p, self.encoders)
+
+
 
 from collections import OrderedDict
 class Row(OrderedDict):

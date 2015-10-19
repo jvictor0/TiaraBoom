@@ -92,6 +92,13 @@ def LKDI(d,a,r):
         return int(LKD(d,a,r))
     except Exception:
         return r
+def LKDB(d,a,r):
+    try:
+        if str(LKD(d,a,r)).lower() == str(r).lower():
+            return r
+        return not r
+    except Exception:
+        return r
 
 def LKDT(d,a):
     return LKD(d,a,True)
