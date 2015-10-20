@@ -344,7 +344,7 @@ def TiaraCreateViews(con):
     # web populating views
     con.query("create view conversations_view as "
               "select bot_tweets.conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
-              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.screen_name) as bot_involved, "
+              "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.screen_name) as bot_name, "
               "       ifnull(sum(cu.upvotes), 0) as upvotes, "
               "       sum((not isnull(bots2.id)) * favorites) as bot_favorites, "
               "       sum((not isnull(bots2.id)) * retweets)  as bot_retweets   "

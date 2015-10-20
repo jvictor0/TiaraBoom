@@ -697,7 +697,7 @@ class DataManager:
         return result
 
     def Upvote(self, user_id, convo_id, amount=1):
-        self.con.query("insert into conversation_upvotes(user_id, conversation_id, upvotes) values (%d, %d, %d) on duplicate key update amount = values(amount)" % (user_id, convo_id, amount))
+        self.con.query("insert into conversation_upvotes(user_id, conversation_id, upvotes) values (%d, %d, %d) on duplicate key update upvotes = values(upvotes)" % (user_id, convo_id, amount))
 
     def UpvoteByScreenName(self, screen_name, convo_id, amount=1):
         self.Upvote(self.GetUserId(screen_name), convo_id, amount)
