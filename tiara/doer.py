@@ -76,5 +76,9 @@ if __name__ == "__main__":
         g_data.dbmgr.EnqueueFollower(uid)
     elif sys.argv[1] == "insert_all_tweet_tokens":
         g_data.dbmgr.InsertAllTweetTokens()
+    elif sys.argv[1] == "upvote":
+        g_data.dbmgr.Upvote(-1, int(sys.argv[2]), 1)
+    elif sys.argv[1] == "downvote":
+        g_data.dbmgr.PinDownvote(int(sys.argv[2]))
     else:
         assert False

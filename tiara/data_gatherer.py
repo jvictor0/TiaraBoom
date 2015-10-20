@@ -625,17 +625,26 @@ class DataManager:
         self.UpdateTargetingState(full=False)
         
     # Int -> [[Status]]
+    # args can contain:
+    #    conversation_id :: Int, if provided, render only that conversation.  Default None
+    #    include_all  :: Bool, render all conversations.  Default False
+    #    include_favs :: Bool, render conversations where a bot has at least one favorite.  Default False.
+    #    include_rts  :: Bool, render conversations where a bot has at least one retweet.  Default False.  
+    #    bot_name     :: String, if provided, only include conversations involving bot_name.  Default None.
+    #    order_by     :: String, must be one of "recent" or "popular", determines sort order.  Default "recent"
+    # 
     def RecentConversations(self, limit, offset, args):
         convid = LKDI(args, "conversation_id", None)
         include_singletons = LKDB(args, "include_singletons", False)
         include_all        = LKDB(args, "include_all", False)
         include_favs       = LKDB(args, "include_favs", False)
         include_rts        = LKDB(args, "include_rts", False)
+        bot_name           = LKD (args, "bot_name", None)
         order_by           = LKD(args, "order_by", "recent")
         if order_by not in ["recent","popular"]:
             order_by = "recent"
         if convid is None:
-
+            preds = ["upvotes >= 0"]
             if order_by == "recent":
                 order_by_clause = "order by max_id desc"
             elif order_by == "popular":
@@ -645,15 +654,20 @@ class DataManager:
             if include_singletons:
                 or_preds.append("count = 1")
             if include_favs:
-                pass
+                or_preds.append("bot_favorites > 0")
             if include_rts:
-                pass
+                or_preds.append("bot_retweets > 0")
+            if bot_name is not None:
+                bot_name = self.con.EscapeForSQL(bot_name)
+                preds.append("bot_name = %s" % bot_name)
             if include_all:
                 or_preds = ["true"]
-            where_clause = " or ".join(or_preds)
+            preds.append("(%s)" % ") or (".join(or_preds))
+            
+            where_clause = "(%s)" %  ") and (".join(preds)
 
         else:
-            where_clause = "conversation_id=%d" % convid
+            where_clause = "conversation_id = %d" % convid
             order_by_clause = ""
         order_by_clause_2 = "order by id" if len(order_by_clause) == 0 else order_by_clause + ", id "
         q = ("""select *                                                           
@@ -684,6 +698,12 @@ class DataManager:
 
     def Upvote(self, user_id, convo_id, amount=1):
         self.con.query("insert into conversation_upvotes(user_id, conversation_id, upvotes) values (%d, %d, %d) on duplicate key update amount = values(amount)" % (user_id, convo_id, amount))
+
+    def UpvoteByScreenName(self, screen_name, convo_id, amount=1):
+        self.Upvote(self.GetUserId(screen_name), convo_id, amount)
+
+    def PinDownvote(self, convo_id):
+        self.Upvote(-1, convo_id, -99999999)
 
     def Downvote(self, user_id, convo_id):
         self.con.query("delete from conversation_upvotes where user_id = %d and conversation_id = %d" % (user_id, convo_id, amount))
