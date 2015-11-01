@@ -87,13 +87,24 @@ def TiaraCreateTables(con):
     con.query(("create reference table if not exists token_representatives("
                "id bigint not null,"
                "token varbinary(200) primary key)"))
-    con.query(("create table if not exists artrat_tfidf("
+    con.query(("create reference table if not exists artrat_tfidf("
+               "user_id bigint not null,"
+               "token bigint not null,"
+               "tfidf_norm double not null,"
+               "primary key(user_id, token) using hash)"))
+    con.query(("create table if not exists artrat_tfidf_insertable("
                "user_id bigint not null,"
                "token bigint not null,"
                "tfidf_norm double not null,"
                "primary key(user_id, token),"
                "shard(token))"))
-    con.query(("create table if not exists user_token_frequency("
+    con.query(("create table if not exists user_token_frequency_proj_token("
+               "user_id bigint not null,"
+               "token bigint not null,"
+               "count bigint not null,"
+               "shard(token),"
+               "key(token, user_id) using clustered columnstore)"))
+    con.query(("create table if not exists user_token_frequency_proj_user("
                "user_id bigint not null,"
                "token bigint not null,"
                "count bigint not null,"
@@ -108,7 +119,11 @@ def TiaraCreateTables(con):
     con.query(("create reference table if not exists tweet_document_frequency("
                "token bigint not null,"
                "count bigint not null,"
-               "primary key(token))"))
+               "primary key(token) using hash)"))
+    con.query(("create reference table if not exists user_document_frequency("
+               "token bigint not null,"
+               "count bigint not null,"
+               "primary key(token) using hash)"))
 
     # artrat article tables
     #
@@ -196,11 +211,11 @@ def TiaraCreateViews(con):
 
     # views for user level TFIDF
     #
-    con.query("create view user_document_frequency as "
-              "select token, count(distinct user_id) as count from user_token_frequency group by 1")
+    con.query("create view user_document_frequency_view as "
+              "select token, count(distinct user_id) as count from user_token_frequency_proj_token group by 1")
     con.query("create view user_token_frequency_aggregated "
               "as select user_id, token, sum(count) as count "
-              "from user_token_frequency "
+              "from user_token_frequency_proj_user "
               "group by 1,2")
     con.query("create view max_df_view as "
               "select max(count) as val from user_document_frequency")
@@ -210,9 +225,9 @@ def TiaraCreateViews(con):
               "from user_token_frequency_aggregated termfreq join user_document_frequency docfreq "
               "on termfreq.token = docfreq.token")
     con.query("create view tfidf_view as "
-              "select tid.token, tid.id as token_id, tf.user_id, tf.tf, tf.df, tf.tfidf "
-              "from tfidf_view_internal tf join token_id tid "
-              "on tf.token = tid.id ")
+              "select tid.token, tid.id as token_id, users.screen_name, tf.user_id, tf.tf, tf.df, tf.tfidf "
+              "from tfidf_view_internal tf join token_id tid join users "
+              "on tf.token = tid.id and tf.user_id = users.id")
     con.query("create view important_words_view as "
               "select bots.screen_name as bot_name, tv.user_id, tv.token_id, tv.token, art.tfidf_norm as artrat_tfidf, tv.tfidf as user_tfidf, art.tfidf_norm * tv.tfidf importance "
               "from tfidf_view tv join artrat_tfidf art join bots "
@@ -282,9 +297,10 @@ def TiaraCreateViews(con):
               "from candidates_view cv ")
     con.query("create view candidates_predictors_view as "
               "select cv.bot_id, cv.screen_name, cv.uid, cv.follower_score, cv.friend_score, cv.count_score, "
-              "       50 * tdv.dist as dist_score "
-              "from candidates_predictors_no_distance_view cv join tfidf_distance_view tdv "
-              "on cv.bot_id = tdv.bot_id and cv.uid = tdv.user_id ")
+              "       50 * sum(art.tfidf_norm * tt.tfidf)/sqrt(sum(tt.tfidf*tt.tfidf))  as dist_score "
+              "from candidates_predictors_no_distance_view cv join tfidf_view_internal tt join artrat_tfidf art "
+              "on cv.uid = tt.user_id and cv.bot_id = art.user_id and tt.token = art.token "
+              "group by 1, 3")
     con.query("create view candidates_scored_view as "
               "select bot_id, screen_name, uid, "
               "       follower_score , friend_score , count_score , dist_score ,"

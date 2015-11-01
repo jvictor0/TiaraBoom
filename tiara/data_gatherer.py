@@ -769,11 +769,11 @@ class DataManager:
                      "on dp.dependant = tr.token and tr.id = udf.token "
                      "group by 1") % (maxdf, normalizer, personality)
                 nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
-                self.TimedQuery("insert into artrat_tfidf %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
+                self.TimedQuery("insert into artrat_tfidf_insertable %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
                 self.updatedArtratTFIDF = True
                 
                 frac = float(self.con.query("select sqrt(sum(tfidf_norm * tfidf_norm)) as frac "
-                                            "from (select tfidf_norm from artrat_tfidf where user_id=%d order by tfidf_norm desc limit 100) sub "
+                                            "from (select tfidf_norm from artrat_tfidf_insertable where user_id=%d order by tfidf_norm desc limit 100) sub "
                                             % self.GetUserId())[0]['frac'])
                 new_normalizer = None
                 if frac < 0.45:
@@ -789,9 +789,11 @@ class DataManager:
                     break
                 self.con.query("update bots set normalizer = %f where id = %d" % (new_normalizer, self.GetUserId()))
                 
-        q = ("insert into artrat_tfidf(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=tfidf_norm" 
+        q = ("insert into artrat_tfidf_insertable(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=tfidf_norm" 
              % (self.GetUserId()))
         self.con.query(q)
+        self.con.query("insert into artrat_tfidf select * from artrat_tfidf_insertable on duplicate key update tfidf_norm=values(tfidf_norm)")
+        self.con.query("insert into user_document_frequency select * from user_document_frequency_view on duplicate key update count = values(count)")
             
     def TFIDFDistance(self, uids=None):
         if not self.updatedArtratTFIDF:
