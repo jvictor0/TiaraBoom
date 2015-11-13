@@ -1,6 +1,6 @@
 function makeTweet(t) {
     var $tweet = $('<div>').addClass('tweet');
-    var $top_row = $('<div>').addClass('row tweet-top-row');
+    var $tweet_row = $('<div>').addClass('row');
     
     var make_link = function(inner) {
         var $link = $('<a>').attr('href', "http://www.twitter.com/" + t.sn);
@@ -14,45 +14,63 @@ function makeTweet(t) {
         return $link;
     }
 
-    $top_row.append(make_link("img").addClass("col-md-3")).append(make_link("sn").addClass("col-md-4")); 
-    $tweet.append($top_row);
     var tweet_text = t.text.replace(/#([0-9A-Za-z_]*)/g, '<a href="https://twitter.com/hashtag/$1" target="_blank">&#35;$1</a>')
     tweet_text = tweet_text.replace(/@([0-9A-Za-z_]*)/g,'<a href="https://twitter.com/$1" target=\"_blank\">@$1</a>')
     var inner = tweet_text + '&nbsp;<a href="https://www.twitter.com/' + t.sn  + '/status/' + t.tweet_id + '"> Go to tweet&nbsp;&raquo;</a>'; 
-    $tweet.append($('<div>').addClass("row").append($('<div>').addClass("col-md-12").append($('<p>').addClass("tweet-text").html(inner))));
+
+    var $left_col = $('<div>').addClass('col-md-2').append(make_link("img"))
+
+    var $right_col = $('<div>').addClass('col-md-10');
+    var $right_col_top = $('<div>').addClass('row').append($('<div>').addClass("col-md-12").append(make_link("sn")))
+    var $right_col_bottom = $('<div>').addClass('row').append($('<div>').addClass("col-md-12").append($('<p>').addClass("tweet-text").html(inner)))
+    $right_col.append($right_col_top).append($right_col_bottom)
+
+    $tweet_row.append($left_col).append($right_col);
+    $tweet.append($tweet_row);
+
     return $tweet;
 }
 
-function makeConvo(mini, convo) {
+function makeConvo(convo) {
     $convo_div = $('<div>').addClass('col-md-6 col-md-offset-3 conversation')
-    if (mini) {
-        var count = 0;
-        for (tweet in convos[convo]) {
-            if (convos.hasOwnProperty(convo)) {
-                if(convos[convo].hasOwnProperty(tweet) && count < 2) {
-                    $convo_div.append(makeTweet(convos[convo][tweet]));
-                    count++;
-                }
-            }
-        }
-    } else {
-        for (tweet in convos[convo]) {
-            if (convos.hasOwnProperty(convo)) {
-                if(convos[convo].hasOwnProperty(tweet)) {
-                    $convo_div.append(makeTweet(convos[convo][tweet]));
-                }
+    var count = 0;
+    for (tweet in convos[convo]) {
+        if (convos.hasOwnProperty(convo)) {
+            if(convos[convo].hasOwnProperty(tweet)) {
+                $tweet = makeTweet(convos[convo][tweet]);
+                if (count >= 2) $tweet.addClass("more").css("display", "none");
+                $convo_div.append($tweet);
+                count++;
             }
         }
     }
-    //$show_more = $('<div>').addClass('text-center').css('margin-bottom','10px').append($('<a>').html("Show more &#9660;"));
-    //$convo_div.append($show_more);
+
+    $show_more = $('<div>').addClass('text-center').css('margin-bottom','10px').append($('<a>').html("Show more &or;"));
+    $show_less = $('<div>').addClass('text-center').css('margin-bottom','10px').append($('<a>').html("Show less &and;"));
+
+    function show_more() {
+        $(this).parent().children(".more").css("display", "block");
+        $(this).parent().append($show_less);
+        $(this).remove()
+    }
+
+    function show_less() {
+        $(this).parent().children(".more").css("display", "none");
+        $(this).parent().append($show_more);
+        $(this).remove()
+    }
+
+    $show_more.click(show_more);
+    $show_less.click(show_less);
+
+    $convo_div.append($show_more);
     return $convo_div;
 }
 
 $( document ).ready(function() {
     $( ".tweets").empty();
     for (var c in convos) {
-        $( ".tweets" ).append(makeConvo(false, c));
+        $( ".tweets" ).append(makeConvo(c));
         
     }
     $('a').attr("target", "_blank")

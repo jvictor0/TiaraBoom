@@ -5858,7 +5858,7 @@ button.close {
 .tweet {
   border-top: dashed;
   border-width: 1px;
-  padding: 25px 10px 25px 10px; }
+  padding: 20px 10px 20px 10px; }
   .tweet:first-child {
     border-top: none; }
   .tweet hr {
@@ -5869,10 +5869,5 @@ button.close {
     border-width: 1px; }
     .tweet img:hover {
       opacity: 0.8; }
-  .tweet .row.tweet-top-row p {
-    margin-top: 10%;
-    margin-bottom: 10%; }
-  .tweet p.tweet-text {
-    margin: 5px 20px 10px 20px; }
   .tweet a:hover, .tweet a:focus {
     text-decoration: none; }

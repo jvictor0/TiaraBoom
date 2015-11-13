@@ -14,7 +14,7 @@
     }
     border-top: dashed;
     border-width: 1px;
-    padding: 25px 10px 25px 10px;
+    padding: 20px 10px 20px 10px;
 
     hr { 
         margin: 10px 20px 10px 20px;
@@ -27,16 +27,6 @@
         &:hover {
             opacity: 0.8;
         }
-    }
-
-    .row.tweet-top-row {
-        p {
-            margin-top: 10%;
-            margin-bottom: 10%;
-        }
-    }
-    p.tweet-text {
-        margin: 5px 20px 10px 20px;
     }
 
     a:hover, a:focus {
