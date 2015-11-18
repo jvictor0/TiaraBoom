@@ -32,7 +32,7 @@ function makeTweet(t) {
 }
 
 function Convo(convo) {
-    var $convo_div = $('<div>').addClass('col-md-6 col-md-offset-3 conversation');
+    var $convo_div = $('<div>').addClass('conversation col-md-10');
     var count = 0;
     var more_than_4 = false;
     for (tweet in convos[convo]) {
@@ -75,20 +75,23 @@ function Convo(convo) {
         this.show_less_link.click(show_less_callback);
     }
 
+    var $convo_link = $('<div>').addClass('convo-link col-md-2').append($('<a>').attr('href', "?conversation_id=" + convos[convo][0].tweet_id).append($('<img>').attr('src', 'static/images/link.png')));
+
     this.convo_div = $convo_div;
     
-
-
     return {
         convo_div: this.convo_div,
+        convo_link: $convo_link
     }
 }
 
 $( document ).ready(function() {
     $( ".tweets").empty();
     for (var c in convos) {
+        var $convo_row = $('<div>').addClass("row");
         var convo = Convo(c)
-        $( ".tweets" ).append(convo.convo_div);
+        $convo_row.append(convo.convo_div).append(convo.convo_link);
+        $( ".tweets" ).append($convo_row);
     }
     $('a').attr("target", "_blank")
 });
