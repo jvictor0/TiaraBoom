@@ -3,7 +3,7 @@ function makeTweet(t) {
     var $tweet_row = $('<div>').addClass('row');
     
     var make_link = function(inner) {
-        var $link = $('<a>').attr('href', "http://www.twitter.com/" + t.sn);
+        var $link = $('<a>').attr('href', "http://www.twitter.com/" + t.sn + '/status/' + t.tweet_id);
         if ( inner === "img") {
             var $img = $('<img>').attr('src', t.pic);
             $link.append($img);
@@ -16,7 +16,7 @@ function makeTweet(t) {
 
     var tweet_text = t.text.replace(/#([0-9A-Za-z_]*)/g, '<a href="https://twitter.com/hashtag/$1" target="_blank">&#35;$1</a>')
     tweet_text = tweet_text.replace(/@([0-9A-Za-z_]*)/g,'<a href="https://twitter.com/$1" target=\"_blank\">@$1</a>')
-    var inner = tweet_text + '&nbsp;<a href="https://www.twitter.com/' + t.sn  + '/status/' + t.tweet_id + '"> Go to tweet&nbsp;&raquo;</a>'; 
+    var inner = tweet_text; 
 
     var $left_col = $('<div>').addClass('col-md-2').append(make_link("img"))
 
@@ -31,47 +31,64 @@ function makeTweet(t) {
     return $tweet;
 }
 
-function makeConvo(convo) {
-    $convo_div = $('<div>').addClass('col-md-6 col-md-offset-3 conversation')
+function Convo(convo) {
+    var $convo_div = $('<div>').addClass('col-md-6 col-md-offset-3 conversation');
     var count = 0;
+    var more_than_4 = false;
     for (tweet in convos[convo]) {
         if (convos.hasOwnProperty(convo)) {
             if(convos[convo].hasOwnProperty(tweet)) {
                 $tweet = makeTweet(convos[convo][tweet]);
-                if (count >= 2) $tweet.addClass("more").css("display", "none");
+                if (count >= 4) {
+                    $tweet.addClass("more").css("display", "none");
+                    more_than_4 = true;
+                }
                 $convo_div.append($tweet);
                 count++;
             }
         }
     }
 
-    $show_more = $('<div>').addClass('text-center').css('margin-bottom','10px').append($('<a>').html("Show more &or;"));
-    $show_less = $('<div>').addClass('text-center').css('margin-bottom','10px').append($('<a>').html("Show less &and;"));
+    if(more_than_4) {
+        var $show_more = $('<div>').addClass('text-center show-more').css('margin-bottom','10px').append($('<a>').html("Show more &or;"));
+        var $show_less = $('<div>').addClass('text-center show-less').css({'margin-bottom':'10px', 'display':'none'}).append($('<a>').html("Show less &and;"));
+        $convo_div.append($show_more);
+        $convo_div.append($show_less);
+        this.show_more_link = $show_more;
+        this.show_less_link = $show_less;
 
-    function show_more() {
-        $(this).parent().children(".more").css("display", "block");
-        $(this).parent().append($show_less);
-        $(this).remove()
+        this.show_more_callback = function() {
+            var $this = $(this);
+            $this.parent().children(".more").css("display","block");
+            $this.css("display","none");
+            $this.parent().children(".show-less").css("display","block");
+        };
+
+        this.show_less_callback = function() {
+            var $this = $(this);
+            $this.parent().children(".more").css("display","none");
+            $this.parent().children(".show-more").css("display","block");
+            $this.css("display","none");
+        };
+
+        this.show_more_link.click(show_more_callback);
+        this.show_less_link.click(show_less_callback);
     }
 
-    function show_less() {
-        $(this).parent().children(".more").css("display", "none");
-        $(this).parent().append($show_more);
-        $(this).remove()
+    this.convo_div = $convo_div;
+    
+
+
+    return {
+        convo_div: this.convo_div,
     }
-
-    $show_more.click(show_more);
-    $show_less.click(show_less);
-
-    $convo_div.append($show_more);
-    return $convo_div;
 }
 
 $( document ).ready(function() {
     $( ".tweets").empty();
     for (var c in convos) {
-        $( ".tweets" ).append(makeConvo(c));
-        
+        var convo = Convo(c)
+        $( ".tweets" ).append(convo.convo_div);
     }
     $('a').attr("target", "_blank")
 });
