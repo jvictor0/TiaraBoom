@@ -840,7 +840,8 @@ class DataManager:
     def InsertTweetTokensById(self, tid, uid, tokens):
         for t in tokens:
             self.Horde("tweet_tokens","(%s,%s,%s)" % (uid,tid,t))
-            self.HordeUpsert("user_token_frequency", (uid, int(t)), 1, None)
+            self.HordeUpsert("user_token_frequency_proj_user", (uid, int(t)), 1, None)
+            self.HordeUpsert("user_token_frequency_proj_token", (uid, int(t)), 1, None)
             self.HordeUpsert("tweet_document_frequency", (int(t),), 1, "count=count+values(count)")
 
     def TweetTokenBackgroundMerger(self):
