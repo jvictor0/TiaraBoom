@@ -552,11 +552,19 @@ class DataManager:
             uids = ",".join([str(a) for a in set([r["user_id"] for r in rows])])
             tids = ",".join([str(a) for a in set([r["id"] for r in rows])])
             self.con.query(("insert into bot_tweets "
-                            "select id, parent, user_id, parent_id, body, ts, json, ifnull(parent, id) "
-                            "from tweets_storage where user_id in (%s) and id in (%s)") % (uids,tids))
+                            "select id, parent, user_id, parent_id, body, ts, json, ifnull(parent, id), favorites, retweets "
+                            "from tweets_joined where user_id in (%s) and id in (%s)") % (uids,tids))
             return True
         return False
         
+    
+    def UpdateFavoritesRetweets(self):
+        q = """select tweets_cs.user_id, tweets_cs.id, tweets_cs.favorites, tweets_cs.retweets
+               from tweets_cs join bot_tweets 
+               on tweets_cs.user_id = bot_tweets.user_id and tweets_cs.id = bot_tweets.id 
+               where tweets_cs.retweets != bot_tweets.retweets or tweets_cs.favorites != bot_tweets.favorites"""
+        for r in self.con.query(q):
+            self.con.query("update bot_tweets set retweets = %s, favorites = %s where user_id = %s and id = %s" % (r['retweets'], r['favorites'], r['user_id'], r['id']))
 
     def UpdateBotTweets(self):
         while True:
@@ -598,11 +606,13 @@ class DataManager:
         if full:
             self.con.query("delete from targeting_state")
         q = "insert into targeting_state select * from targeting_state_view on duplicate key update last_targeted=values(last_targeted), tweets_to=values(tweets_to)"
+        # SUSPECT
         self.TimedQuery(q, "UpdateTargetingState")
 
     def UpdateConversationIds(self):
         assert not self.xact
         self.UpdateBotTweets()
+        self.UpdateFavoritesRetweets()
         while True:
             # find all bot_tweets with conversation_id having a parent
             # we could use a Union Find and be all fancy pantsy, but fuck it
@@ -671,7 +681,7 @@ class DataManager:
             order_by_clause = ""
         order_by_clause_2 = "order by id" if len(order_by_clause) == 0 else order_by_clause + ", id "
         q = ("""select *                                                           
-                from bot_tweets_joined join                                        
+                from bot_tweets join                                        
                 (
                       select conversation_id, max_id, upvotes
                       from conversations_view        
@@ -679,7 +689,7 @@ class DataManager:
                       %s
                       limit %d, %d
                 ) conversations                  
-                on conversations.conversation_id=bot_tweets_joined.conversation_id 
+                on conversations.conversation_id=bot_tweets.conversation_id 
                 %s""")
         q = q % (where_clause, order_by_clause, offset, limit, order_by_clause_2)
         rows = self.con.query(q)
@@ -769,6 +779,7 @@ class DataManager:
                      "on dp.dependant = tr.token and tr.id = udf.token "
                      "group by 1") % (maxdf, normalizer, personality)
                 nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
+                # SUSPECT
                 self.TimedQuery("insert into artrat_tfidf_insertable %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
                 self.updatedArtratTFIDF = True
                 
@@ -792,6 +803,7 @@ class DataManager:
         q = ("insert into artrat_tfidf_insertable(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=tfidf_norm" 
              % (self.GetUserId()))
         self.con.query(q)
+        # SUSPECT
         self.con.query("insert into artrat_tfidf select * from artrat_tfidf_insertable on duplicate key update tfidf_norm=values(tfidf_norm)")
         self.con.query("insert into user_document_frequency select * from user_document_frequency_view on duplicate key update count = values(count)")
             

@@ -1,12 +1,12 @@
 
 def TiaraCreateTables(con):
     # tweet tables
-    con.query(("create table if not exists tweets("                        
+    con.query(("create table if not exists tweets_cs("                        
                "id bigint not null,"
                "user_id bigint not null,"                        
                "retweets bigint not null,"
                "favorites bigint not null,"
-               "primary key(user_id, id),"
+               "key(user_id, id) using clustered columnstore,"
                "shard (user_id))"))
     followback_terms = ['follow','seguro','retweet','mgwv','followback','followtrain','followtrick','teamfollowback']
     followbacker_regex = " + ".join([("(lcase_body regexp '%s')" % ("[^a-z][^a-z]*".join(fl))) for fl in followback_terms])
@@ -39,6 +39,8 @@ def TiaraCreateTables(con):
                "ts datetime not null,"
                "json json ,"
                "conversation_id bigint not null, "
+               "favorites bigint not null, "
+               "retweets bigint not null, "
                "key (conversation_id), "
                "key (parent_id,parent), "
                "primary key(user_id, id), "
@@ -194,15 +196,11 @@ def TiaraCreateViews(con):
     #
     con.query(("create view tweets_joined as "
                "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts "
-               "from tweets_storage ts join tweets "
-               "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-    con.query(("create view bot_tweets_joined as "
-               "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.json, ts.ts, ts.conversation_id "
-               "from bot_tweets ts join tweets "
+               "from tweets_storage ts join tweets_cs tweets "
                "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
     con.query(("create view tweets_joined_no_json as "
                "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
-               "from tweets_storage ts join tweets "
+               "from tweets_storage ts join tweets_cs tweets "
                "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
     con.query(("create view artrat_tfidf_view as "
                "select bots.screen_name, ti.token, art.tfidf_norm "
@@ -329,7 +327,7 @@ def TiaraCreateViews(con):
     con.query("create view botherable_tweets_view as "
               "select bfv.bot_id, bfv.user_id, ts.id, timestampdiff(second, ts.ts, now()) as recentness, "
               "       tweets.favorites, tweets.retweets "
-              "from botherable_friends_view bfv join tweets_storage ts join tweets "
+              "from botherable_friends_view bfv join tweets_storage ts join tweets_cs tweets "
               "on bfv.user_id = ts.user_id and ts.user_id = tweets.user_id and ts.id = tweets.id "
               "where ts.num_user_mentions = 0 and ts.num_media = 0 and ts.num_hashtags <= 2 and ts.num_urls = 0 "
               "and ts.parent_id is null and not ts.is_retweet and ts.ts > now() - interval 7 day "
@@ -362,10 +360,9 @@ def TiaraCreateViews(con):
               "select bot_tweets.conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "
               "       count(bots.id) as to_bots, count(bots2.id) as from_bots, max(bots2.screen_name) as bot_name, "
               "       ifnull(sum(cu.upvotes), 0) as upvotes, "
-              "       sum((not isnull(bots2.id)) * favorites) as bot_favorites, "
-              "       sum((not isnull(bots2.id)) * retweets)  as bot_retweets   "
+              "       sum((not isnull(bots2.id)) * bot_tweets.favorites) as bot_favorites, "
+              "       sum((not isnull(bots2.id)) * bot_tweets.retweets)  as bot_retweets   "
               "from bot_tweets "
-              "     join tweets on bot_tweets.user_id = tweets.user_id and bot_tweets.id = tweets.id "
               "     left join bots bots  on bot_tweets.parent_id = bots.id "
               "     left join bots bots2 on bot_tweets.user_id = bots2.id "
               "     left join conversation_upvotes cu on cu.conversation_id = bot_tweets.conversation_id "
