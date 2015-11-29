@@ -75,7 +75,7 @@ function Convo(convo) {
         this.show_less_link.click(show_less_callback);
     }
 
-    var $convo_link = $('<div>').addClass('convo-link col-md-2').append($('<a>').attr('href', "?conversation_id=" + convos[convo][0].tweet_id).append($('<img>').attr('src', 'static/images/link.png')));
+    var $convo_link = $('<div>').addClass('convo-link col-md-2').append($('<a>').attr('href', "http://tiaraboom.com/?conversation_id=" + convos[convo][0].tweet_id).append($('<img>').attr('src', 'static/images/link.png')));
 
     this.convo_div = $convo_div;
     
