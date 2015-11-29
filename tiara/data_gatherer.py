@@ -21,6 +21,8 @@ import threading
 
 import tiara_ddl
 
+import traceback
+
 MODES=4
 
 AFFLICT_FOLLOWBACK = 1
@@ -103,6 +105,8 @@ class DataManager:
                 self.UpdateConversationIds()
             self.needsUpdateBotTweets = False
         except Exception as e:
+            ex_type, ex, tb = sys.exc_info()
+            traceback.print_tb(tb)
             self.horde = {}
             self.hordeUpserts = {}
             self.needsUpdateBotTweets = False
@@ -188,6 +192,8 @@ class DataManager:
                 assert self.con.query("update user_token_frequency set count = count - 1 where user_id = %d and token = %s" % (uid, t)) == 1
         except Exception as e:
             self.g_data.TraceWarn("Rollback in PurgeTweet")
+            ex_type, ex, tb = sys.exc_info()
+            traceback.print_tb(tb)
             self.Rollback()
             raise e
         self.Commit()
@@ -264,9 +270,9 @@ class DataManager:
             self.con.query("delete from user_afflictions where id = %d and affliction = %d" % (uid, AFFLICT_BLOCKER))
         return [r["affliction"] for r in self.con.query("select * from user_afflictions where id = %d" % uid)]
 
-    def InsertTweet(self, s, single_xact=True, insert_user=True):
+    def InsertTweet(self, s, single_xact=True, insert_user=True, prefilter={}):
         if s.GetRetweeted_status() is not None:
-            self.InsertTweet(s.GetRetweeted_status(), single_xact=single_xact)
+            self.InsertTweet(s.GetRetweeted_status(), single_xact=single_xact, prefilter=prefilter)
         parent = "null"
         parent_id  = "null"
         if not s.GetInReplyToStatusId() is None:
@@ -305,13 +311,22 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            inserted = self.con.query("insert into tweets(id,user_id,retweets,favorites) values (%d,%d,%d,%d) "
-                                      "on duplicate key update "
-                                      "favorites=values(favorites), retweets=values(retweets)" % (sid,uid,retweets, likes))
-            assert inserted in [0,1,2], (inserted, sid)
-            if inserted == 1:
+            update_query = "update tweets_cs set favorites = %d, retweets = %d where user_id = %d and favorites = %d" % (likes, retweets, uid, sid)
+            if uid not in prefilter:
+                prefilter[uid] = self.GetPrefilter(uid)
+            if sid in prefilter[uid]:
+                if prefilter[uid][sid] != (likes,retweets):
+                    self.con.query(update_query)
+                updated = 1
+            else:
+                updated = 0
+            assert updated in [0,1], (updated, uid, sid)
+            if updated == 0:
+                assert uid in prefilter and sid not in prefilter[uid]                
+                prefilter[uid][sid] = (likes,retweets)
                 if s.GetUser().GetId() in self.GetBotIds() or s.GetInReplyToUserId() in self.GetBotIds():
                     self.needsUpdateBotTweets = True
+                self.Horde("tweets_cs(id,user_id,retweets,favorites)", "(%d,%d,%d,%d)" % (sid,uid,retweets, likes))
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
                 self.InsertTweetTokens(s.GetId(), s.GetUser().GetId(), s.GetText(), single_xact=False)
             if insert_user:
@@ -320,13 +335,37 @@ class DataManager:
                 self.Commit()
         except Exception:
             self.g_data.TraceWarn("Rollback in InsertTweet")
+            ex_type, ex, tb = sys.exc_info()
+            traceback.print_tb(tb)
             self.Rollback()
             raise
+
+    def GetPrefilter(self, uid):
+        rows = self.con.query("select * from tweets_cs where user_id = %d" % uid)
+        return { int(r["id"]) : (int(r["favorites"]), int(r["retweets"])) for r in rows }
+
+    def RemoveDuplicateTweets(self):
+        self.Begin()
+        try:
+            rows = self.con.query("select id, user_id, token, count(*) as c from tweet_tokens group by user_id, id, token having count(*) > 1")
+            for r in rows:
+                print r
+                assert self.con.query("delete from tweet_tokens where id =%s and user_id=%s and token = %s limit %d" % (r["id"],r["user_id"], r["token"], int(r["c"])-1)) == int(r["c"])-1
+                for i in xrange(int(r["c"])-1):
+                    assert self.con.query("update user_token_frequency_proj_token set count = count - 1 where count > 0 and user_id=%s and token = %s limit 1" % (r["user_id"], r["token"])) == 1
+                    assert self.con.query("update user_token_frequency_proj_user  set count = count - 1 where count > 0 and user_id=%s and token = %s limit 1" % (r["user_id"], r["token"])) == 1
+                assert self.con.query("update tweet_document_frequency set count = count - %s where token = %s" % (int(r["c"])-1, r["token"])) == 1
+        except Exception as e:
+            ex_type, ex, tb = sys.exc_info()
+            traceback.print_tb(tb)
+            self.Rollback()
+            raise e
+        self.Commit()
 
     def GetUnprocessed(self, user=None):
         uid = self.GetUserId()
         query = ("select tl.parent "
-                 "from tweets_storage tl left join tweets tr "
+                 "from bot_tweets tl left join bot_tweets tr "
                  "on tr.id = tl.parent and tr.user_id = tl.parent_id " 
                  "where tr.id is null and tl.parent is not null and (tl.user_id = %s or tl.parent_id = %s) " 
                  "and not exists(select * from ungettable_tweets where id = tl.parent) "
@@ -338,12 +377,12 @@ class DataManager:
         assert not uid is None, uid
         if tid is not None:
             res = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
-                                 "from tweets_storage ts join tweets t "
+                                 "from tweets_storage ts join tweets_cs t "
                                  "on ts.user_id = t.user_id and ts.id = t.id "
                                  "where ts.id = %d and ts.user_id = %d" % (tid, uid))
         else:
             res = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
-                                 "from tweets_storage ts join tweets t "
+                                 "from tweets_storage ts join tweets_cs t "
                                  "on ts.user_id = t.user_id and ts.id = t.id "
                                  "where ts.user_id = %d" % (uid))
         return res
@@ -404,19 +443,6 @@ class DataManager:
         if len(statuses) == 0:
             return None
         return statuses[0]
-
-    def LookupStatusesFromUsers(self, uids=None, skip_rts=False, filters = [], json = True):
-        jscol = "ts.json" if json else "json_set_string('{}','lang',ts.language) as json"
-        filters = "".join([" and " + f for f in filters])
-        rows = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, %s, ts.ts, t.retweets, t.favorites "
-                              "from tweets_storage ts join tweets t "
-                              "on ts.user_id = t.user_id and ts.id = t.id "
-                              "where ts.user_id in (%s)%s" % (jscol, ",".join(["%d"%u for u in uids]), filters))
-        users = {uid: self.LookupUser(uid) for uid in uids}
-        return filter(lambda x: not x is None,
-                      [self.RowToStatus(r, users[int(r["user_id"])], skip_rts=skip_rts) 
-                       for r in rows 
-                       if not users[int(r["user_id"])] is None])
 
     def LookupUser(self, uid, days_old = None, ignore_following_status=False):
         q = "select * from users where id = %d" % uid
@@ -491,37 +517,6 @@ class DataManager:
         assert len(result) == 1
         return MySQLTimestampToPython(result[0]["a"])
 
-    def TweetHistory(self, uid):
-        myuid = self.GetUserId()
-        q = ("select id as chid, parent as paid, user_id as chu, parent_id as pau from tweets_storage "
-             "where (user_id = %d and parent_id = %d) "
-             " or (parent_id = %d and   user_id = %d)")
-        q = q % (uid, myuid, uid, myuid)
-        rows = self.TimedQuery(q, "TweetHistory")
-        uids = list(set([(r["chu"]) for r in rows] + [(r["pau"]) for r in rows]))
-        tids = list(set([(r["chid"]) for r in rows] + [(r["paid"]) for r in rows]))
-        if len(tids) == 0:
-            return []
-        assert len(uids) > 0, uid
-        q = ("select t.id, ts.parent_id, ts.parent, t.user_id, '' as body, '0000-00-00 00:00:00' as ts, '{}' as json, t.retweets, t.favorites "
-             "from tweets_storage ts join tweets t "
-             "on ts.user_id = t.user_id and ts.id = t.id "
-             "where ts.id in (%s) and ts.user_id in (%s)" % (",".join(tids),",".join(uids)))
-        status_rows = {int(r["id"]) : r for r in self.TimedQuery(q,"fetch tweet history rows")}
-        users = {int(u) : self.LookupUser(int(u)) for u in uids}
-        result = []
-        for r in rows:
-            left  = self.RowToStatus(status_rows[int(r["chid"])], users[int(r["chu"])])
-            assert left is not None, r
-            try:
-                right = self.RowToStatus(status_rows[int(r["paid"])], users[int(r["pau"])])
-                assert right is not None
-            except Exception:
-                assert len(self.con.query("select * from ungettable_tweets where id = %s" % r["paid"])) > 0, r 
-                continue
-            result.append((left,right))
-        return result
-
     def InitializeConversation(self, uid, tid, parent_uid=None, parent_tid=None):
         if parent_uid is None:            
             cid = tid
@@ -593,7 +588,7 @@ class DataManager:
             # we find tweets whose parent is in the bot_tweets, but not it
             #
             q = (("select t.user_id, t.id "
-                  "from tweets t join bot_tweets bt "
+                  "from tweets_cs t join bot_tweets bt "
                   "on bt.parent = t.id and bt.parent_id = t.user_id "
                   "where not exists (select * from bot_tweets bs_inner where t.user_id = bs_inner.user_id and t.id = bs_inner.id)"))
             rows = self.con.query(q)
@@ -845,7 +840,8 @@ class DataManager:
                 self.Commit()
         except Exception as e:
             self.g_data.TraceWarn("Rollback in InsertTweetTokens")
-            print e
+            ex_type, ex, tb = sys.exc_info()
+            traceback.print_tb(tb)
             self.Rollback()
             raise e
 
@@ -884,6 +880,8 @@ class DataManager:
             self.Commit()
             return True
         except Exception as e:
+            ex_type, ex, tb = sys.exc_info()
+            traceback.print_tb(tb)
             self.Rollback()
             raise e
 
@@ -1022,6 +1020,8 @@ class DataManager:
                 self.Commit()
             except Exception as e:
                 self.g_data.TraceWarn("Rollback in ProcessFollowerCursor")                
+                ex_type, ex, tb = sys.exc_info()
+                traceback.print_tb(tb)
                 self.Rollback()
                 raise e
             if self.ApiHandler().last_call_rate_limit_remaining < 5:

@@ -19,11 +19,12 @@ class ApiHandler():
             result = fun()
             self.g_data.TraceInfo("%s(%s) success!" % (name,args))
             if tp == "LOT":
-                insert_user = True
+                prefilter = {}
                 self.g_data.dbmgr.Begin()
                 for t in result:
-                    self.g_data.dbmgr.InsertTweet(t, single_xact=False, insert_user=insert_user)
-                    insert_user=False
+                    insert_user = t.GetUser().GetId() not in prefilter
+                    self.g_data.dbmgr.InsertTweet(t, single_xact=False, insert_user=insert_user, prefilter=prefilter)
+                    assert t.GetUser().GetId() in prefilter
                 self.g_data.dbmgr.Commit()
             if tp == "LOU":
                 for u in result:
