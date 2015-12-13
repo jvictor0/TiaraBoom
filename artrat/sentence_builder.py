@@ -166,25 +166,6 @@ def ProcessDependencies(con, user, depsa, source=None, log=Print):
         if not failed: 
             PostProcessSentence(con, int(sid), user)
 
-            
-def GetSymbols(text):
-    global NLP
-    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-    texts = tokenizer.tokenize(text.decode("utf8"))
-    result = {}
-    for sentence in texts:
-        sentence = sentence.encode("utf8")
-        InitNLP()
-        depsa = NLP.parse(sentence.decode("utf8").encode("ascii","ignore"))["sentences"]
-        for deps in depsa:
-            dt = deptree.ToDependTree(deps["dependencies"],"ROOT-0")
-            next_result = GetImportantWords(dt, deps)
-            for k,v in next_result.iteritems():
-                if not k in result:
-                    result[k] = 0
-                result[k] += v
-    return result
-
 def Ingest(con, text, user):
     tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
     texts = tokenizer.tokenize(text.decode("utf8"))

@@ -6,10 +6,31 @@ def remove_word(word):
     return word.count("-") == -1 and word or word[(1+word.rindex("-")):]
 
 class DependTree:
-    def __init__(self, data, children=[]):
+    def __init__(self, data, children=[], sentence_id=-1, dependant_id=-1):
         self.data = remove_id(data) if data is not None else None
         self.children = children
         self.modified = False
+        self.sentence_id = sentence_id
+        self.dependant_id = dependant_id
+
+    def IsSingleSentenceSubtree(self):
+        if self.sententence_id == -1:
+            return False
+        for _,c in self.children:
+            if not c.IsSingleSentenceSubtree():
+                return False
+            if self.sentence_id != c.sentence_id:
+                return False
+        return True
+
+    def SquashSingleSentenceSubtrees(self):
+        if self.IsSingleSentenceSubtree():
+            subtree = []
+            self.Gather(subtree)
+            subtree.sort(key = lambda c: c.dependant_id)
+            return DependTree(" ".join(c.data for c in subtree))
+        else:
+            return DependTree(self.data, [(a,c.SquashSingleSentenceSubtrees()) for a,c in self.children], self.sentence_id, self.dependant_id)
 
     def IsLeaf(self):
         return len(self.children) == 0
@@ -23,6 +44,11 @@ class DependTree:
                           for i in xrange(len(self.children))])
         return prefix + body + ")"
     
+    def Gather(self, lst):
+        for _,c in self.children:
+            c.Gather(lst)
+        lst.append(self)        
+
     def __str__(self):
         return self.Print("","")
 
@@ -99,7 +125,7 @@ class DependTree:
             self.data = newdata
         else:
             self.children[trg] = (self.children[trg][0],
-                                  DependTree(newdata))
+                                  DependTree(newdata, self.children[trg][1].sentence_id, self.children[trg][0].dependant_id))
         self.Pop(src)
     
     def Postpend(self, trg, src):
@@ -156,10 +182,10 @@ class DependTree:
                 return True
         return False
     
-def ToDependTree(triplets,root):
+def ToDependTree(triplets,root, sentence_id=-1):
     outgoing = [t for t in triplets if t[1] == root]
-    children = [(t[0], ToDependTree(triplets, t[2])) for t in outgoing]
-    return DependTree(root,children)
+    children = [(t[0], ToDependTree(triplets, t[2], sentence_id)) for t in outgoing]
+    return DependTree(root,children,sentence_id)
 
 def FixPunctuation(sentence):
     puncts = [',',';']
