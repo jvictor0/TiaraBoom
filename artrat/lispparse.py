@@ -38,6 +38,9 @@ class Lisp:
         if string:
             self.l = LispParse(string)
 
+    def __init__(self, pos, *children):
+        self.l = [pos] + children
+
     def __str__(self):
         return LispPrint(self.l)
 
