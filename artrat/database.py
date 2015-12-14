@@ -18,10 +18,14 @@ import itertools
 import time
 import sys
 import collections
+import os.path
+import simplejson as json
 
 def ConnectToMySQL(host=None, port=3307, user='root', database='', **kwargs):
     if not host:
-        host = '%s:%s' % ("127.0.0.1", port)
+        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+        with open(abs_prefix + '/config.json','r') as f:
+            host = json.load(f)["dbHost"]
     db = Connection(host=host, user=user, database=database, **kwargs)
     return db
 

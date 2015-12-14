@@ -7,11 +7,15 @@ def remove_word(word):
 
 class DependTree:
     def __init__(self, data, children=[], sentence_id=-1, dependant_id=-1):
+        assert isinstance(children, list), children
         self.data = remove_id(data) if data is not None else None
         self.children = children
         self.modified = False
         self.sentence_id = sentence_id
-        self.dependant_id = dependant_id
+        if dependant_id == -1 and self.data != data:
+            self.dependant_id = int(remove_word(data))
+        else:
+            self.dependant_id = dependant_id
 
     def IsSingleSentenceSubtree(self):
         if self.sententence_id == -1:
@@ -125,7 +129,7 @@ class DependTree:
             self.data = newdata
         else:
             self.children[trg] = (self.children[trg][0],
-                                  DependTree(newdata, self.children[trg][1].sentence_id, self.children[trg][0].dependant_id))
+                                  DependTree(newdata, [], self.children[trg][1].sentence_id, self.children[trg][1].dependant_id))
         self.Pop(src)
     
     def Postpend(self, trg, src):
@@ -220,12 +224,15 @@ def PreProcessDependTree(dt, verbose=False, printres=False):
     return dt
 
 def FlattenDependTree(dt):
-    def FDT(dt, result, num):
+    def FDT(dt, result):
         for i in xrange(len(dt.children)):
             c = dt.children[i]
-            nc = len(result) + 1
-            result.append((c[0], dt.data, num, c[1].data, nc))
-            FDT(c[1], result, nc)
+            result.append((c[0], dt.data, dt.dependant_id, c[1].data, c[1].dependant_id))
+            FDT(c[1], result)
     result = []
-    FDT(dt, result, 0)
+    FDT(dt, result)
+    result.sort(lambda x: x[-1])
+    fwddict = { r[-1] : i for i, r in enumerate(result) }
+    for i in xrange(len(result)):
+        result[i] = (result[i][0], result[i][1], fwddict[result[i][2]], result[i][3], fwddict[result[i][4]])
     return result

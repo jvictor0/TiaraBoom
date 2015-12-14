@@ -15,6 +15,25 @@ import database
 import rewrite_rules as rr
 import depend_tree as deptree
 
+class SentenceBuilderErr:
+    def __init__(self, err):
+        self.err = err
+        
+    def __str__(self):
+        return "SentenceBuilderErr(%s)" % self.err
+
+class ExpansionNode:
+    def __init__(self, word, arctype, sid, did, height, fixed_sib):
+        self.word = word
+        self.arctype = arctype
+        self.sid = sid
+        self.did = did
+        self.height = height
+        self.fixed_siblings = fixed_sib
+
+    def __str__(self):
+        return "ExpansionNode(word = %s, arctype = %s, sid = %s, did = %s, height = %s, fixed_sibling = %s)" % (self.word, self.arctype, self.sid, self.did, self.height, self.fixed_siblings)
+
 HEIGHT_THROTTLER = 1.0
 ARC_WILDNESS = {
     "amod" : 0.5,
@@ -204,7 +223,10 @@ def Subset(superset,subset):
 # for each fixed sibling, the toplevel arctype will be present.
 # the return type is [([(arctype, word)], sentence_id, dependant_id)]
 # 
-def HistogramSubsets(con, word, parent_arctype = None, fixed_siblings=deptree.DependTree(None), user = None):
+def HistogramSubsets(con, node, user):
+    word = node.word
+    parent_arctype = node.arctype
+    fixed_siblings = node.fixed_siblings
     subs =  ("select dl.sentence_id as sid, dl.dependant_id as did, "
              "group_concat(dr.arctype separator '___')   as gc_arc, "
              "group_concat(dr.dependant separator '___') as gc_dep, "
@@ -233,7 +255,7 @@ def HistogramSubsets(con, word, parent_arctype = None, fixed_siblings=deptree.De
     disallowed = ["cc"]
     disallowed.extend(["num","number"]) # this will add some stability for now...
     if len(hists) == 0:
-        assert False,  "before filtering no rows"
+        raise SentenceBuilderErr("before filtering no rows")
     result = []
     assert fixed_siblings.data is None
     fixed_tups = [(fs[0], fs[1].data) for fs in fixed_siblings.children]
@@ -247,17 +269,15 @@ def HistogramSubsets(con, word, parent_arctype = None, fixed_siblings=deptree.De
     return result
 
 # returns [(arctype, word, fixed_arcs)]
-def SubsetSelector(con, word, fixed_siblings=deptree.DependTree(None), height=0, user=None, params = None, dbg_out={}, symbols = {}, parent_arctype=None):
+def SubsetSelector(con, node, user, dbg_out, symbols):
     if 'facts' not in dbg_out:
         dbg_out['facts'] = []
-    if params is None:
-        params = DEFAULT_PARAMS
-    hist = HistogramSubsets(con, word, user=user, fixed_siblings=fixed_siblings, parent_arctype=parent_arctype)
+    params = DEFAULT_PARAMS
+    hist = HistogramSubsets(con, node=node, user=user)
     if len(hist) == 0:
-        assert False,  "generated no rows, word = %s, \nfixed=%s" % (word, str(fixed_siblings))
-        return []
+        raise SentenceBuilderErr("generated no rows, word = %s, \nfixed=%s" % (node.word, str(node.fixed_siblings)))
     for i in xrange(len(hist)):
-        denom = float(len(hist[i][0])) if height == 0 else (params["height_throttler"] * float(height))**len(hist[i][0])
+        denom = float(len(hist[i][0])) if node.height == 0 else (params["height_throttler"] * float(node.height))**len(hist[i][0])
         hist[i] = (hist[i], 0 if denom == 0 else (1.0/denom))
         for s,k in symbols.iteritems():
             if s in [hr[1] for hr in hist[i][0][0]]:                
@@ -265,8 +285,14 @@ def SubsetSelector(con, word, fixed_siblings=deptree.DependTree(None), height=0,
                 hist[i] = (hist[i][0], hist[i][1]*(4+k))
     result_entry = RandomWeightedChoice(hist)
     q = "select * from %s_procd where sentence_id = %s and governor_id = %s" % (user, result_entry[1], result_entry[2])
-    result = [(r["arctype"], r["dependant"], r["dependant_id"]) for r in con.query(q)]
-    assert sorted([(a,b) for a,b,c in result]) == sorted(result_entry[0]), "%s\n%s\n%s\n%s" % (result,result_entry)
+    result = [ExpansionNode(r["dependant"],
+                            r["arctype"], 
+                            r["sentence_id"],
+                            r["dependant_id"],
+                            node.height+1,
+                            deptree.DependTree(None))
+              for r in con.query(q)]
+    assert sorted([(r.arctype,r.word) for r in result]) == sorted(result_entry[0]), "%s\n%s\n%s\n%s" % (result,result_entry)
 
     if "used_list" not in dbg_out:
         dbg_out["used_list"] = []
@@ -274,28 +300,24 @@ def SubsetSelector(con, word, fixed_siblings=deptree.DependTree(None), height=0,
         dbg_out["used_list"].append(int(result_entry[1]))
 
     fixed_ixs = set([])
-    for at,fs in fixed_siblings.children:
+    for at,fs in node.fixed_siblings.children:
         found = False
         for i in xrange(len(result)):
-            if (result[i][0],result[i][1]) == (at,fs.data):
+            if (result[i].arctype,result[i].dependant) == (at,fs.data):
                 fixed_ixs.add(i)
-                result[i] = (at, fs.data, deptree.DependTree(None, fs.children))
+                result[i].fixed_sibling = deptree.DependTree(None, fs.children)
                 found = True
                 break
         assert found, ("not found",at,fs.data,result)
-    for i in xrange(len(result)):
-        if i not in fixed_ixs:
-            fixd = deptree.DependTree(None)
-            result[i] = (result[i][0], result[i][1], fixd)
         
     for i in xrange(len(result)):
-        if result[i][0] in params["arc_wildness"] and random.random() < params["arc_wildness"][result[i][0]]:
+        if result[i].arctype in params["arc_wildness"] and random.random() < params["arc_wildness"][result[i].arctype]:
             if i not in fixed_ixs:
-                next_word = RandomDependant(con, user, word, result[i][0], symbols=symbols)
-                dbg_out['facts'].append(result[i][1] +"->"+next_word)
-                result[i] = (result[i][0], next_word, result[i][2])
-        if result[i][1] in symbols:
-            del symbols[result[i][1]]
+                next_word = RandomDependant(con, user, node.word, result[i].arctype, symbols=symbols)
+                dbg_out['facts'].append(result[i].word +"->"+next_word)
+                result[i].word = next_word
+        if result[i].word in symbols:
+            del symbols[result[i].word]
     return result
 
 def GetDependants(con, user, sentence_id, gov_id):
@@ -314,16 +336,12 @@ def RandomDependant(con, user, gov, arctype, symbols={}):
                 dependants.append(sym)
     return random.choice(dependants)
         
-def Expand(con, word, height=0, user=None, fixed_siblings = deptree.DependTree(None), dbg_out = {}, symbols={}, parent_arctype=None):
-    arctypes = SubsetSelector(con, word, user=user, height = height, 
-                              fixed_siblings = fixed_siblings, 
-                              parent_arctype=parent_arctype,
-                              dbg_out = dbg_out, symbols=symbols)
+def Expand(con, node, user, dbg_out, symbols):
+    arctypes = SubsetSelector(con, node, user=user, dbg_out = dbg_out, symbols=symbols)
     outs = []
-    for at,dep,fixd in arctypes:
-        outs.append((at,Expand(con, dep,
-                               height = height + 1, user=user, fixed_siblings=fixd, parent_arctype=at, symbols=symbols, dbg_out=dbg_out)))
-    return deptree.DependTree(word,outs)
+    for nextnode in arctypes:
+        outs.append((nextnode.arctype, Expand(con, node=nextnode, user=user, symbols=symbols, dbg_out=dbg_out)))
+    return deptree.DependTree(node.word, outs, node.sid, node.did)
 
 # SeekToRoot :: dependant -> fixed_tree
 def SeekToRoot(con, user, dependant):
@@ -367,7 +385,8 @@ def Generate(con, user, using=None, dbg_out={}, symbols={}):
         fixed_chain = deptree.DependTree(None)
         word = random.choice(con.query("select dependant from %s_procd where arctype = 'root'" % user))['dependant']
     global g_last_generated
-    result = Expand(con, word, parent_arctype='root', user=user, fixed_siblings=fixed_chain,dbg_out=dbg_out, symbols=symbols)
+    node = ExpansionNode(word, 'root', -1, -1, 0, fixed_chain)
+    result = Expand(con, node=node, user=user, dbg_out=dbg_out, symbols=symbols)
     g_last_generated = copy.deepcopy(result)
     return result
 
@@ -377,6 +396,7 @@ def GenerateAndExpand(user, using=None):
     dbg_out = { "used_list" : [] }
     result = deptree.FromDependTree(Generate(con, user, using=using,dbg_out=dbg_out))
     print "sentences_used" , dbg_out["used_list"]
+    print "facts" , dbg_out["facts"]
     print g_last_generated
     return result
 

@@ -37,7 +37,7 @@ def Generate(user, symbols, requireSymbols=False, con=None):
         result = deptree.FromDependTree(gend)
         dbs = sb.g_last_generated.ToDict()
         return { "success": True,   "body": result, "debugging_stuff" : { "original_tree" : dbs }, "symbols" : syms }
-    except Exception as e:
+    except sb.SentenceBuilderErr as e:
         ex_type, ex, tb = sys.exc_info()
         #traceback.print_tb(tb)
         return { "success": False, "error": str(e), "debugging_stuff" : { "original_tree" : dbs } }
