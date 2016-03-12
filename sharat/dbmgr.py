@@ -10,26 +10,27 @@ import traceback
 import converters as cvts
 
 class SharatDbMgr:
-    def __init__(self):
-        abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
-        with open(abs_prefix + '/config.json','r') as f:
-            dbhost = simplejson.load(f)["dbHost"]
-            self.con = database.ConnectToMySQL(dbhost)
-            sharat_ddl.DoDDL(self.con)
-        self.xact = False
+    def __init__(self, nocon = False):
+        if not nocon:
+            abs_prefix = os.path.join(os.path.dirname(__file__), "../data")
+            with open(abs_prefix + '/config.json','r') as f:
+                dbhost = simplejson.load(f)["dbHost"]
+                self.con = database.ConnectToMySQL(dbhost)
+                sharat_ddl.DoDDL(self.con)
+            self.xact = False
     
-    def NLP(self, q):
-        properties = {}
-        host = "http://localhost:9001/?properties=%s" % simplejson.dumps(properties)
+    def NLP(self, q, properties = {}, port=9001):        
+        host = "http://localhost:%d/?properties=%s" % (port,simplejson.dumps(properties))
         r = requests.post(host, data=q)
         if r.status_code == 200:
-            return nlpclasses.Parse(simplejson.loads(r.content))
+            return nlpclasses.Parse(simplejson.loads(r.content.replace("\x00","")))
         else:
             r.raise_for_status()
 
-    def NLPFile(self, filename):
+    def NLPFile(self, filename, properties = {}, port=9001):
         with open(filename,"rb") as f: #uhh, ok
-            return self.NLP(f.read())
+            data = f.read()
+            return self.NLP(data, properties=properties, port=port)
 
     def Ingest(self, text, user_id=-1, source=None):
         return self.InsertParse(user_id, source, self.NLP(text))
