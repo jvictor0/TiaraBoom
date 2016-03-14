@@ -1,15 +1,9 @@
-import thought
-
-reload(thought.snode)
-reload(thought)
-
-ctx = thought.Context()
-ctx.FromJSON({    
+{    
     "entities"  :
     [{
         "name" : "Trump",
         "type" : "person",
-        "gender" : "male",        
+        "gender" : "male"        
     },
     {
         "name" : "The Illuminati",
@@ -32,14 +26,14 @@ ctx.FromJSON({
         "subject" : "Trump",
         "relation": "did",
         "infinitive": "use",
-        "object"  : "mind control",
+        "object"  : "mind control"
     },
     {
         "id" : 1,
         "subject" : "Trump",
         "relation": "be",
         "object"  : "The Illuminati",
-        "tenses" : ["present"],
+        "tenses" : ["present"]
     },
     {
         "id" : 2,
@@ -77,9 +71,6 @@ ctx.FromJSON({
         "infinitive" : "hypnotize",
         "object" : "Chris Christie",
         "frequency": "recurring"
-    },
-    {
-        "id" : 7
     }],
 
     "relations" :
@@ -93,4 +84,4 @@ ctx.FromJSON({
         { "gov" : 6, "dep" : 5, "type" : "evidence"   },
         { "gov" : 0, "dep" : 6, "type" : "evidence"   }
     ]
-})
+}

@@ -2,6 +2,7 @@ import random
 import pattern.en as pen
 import snode
 from unidecode import unidecode
+import simplejson
 
 P = snode.SNode
 
@@ -36,6 +37,11 @@ class MtrException(Exception):
 
     def __str__(self):
         return "MtrException(%s)" % self.msg
+
+def OpenContext(fname):
+    ctx = Context()
+    ctx.FromJSON(simplejson.load(open(fname,"r")))
+    return ctx
 
 class Context:
     def __init__(self):
@@ -85,7 +91,8 @@ class Context:
             self.AddRelation(r)
 
     def PrintAllFacts(self, toText=True):
-        for _, f in self.facts.iteritems():
+        for i, f in self.facts.iteritems():
+            print "FACT", i
             f.PrintAllSimpleSentences(self, toText)
 
     def PrintAllRelations(self, toText=True, times=1):
@@ -98,11 +105,42 @@ class Context:
                         print vi.Mtr(self)
                 if times > 1:
                     print ""
-                    
+
+    def Justifications(self, factId):
+        result = []
+        if factId in self.relations:
+            result.extend(self.relations[factId])
+        if factId in self.reverse_relations:
+            result.extend([r for r in self.reverse_relations[factId] if r.Type() in [SIMILAR]])
+        return result
+
+    def RandomRelation(self):
+        return random.choice([r for _, rs in self.relations.iteritems() for r in rs])
+
+    def RandomFact(self, entityName=None):
+        facts = []
+        if entityName is not None:
+            facts = [f for f in self.facts if f.ReferencesEntity(entityName)]
+        if len(facts) == 0:
+            facts = self.facts        
+        return random.choice(facts)
+            
+    def FactIds(self):
+        return self.facts.keys()
+
+    def EntityTags(self):
+        return {t:n for n,e in self.entities.iteritems() for t in e.Tags()}
+    
 class Entity:
     def __init__(self, json):
         self.json = json
 
+    def Tags(self):
+        return [self.json["name"].lower()]
+
+    def Name(self):
+        return self.json["name"]
+    
     def Mtr(self, ctx):
         return P({ "type" : snode.ENTITY, "name" : self.json["name"]},
                  self.json["name"])
@@ -157,12 +195,18 @@ class Fact:
     def __init__(self, json):
         self.json = json
 
+    def Id(self):
+        return self.json["id"]
+        
     def Subject(self, ctx):
         return ctx.GetEntity(self.json["subject"])
 
     def Object(self, ctx):
         return ctx.GetEntity(self.json["object"])
 
+    def ReferencesEntity(self, entityName):
+        return self.json["subject"] == entityName or self.json["object"] == entityName
+    
     def MtrSubject(self, ctx):
         return self.Subject(ctx).Mtr(ctx)
 
@@ -178,7 +222,7 @@ class Fact:
         negated = False if "negated" not in self.json else self.json["negated"]
         person = self.Subject(ctx).Person(ctx)
         number = self.Subject(ctx).Number(ctx)
-        negator = PT("not") if negated else P({},"")
+        negator = PT("not") if negated else P({})
         if self.Relation() == DID:
             infinitive = self.json["infinitive"]
         elif self.json["relation"] == BE:
@@ -192,8 +236,8 @@ class Fact:
                     if tense == "future":
                         helper = PT(self.Modal(aspect))
                     else:
-                        helper = P({},"")
-                    negator = TenseSwitch(tense, PT("didn't"), PT("doesn't"), PT("not")) if negated else P({},"")
+                        helper = P({})
+                    negator = TenseSwitch(tense, PT("didn't"), PT("doesn't"), PT("not")) if negated else P({})
                     return PT(helper , negator, PT(infinitive))
                 else:
                     return PT(Conjugate(infinitive, tense, person, number))
@@ -221,26 +265,39 @@ class Fact:
                 helper = PT(hw)
                 return PT(helper, negator, vb)
 
+    def MtrAux(self, aux_type):
+        aux_type = "aux_" + aux_type
+        if aux_type in self.json:
+            return PT(self.json[aux_type])
+        else:
+            return P({})
+            
     def Modal(self, aspect):
         if aspect in [SIMPLE,CONTINUOUS]:
             return "will continue to" if self.IsOngoing() else "will"
         else:
             return "will still" if self.IsOngoing() else "will"
+
+    def Mtr(self, ctx):
+        return self.MtrSimpleSentence(ctx, self.RTAM())
         
     def MtrSimpleSentence(self, ctx, tam):
-        return P({"type":snode.SENTENCE}, self.MtrSimple(ctx, tam))
+        return P({"type":snode.SENTENCE}, self.MtrSimple(ctx, tam), P({"type":snode.PUNCT}, random.choice(".!")))
 
     def MtrSimple(self, ctx, tam):
         return P({"type":snode.FACT, "id":self.json["id"]},
+                 self.MtrAux("pre_sub"),
                  P({"type":snode.SUBJECT}, self.MtrSubject(ctx)),
-                 P({"type":snode.VERB},    self.MtrVerbPhrase(ctx, tam)),
-                 P({"type":snode.OBJECT},  self.MtrObject(ctx)))
+                 self.MtrAux("pre_verb"),
+                 P({"type":snode.VERB}, self.MtrVerbPhrase(ctx, tam)),
+                 self.MtrAux("pre_obj"),
+                 P({"type":snode.OBJECT}, self.MtrObject(ctx)),
+                 self.MtrAux("post_obj"))
 
     def PrintAllSimpleSentences(self, ctx, toText=True):
         for tense in self.Tenses():
             for aspect in self.Aspects():
                 for mood in self.Moods():
-                    print tense, aspect, mood
                     if toText:
                         print "    ", self.MtrSimpleSentence(ctx, (tense, aspect, mood)).ToText()
                     else:
@@ -386,11 +443,18 @@ class Relation:
         return ctx.GetFact(self.json["gov"])
     
     def Dep(self, ctx):
-        return ctx.GetFact(self.json["dep"])
+        if "dep" in self.json:
+            return ctx.GetFact(self.json["dep"])
+        return None
 
     def Type(self):
         assert self.json["type"] in [EVIDENCE, WHY, SIMILAR]
         return self.json["type"]
+
+    def FactIds(self):
+        if "dep" in self.json:
+            return [self.json["gov"],self.json["dep"]]
+        return [self.json["gov"]]
 
     def Mtr(self, ctx):
         g = self.Gov(ctx)

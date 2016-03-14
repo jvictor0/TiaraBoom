@@ -20,6 +20,8 @@ class SNode:
     def __init__(self, tags, *children):
         self.tags = tags
         self.children = [c for c in Flatten(list(children)) if isinstance(c, str) or len(c.tags) > 0]
+        if len(self.children) == 0:
+            self.tags = {}
 
     def __getitem__(self, i):
         return self.children[i]
@@ -56,5 +58,11 @@ class SNode:
         return str(self.ToLisp())
     
     def ToText(self):
-        return self.ToLisp().ToText()
-
+        if self.IsLeaf():
+            return self.Word()
+        result = ""
+        for i,c in enumerate(self.children):
+            if i > 0 and c.tags["type"] != PUNCT:
+                result += " "
+            result += c.ToText()
+        return result
