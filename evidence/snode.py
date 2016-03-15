@@ -1,6 +1,9 @@
 import copy
 import artrat.lispparse as lp
 
+def Reload():
+    pass
+
 def Flatten(l):
     if isinstance(l, list):
         return [b for a in l for b in Flatten(a)]

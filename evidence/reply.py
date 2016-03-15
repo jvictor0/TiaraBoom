@@ -1,5 +1,8 @@
 import random
 
+def Reload():
+    pass
+
 class Message:
     def Facts(self):
         return []

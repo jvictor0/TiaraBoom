@@ -4,9 +4,19 @@ import snode
 from unidecode import unidecode
 import simplejson
 
+def Reload():
+    reload(snode)
+    snode.Reload()
+
 P = snode.SNode
 
 def PT(*nodes):
+    if len(nodes) == 1:
+        if isinstance(nodes[0],str):
+            return P({"type":snode.SYNTAX}, nodes[0])
+        else:
+            return nodes[0]
+    nodes = [PT(n) if isinstance(n,str) else n for n in nodes]
     return P({"type":snode.SYNTAX}, *nodes)
 
 ONGOING = "ongoing"
@@ -21,6 +31,7 @@ DID = "did"
 BE = "be"
 
 SIMPLE = "simple"
+CONDITIONAL = "conditional"
 CONTINUOUS = "continuous"
 PERFECT = "perfect"
 PERFECT_CONTINUOUS = "perfect_continuous"
@@ -28,6 +39,7 @@ PERFECT_CONTINUOUS = "perfect_continuous"
 INDICATIVE = "indicative"
 
 WHY = "why"
+HOW = "how"
 EVIDENCE = "evidence"
 SIMILAR = "similar"
 
@@ -218,7 +230,7 @@ class Fact:
         if tense is None or aspect is None or mood is None:
             raise MtrException("Cannot use TAM")
         assert aspect in [SIMPLE,PERFECT,CONTINUOUS], aspect
-        assert mood in [INDICATIVE]
+        assert mood in [INDICATIVE,CONDITIONAL]
         negated = False if "negated" not in self.json else self.json["negated"]
         person = self.Subject(ctx).Person(ctx)
         number = self.Subject(ctx).Number(ctx)
@@ -241,7 +253,7 @@ class Fact:
                     return PT(helper , negator, PT(infinitive))
                 else:
                     return PT(Conjugate(infinitive, tense, person, number))
-            if aspect == CONTINUOUS:
+            elif aspect == CONTINUOUS:
                 # was running / is running / will be running
                 vb = PT(PresentParticiple(infinitive))
                 if tense == FUTURE:
@@ -264,6 +276,12 @@ class Fact:
                     hw = Conjugate("have", tense, person, number)
                 helper = PT(hw)
                 return PT(helper, negator, vb)
+        elif mood == CONDITIONAL:
+            if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
+                # could run / can run / will be able to run
+                helper = TenseSwitch(tense,PT("could", negator),PT("can", negator),PT("will", negator, "be able to"))
+                return PT(helper, PT(PastParticiple(infinitive)))
+        
 
     def MtrAux(self, aux_type):
         aux_type = "aux_" + aux_type
@@ -361,7 +379,7 @@ class Fact:
             return [SIMPLE]
             
     def Moods(self):
-        return [INDICATIVE]
+        return [INDICATIVE,CONDITIONAL]
 
     def MF(self, tense=None, aspect=None, mood=None):
         return MaterializableFact(self, tense, aspect, mood)
@@ -377,6 +395,12 @@ class Fact:
 
     def MFCI(self, tense=None):
         return MaterializableFact(self, tense, aspect=CONTINUOUS, mood=INDICATIVE)
+
+    def MFC(self, tense=None, aspect=None):
+        return MaterializableFact(self, tense, aspect=aspect, mood=CONDITIONAL)
+    
+    def MFSC(self, tense=None):
+        return MaterializableFact(self, tense, aspect=SIMPLE, mood=CONDITIONAL)
 
     
 class MaterializableFact:
@@ -448,7 +472,7 @@ class Relation:
         return None
 
     def Type(self):
-        assert self.json["type"] in [EVIDENCE, WHY, SIMILAR]
+        assert self.json["type"] in [EVIDENCE, WHY, SIMILAR, HOW]
         return self.json["type"]
 
     def FactIds(self):
@@ -460,8 +484,12 @@ class Relation:
         g = self.Gov(ctx)
         d = self.Dep(ctx)
         t = self.Type()
-        
+
         gmfsi = g.MFSI()
+
+        shared_tenses = list(set(g.Tenses()) & set(d.Tenses()))
+        shared_tense = random.choice(shared_tenses) if len(shared_tenses) > 0 else PRESENT
+        
         r = []
         
         def ra(l):
@@ -471,12 +499,14 @@ class Relation:
             ra(T(S(g.MFI()), S(d.MFI())))
             ra(T(S(g.MFI()), S(Cntr("You can tell because"), d.MFI())))
             ra(T(S(g.MFI()), S(Cntr("It's obvious"), PU(","), d.MFI())))
-        if t == WHY:
+        elif t == WHY:
             dep_tenses = gmfsi.LE()
             ra(S(gmfsi, Cntr("because"), d.MFI(tense=dep_tenses)))
-        if t == SIMILAR:
+        elif t == HOW:
+            ra(S(d.MFI(tense=shared_tense), Cntr("so that"), g.MFSC(tense=shared_tense)))
+        elif t == SIMILAR:
             g,d = random.choice([(g,d),(d,g)])
             ra(T(S(g.MFI()), S(d.MFI())))
             ra(S(g.MFI(), Cntr("and"), d.MFI()))
-
+                 
         return random.choice(r).Mtr(ctx)

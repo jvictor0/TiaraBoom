@@ -71,7 +71,15 @@
         "infinitive" : "hypnotize",
         "object" : "Chris Christie",
         "frequency": "recurring"
-    }],
+    },
+    {
+        "id" : 7,
+        "subject" : "The Illuminati",
+        "infinitive": "use",
+        "object" : "chemtrails",
+        "frequency" : "recurring"
+    }     
+    ],
 
     "relations" :
     [
@@ -82,6 +90,7 @@
         { "gov" : 3, "dep" : 4, "type" : "why"        },
         { "gov" : 5, "dep" : 6, "type" : "why"        },
         { "gov" : 6, "dep" : 5, "type" : "evidence"   },
-        { "gov" : 0, "dep" : 6, "type" : "evidence"   }
+        { "gov" : 0, "dep" : 6, "type" : "evidence"   },
+        { "gov" : 2, "dep" : 7, "type" : "how"        }
     ]
 }

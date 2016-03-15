@@ -4,6 +4,12 @@ import reply
 import sys
 import generator
 
+def Reload():
+    reload(generator)
+    generator.Reload()
+    reload(reply)
+    reply.Reload()
+
 class Chat(cmd.Cmd):
     prompt = "me: "
         
@@ -12,6 +18,7 @@ class Chat(cmd.Cmd):
 
     def default(self, line):
         if line.strip() == "_reset":
+            Reload()
             self.SetCtx(generator.OpenContext(sys.argv[1]))
             print "_reset"
             return False
