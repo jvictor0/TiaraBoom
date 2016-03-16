@@ -3,10 +3,13 @@ import pattern.en as pen
 import snode
 from unidecode import unidecode
 import simplejson
+import syntax_rewriter
 
 def Reload():
     reload(snode)
     snode.Reload()
+    reload(syntax_rewriter)
+    syntax_rewriter.Reload()
 
 P = snode.SNode
 
@@ -42,6 +45,13 @@ WHY = "why"
 HOW = "how"
 EVIDENCE = "evidence"
 SIMILAR = "similar"
+
+MALE = "male"
+FEMALE = "femalse"
+
+THING = "thing"
+PERSON = "person"
+GROUP = "group"
 
 class MtrException(Exception):
     def __init__(self, msg):
@@ -102,19 +112,28 @@ class Context:
         for r in json["relations"]:
             self.AddRelation(r)
 
+    def SubjectPronoun(self, name):
+        return self.GetEntity(name).SubjectPronoun()
+
+    def ObjectPronoun(self, name):
+        return self.GetEntity(name).SubjectPronoun()
+    
     def PrintAllFacts(self, toText=True):
         for i, f in self.facts.iteritems():
             print "FACT", i
             f.PrintAllSimpleSentences(self, toText)
 
-    def PrintAllRelations(self, toText=True, times=1):
+    def PrintAllRelations(self, toText=True, rewrite=True, times=1):
         for k,v in self.relations.iteritems():
             for vi in v:
                 for _ in xrange(times):
+                    snode = vi.Mtr(self)
+                    if rewrite:
+                        snode = syntax_rewriter.RewriteSyntax(self, snode)
                     if toText:
-                        print vi.Mtr(self).ToText()
+                        print snode.ToText()
                     else:
-                        print vi.Mtr(self)
+                        print snode
                 if times > 1:
                     print ""
 
@@ -157,18 +176,46 @@ class Entity:
         return P({ "type" : snode.ENTITY, "name" : self.json["name"]},
                  self.json["name"])
 
-    def Person(self, ctx):
+    def Person(self):
         if "person" not in self.json:
             return 3
         return self.json["person"]
 
-    def Number(self, ctx):
-        if "type" not in self.json or self.json["type"] in ["person"]:
+    def Number(self):
+        if "type" not in self.json or self.json["type"] in [PERSON, THING]:
             return pen.SINGULAR
-        if self.json["type"] in ["group"]:
+        if self.json["type"] in [GROUP]:
             return pen.PLURAL
         assert False, self.json
 
+    def Gender(self):
+        assert self.json["gender"] in [MALE,FEMALE], self.json
+        return self.json["gender"]
+
+    def Type(self):
+        if "type" not in self.json:
+            return THING
+        assert self.json["type"] in [THING, PERSON, GROUP]
+        return self.json["type"]
+        
+    def SubjectPronoun(self):
+        if "type" not in self.json:
+            return None
+        if self.Type() == "person":
+            return "he" if self.Gender() == MALE else "she"
+        if self.Person() == 1:
+            return "we" if self.Number() == pen.PLURAL else "I"
+        return "it" if self.Number() == 1 else "they"        
+
+    def ObjectPronoun(self):
+        if "type" not in self.json:
+            return None
+        if self.Type() == "person":
+            return "him" if self.Gender() == MALE else "her"
+        if self.Person() == 1:
+            return "us" if self.Number() == pen.PLURAL else "me"
+        return "it" if self.Number() == 1 else "them"
+        
     def __eq__(self, other):
         return self.json["name"] == other.json["name"]
 
@@ -218,7 +265,7 @@ class Fact:
 
     def ReferencesEntity(self, entityName):
         return self.json["subject"] == entityName or self.json["object"] == entityName
-    
+
     def MtrSubject(self, ctx):
         return self.Subject(ctx).Mtr(ctx)
 
@@ -232,8 +279,8 @@ class Fact:
         assert aspect in [SIMPLE,PERFECT,CONTINUOUS], aspect
         assert mood in [INDICATIVE,CONDITIONAL]
         negated = False if "negated" not in self.json else self.json["negated"]
-        person = self.Subject(ctx).Person(ctx)
-        number = self.Subject(ctx).Number(ctx)
+        person = self.Subject(ctx).Person()
+        number = self.Subject(ctx).Number()
         negator = PT("not") if negated else P({})
         if self.Relation() == DID:
             infinitive = self.json["infinitive"]
@@ -280,7 +327,7 @@ class Fact:
             if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
                 # could run / can run / will be able to run
                 helper = TenseSwitch(tense,PT("could", negator),PT("can", negator),PT("will", negator, "be able to"))
-                return PT(helper, PT(PastParticiple(infinitive)))
+                return PT(helper, infinitive)
         
 
     def MtrAux(self, aux_type):

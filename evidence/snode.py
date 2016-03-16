@@ -18,6 +18,7 @@ FACT = "fact"
 SENTENCE = "sentence"
 PUNCT = "punct"
 SYNTAX = "syntax"
+PRONOUN = "PRONOUN"
     
 class SNode:
     def __init__(self, tags, *children):

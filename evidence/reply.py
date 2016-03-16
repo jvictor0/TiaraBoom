@@ -1,20 +1,22 @@
 import random
+import syntax_rewriter
 
 def Reload():
-    pass
+    reload(syntax_rewriter)
+    syntax_rewriter.Reload()
 
 class Message:
     def Facts(self):
         return []
 
-    def Text(self):
+    def Text(self, ctx):
         return ""
 
 class InterlocutorMessage(Message):
     def __init__(self, text):
         self.text = text
 
-    def Text(self):
+    def Text(self, ctx):
         return self.text
 
     def SentByMe(self):
@@ -25,8 +27,8 @@ class EvidenceMessage(Message):
         self.snode = snode
         self.facts = facts
 
-    def Text(self):
-        return self.snode.ToText()
+    def Text(self, ctx):
+        return syntax_rewriter.RewriteSyntax(ctx, self.snode).ToText()
 
     def Facts(self):
         return self.facts
@@ -48,7 +50,7 @@ class Conversation:
         self.messages.append(msg)
 
     def StartConversation(self):
-        replied = " ".join([m.Text() for m in self.messages if not m.SentByMe()]).lower()        
+        replied = " ".join([m.Text(self.ctx) for m in self.messages if not m.SentByMe()]).lower()        
         for t, e in self.ctx.EntityTags().iteritems():
             if t in replied:
                 return self.RandomFact(entityName=e)
@@ -70,7 +72,7 @@ class Conversation:
         return EvidenceMessage(self.ctx.GetFact(f).Mtr(self.ctx), [f])
 
     def __getitem__(self, i):
-        return self.messages[i].Text()
+        return self.messages[i].Text(self.ctx)
         
     def FormReply(self):
         assert len(self.messages) > 0, "no messages to reply to"
