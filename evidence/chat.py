@@ -21,19 +21,20 @@ class Chat(cmd.Cmd):
             Reload()
             self.SetCtx(generator.OpenContext(sys.argv[1]))
             print "_reset"
-            return False
         elif line.startswith("_fact ") and len(line.split()) > 1:            
             self.ctx.GetFact(int(line.split()[1])).PrintAllSimpleSentences(self.ctx)
-            return False
         elif line.strip() == "_all_facts":
             self.ctx.PrintAllFacts()
         elif line.strip() == "_all_rels":
             self.ctx.PrintAllRelations()
+        elif line.strip() == "_debug":
+            self.ctx.debug = not self.ctx.debug
+            print "debug mode =", self.ctx.debug
         else:
             self.convo.Append(reply.InterlocutorMessage(line))
             self.convo.Append(self.convo.FormReply())
             print "bot:", self.convo[-1]
-            return False
+        return False
 
     def do_EOF(self, line):
         return True
@@ -49,7 +50,7 @@ class Chat(cmd.Cmd):
 
     def SetCtx(self, ctx):
         self.ctx = ctx
-        self.convo = reply.Conversation(ctx, debug_mode=True)
+        self.convo = reply.Conversation(ctx)
 
 if __name__ == "__main__":
     chat = Chat()

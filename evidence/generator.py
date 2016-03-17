@@ -66,11 +66,12 @@ def OpenContext(fname):
     return ctx
 
 class Context:
-    def __init__(self):
+    def __init__(self, debug=False):
         self.entities  = {}
         self.facts     = {}
         self.relations = {}
         self.reverse_relations = {}
+        self.debug = debug
 
     def AddEntity(self, json):
         self.entities[json["name"]] = Entity(json)

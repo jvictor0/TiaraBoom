@@ -37,14 +37,13 @@ class EvidenceMessage(Message):
         return True
             
 class Conversation:
-    def __init__(self, ctx, debug_mode=False):
+    def __init__(self, ctx):
         self.ctx = ctx
         self.messages = []
-        self.debug_mode = debug_mode
 
     def PrtDbg(self, msg):
-        if self.debug_mode:
-            print "[DEBUG PRINT]", msg
+        if self.ctx.debug:
+            print "[REPLY]", msg
 
     def Append(self, msg):
         self.messages.append(msg)

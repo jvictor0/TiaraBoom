@@ -18,7 +18,7 @@ FACT = "fact"
 SENTENCE = "sentence"
 PUNCT = "punct"
 SYNTAX = "syntax"
-PRONOUN = "PRONOUN"
+PRONOUN = "pronoun"
     
 class SNode:
     def __init__(self, tags, *children):
@@ -52,7 +52,10 @@ class SNode:
         if len(newtags) == 0:
             return name
         return "%s%s" % (name, str(newtags))        
-                       
+
+    def Type(self):
+        return self.tags["type"]
+    
     def ToLisp(self):
         if self.IsLeaf():
             return lp.L(self.StrTags(), self[0])
