@@ -1,9 +1,11 @@
 import random
 import syntax_rewriter
+import sys
 
 def Reload():
-    reload(syntax_rewriter)
     syntax_rewriter.Reload()
+    return reload(sys.modules[__name__])
+
 
 class Message:
     def Facts(self):

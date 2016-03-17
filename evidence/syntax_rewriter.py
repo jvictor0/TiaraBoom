@@ -2,10 +2,12 @@ import snode
 import copy
 import os.path
 import contractions
+import sys
 
 def Reload():
-    reload(snode)
     snode.Reload()
+    reload(contractions)
+    return reload(sys.modules[__name__])
 
 class SyntaxRewriter(object):
 

@@ -5,10 +5,11 @@ import sys
 import generator
 
 def Reload():
-    reload(generator)
     generator.Reload()
-    reload(reply)
     reply.Reload()
+    if __name__ != "__main__":
+        return reload(sys.modules[__name__])
+    return sys.modules[__name__]
 
 class Chat(cmd.Cmd):
     prompt = "me: "
@@ -17,10 +18,10 @@ class Chat(cmd.Cmd):
         print "Chat with the evidence bot!"
 
     def default(self, line):
-        if line.strip() == "_reset":
+        if line.strip() == "_reset" or line.strip() == "_reload":
             Reload()
             self.SetCtx(generator.OpenContext(sys.argv[1]))
-            print "_reset"
+            print line.strip()
         elif line.startswith("_fact ") and len(line.split()) > 1:            
             self.ctx.GetFact(int(line.split()[1])).PrintAllSimpleSentences(self.ctx)
         elif line.strip() == "_all_facts":

@@ -4,12 +4,12 @@ import snode
 from unidecode import unidecode
 import simplejson
 import syntax_rewriter
+import sys
 
 def Reload():
-    reload(snode)
     snode.Reload()
-    reload(syntax_rewriter)
     syntax_rewriter.Reload()
+    return reload(sys.modules[__name__])
 
 P = snode.SNode
 

@@ -1,8 +1,9 @@
 import copy
 import artrat.lispparse as lp
+import sys
 
 def Reload():
-    pass
+    return reload(sys.modules[__name__])
 
 def Flatten(l):
     if isinstance(l, list):
