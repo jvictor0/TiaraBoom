@@ -4,21 +4,27 @@
         "name" : "Trump",
         "type" : "person",
         "gender" : "male"        
-    },
-    {
+    },{
         "name" : "The Illuminati",
         "type" : "group"        
-    },
-    {
+    },{
         "name" : "Chris Christie",
         "type" : "person",
         "gender" : "male"
-    },
-    {
+    },{
         "name" : "the people",
         "type" : "group",
         "person" : 1
-    }],
+    },{
+        "name" : "chemtrails",
+        "type" : "uncountable_thing"
+    },{
+        "name" : "Trump's chemtrails",
+        "type" : "possessive",
+        "gov"  : "Trump",
+        "dep"  : "chemtrails"
+    }
+    ],
     
     "facts" :
     [{
@@ -27,58 +33,66 @@
         "relation": "did",
         "infinitive": "use",
         "object"  : "mind control"
-    },
-    {
+    },{
         "id" : 1,
         "subject" : "Trump",
         "relation": "be",
         "object"  : "The Illuminati",
         "tenses" : ["present"]
-    },
-    {
+    },{
         "id" : 2,
         "subject" : "The Illuminati",
         "relation" : "did",
         "infinitive" : "hypnotize",
         "object"   : "the people",
         "frequency"    : "recurring"
-    },
-    {
+    },{
         "id" : 3,
         "subject" : "Trump",
         "relation" : "be",
         "object" : "the president",
         "tenses" : ["future"],
         "frequency" : "event"
-    },
-    {
+    },{
         "id" : 4,
         "subject" : "the people",
         "relation" : "be",
         "object"   : "duped"
-    },
-    {
+    },{
         "id" : 5,
         "subject": "Chris Christie",
         "infinitive": "endorse",
         "object" : "Trump",
         "tenses" : ["past"],
         "frequency" : "event"
-    },
-    {
+    },{
         "id" : 6,
         "subject" : "Trump",
         "infinitive" : "hypnotize",
         "object" : "Chris Christie",
         "frequency": "recurring"
-    },
-    {
+    },{
         "id" : 7,
         "subject" : "The Illuminati",
         "infinitive": "use",
         "object" : "chemtrails",
         "frequency" : "recurring"
-    }     
+    },{
+        "id" : 8,
+        "subject" : ["chemtrails","Trump's chemtrails"],
+        "relation" : "be",
+        "object" : "real"
+    },{
+        "id" : 9,
+        "preproc_subjects" : ["chemtrails","Trump's chemtrails"],
+        "relation" : "be",
+        "object" : "dangerous and poison the mind"
+    },{
+        "id" : 10,
+        "subject" : "Trump's chemtrails",
+        "relation" : "be",
+        "object" : "some of the most dangerous ever made"
+    }
     ],
 
     "relations" :
@@ -91,6 +105,12 @@
         { "gov" : 5, "dep" : 6, "type" : "why"        },
         { "gov" : 6, "dep" : 5, "type" : "evidence"   },
         { "gov" : 0, "dep" : 6, "type" : "evidence"   },
-        { "gov" : 2, "dep" : 7, "type" : "how"        }
+        { "gov" : 2, "dep" : 7, "type" : "how"        },
+        { "gov" : 8, "dep" : 7, "type" : "evidence"   },
+        { "gov" : 8, "dep" : 9, "type" : "similar"    },
+        { "gov" : 7, "dep" : 9, "type" : "similar"    },
+        { "gov" : 9, "dep" : 10, "type" : "similar"   },
+        { "gov" : 7, "dep" : 10, "type" : "similar"   },
+        { "gov" : 1, "dep" : 10, "type" : "similar"   }
     ]
 }

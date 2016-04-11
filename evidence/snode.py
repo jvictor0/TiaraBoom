@@ -14,6 +14,8 @@ def Flatten(l):
 ENTITY = "entity"
 SUBJECT = "subject"
 OBJECT = "object"
+PRIMARY_SUBJECT = "primary_subject"
+PRIMARY_OBJECT = "primary_object"
 VERB = "verb"
 FACT = "fact"
 SENTENCE = "sentence"

@@ -130,3 +130,12 @@ contractions = {
     ("you","will"): ("you'll"),
     ("you","are"): ("you're"),
     ("you","have"): ("you've")}
+
+protracts = {
+    ("he","'s"): ("his"),
+    ("she","'s"): ("her"),
+    ("it","'s"): ("its"),
+    ("i","'s"): ("my"),
+    ("you","'s"): ("your"),
+    ("they","'s"): ("their")}
+

@@ -5,10 +5,12 @@ from unidecode import unidecode
 import simplejson
 import syntax_rewriter
 import sys
+import argument_preprocess
 
 def Reload():
     snode.Reload()
     syntax_rewriter.Reload()
+    argument_preprocess.Reload()
     return reload(sys.modules[__name__])
 
 P = snode.SNode
@@ -34,12 +36,12 @@ DID = "did"
 BE = "be"
 
 SIMPLE = "simple"
-CONDITIONAL = "conditional"
 CONTINUOUS = "continuous"
 PERFECT = "perfect"
 PERFECT_CONTINUOUS = "perfect_continuous"
 
 INDICATIVE = "indicative"
+CONDITIONAL = "conditional"
 
 WHY = "why"
 HOW = "how"
@@ -52,6 +54,9 @@ FEMALE = "femalse"
 THING = "thing"
 PERSON = "person"
 GROUP = "group"
+UNCOUNTABLE_THING = "uncountable_thing"
+
+POSSESSIVE = "possessive"
 
 class MtrException(Exception):
     def __init__(self, msg):
@@ -62,7 +67,9 @@ class MtrException(Exception):
 
 def OpenContext(fname):
     ctx = Context()
-    ctx.FromJSON(simplejson.load(open(fname,"r")))
+    json = simplejson.load(open(fname,"r"))
+    json = argument_preprocess.Preprocess(json)
+    ctx.FromJSON(json)
     return ctx
 
 class Context:
@@ -82,18 +89,16 @@ class Context:
         return Entity({"name":name})
 
     def AddFact(self, json):
-        if "id" not in json:
-            tid = len(self.facts)
-            while tid in self.facts:
-                tid = tid + 1
-                json["id"] = tid
         tid = json["id"]
         assert tid not in self.facts, (tid, self.facts)
         self.facts[tid] = Fact(json)
 
     def GetFact(self, tid):
         return self.facts[tid]
-        
+
+    def GetFactsByOriginalId(self, tid):
+        return [self.GetFact(f) for f in self.facts if self.GetFact(f).OriginalId() == tid]
+    
     def AddRelation(self, json):
         if json["gov"] not in self.relations:
             self.relations[json["gov"]] = []
@@ -114,29 +119,30 @@ class Context:
             self.AddRelation(r)
 
     def SubjectPronoun(self, name):
-        return self.GetEntity(name).SubjectPronoun()
+        return self.GetEntity(name).SubjectPronoun(self)
 
     def ObjectPronoun(self, name):
-        return self.GetEntity(name).SubjectPronoun()
+        return self.GetEntity(name).SubjectPronoun(self)
     
     def PrintAllFacts(self, toText=True):
         for i, f in self.facts.iteritems():
             print "FACT", i
             f.PrintAllSimpleSentences(self, toText)
 
-    def PrintAllRelations(self, toText=True, rewrite=True, times=1):
+    def PrintAllRelations(self, toText=True, rewrite=True, involving=None, times=1):
         for k,v in self.relations.iteritems():
             for vi in v:
-                for _ in xrange(times):
-                    snode = vi.Mtr(self)
-                    if rewrite:
-                        snode = syntax_rewriter.RewriteSyntax(self, snode)
-                    if toText:
-                        print snode.ToText()
-                    else:
-                        print snode
-                if times > 1:
-                    print ""
+                if involving is None or involving in [vi.json["gov"], vi.json["dep"], vi.Gov(self).OriginalId(), vi.Dep(self).OriginalId()]:
+                    for _ in xrange(times):
+                        snode = vi.Mtr(self)
+                        if rewrite:
+                            snode = syntax_rewriter.RewriteSyntax(self, snode)
+                        if toText:
+                            print snode.ToText()
+                        else:
+                            print snode
+                    if times > 1:
+                        print ""
 
     def Justifications(self, factId):
         result = []
@@ -163,7 +169,7 @@ class Context:
     def EntityTags(self):
         return {t:n for n,e in self.entities.iteritems() for t in e.Tags()}
     
-class Entity:
+class Entity(object):
     def __init__(self, json):
         self.json = json
 
@@ -172,55 +178,79 @@ class Entity:
 
     def Name(self):
         return self.json["name"]
-    
-    def Mtr(self, ctx):
-        return P({ "type" : snode.ENTITY, "name" : self.json["name"]},
-                 self.json["name"])
 
-    def Person(self):
+    def Key(self):
+        return self.Name()
+    
+    def Mtr(self, ctx, entity_type=None):
+        if self.Type(ctx) in [PERSON,GROUP,THING,UNCOUNTABLE_THING]:
+            tags = { "type" : snode.ENTITY, "key" : self.Key()}
+            if entity_type is not None:
+                tags["entity_type"] = entity_type
+            return P(tags, self.json["name"])
+        elif self.Type(ctx) in [POSSESSIVE]:
+            mtrgov = self.Gov(ctx).Mtr(ctx, entity_type = entity_type)
+            mtrdep = self.Dep(ctx).Mtr(ctx)
+            return P({ "type" : snode.ENTITY, "key" : self.Key()},
+                     mtrgov, P({"type" : snode.PUNCT}, "'s"), mtrdep)
+
+    def Person(self, ctx):
         if "person" not in self.json:
-            return 3
+            if self.json["type"] in [POSSESSIVE]:
+                return self.Dep(ctx).Person(ctx)
+            else:
+                return 3
         return self.json["person"]
 
-    def Number(self):
+    def Number(self, ctx):
         if "type" not in self.json or self.json["type"] in [PERSON, THING]:
             return pen.SINGULAR
-        if self.json["type"] in [GROUP]:
+        if self.json["type"] in [GROUP, UNCOUNTABLE_THING]:
             return pen.PLURAL
+        if self.json["type"] in [POSSESSIVE]:
+            return self.Dep(ctx).Number(ctx)
         assert False, self.json
 
-    def Gender(self):
+    def Gender(self, ctx):
         assert self.json["gender"] in [MALE,FEMALE], self.json
         return self.json["gender"]
 
-    def Type(self):
+    def Type(self, ctx):
         if "type" not in self.json:
             return THING
-        assert self.json["type"] in [THING, PERSON, GROUP]
+        assert self.json["type"] in [THING, PERSON, GROUP, UNCOUNTABLE_THING, POSSESSIVE], self.json
         return self.json["type"]
-        
-    def SubjectPronoun(self):
-        if "type" not in self.json:
-            return None
-        if self.Type() == "person":
-            return "he" if self.Gender() == MALE else "she"
-        if self.Person() == 1:
-            return "we" if self.Number() == pen.PLURAL else "I"
-        return "it" if self.Number() == 1 else "they"        
 
-    def ObjectPronoun(self):
-        if "type" not in self.json:
+    def Dep(self, ctx):
+        return ctx.GetEntity(self.json["dep"])
+
+    def Gov(self, ctx):
+        return ctx.GetEntity(self.json["gov"])
+
+    def KnownType(self, ctx):
+        return "type" in self.json
+    
+    def SubjectPronoun(self, ctx):
+        if not self.KnownType(ctx):
             return None
-        if self.Type() == "person":
-            return "him" if self.Gender() == MALE else "her"
-        if self.Person() == 1:
-            return "us" if self.Number() == pen.PLURAL else "me"
-        return "it" if self.Number() == 1 else "them"
+        if self.Type(ctx) == "person":
+            return "he" if self.Gender(ctx) == MALE else "she"
+        if self.Person(ctx) == 1:
+            return "we" if self.Number(ctx) == pen.PLURAL else "I"
+        return "it" if self.Number(ctx) == 1 else "they"        
+
+    def ObjectPronoun(self, ctx):
+        if not self.KnownType(ctx):
+            return None
+        if self.Type(ctx) == "person":
+            return "him" if self.Gender(ctx) == MALE else "her"
+        if self.Person(ctx) == 1:
+            return "us" if self.Number(ctx) == pen.PLURAL else "me"
+        return "it" if self.Number(ctx) == 1 else "them"
         
     def __eq__(self, other):
-        return self.json["name"] == other.json["name"]
-
-        
+        return self.Key() == other.Key()
+    
 def TenseSwitch(tense, past, present, future):
     if tense == PAST:
         return past
@@ -257,7 +287,10 @@ class Fact:
 
     def Id(self):
         return self.json["id"]
-        
+
+    def OriginalId(self):
+        return self.json["original_id"] if "original_id" in self.json else None
+    
     def Subject(self, ctx):
         return ctx.GetEntity(self.json["subject"])
 
@@ -268,10 +301,10 @@ class Fact:
         return self.json["subject"] == entityName or self.json["object"] == entityName
 
     def MtrSubject(self, ctx):
-        return self.Subject(ctx).Mtr(ctx)
+        return self.Subject(ctx).Mtr(ctx, entity_type = snode.PRIMARY_SUBJECT)
 
     def MtrObject(self, ctx):
-        return self.Object(ctx).Mtr(ctx)
+        return self.Object(ctx).Mtr(ctx, entity_type = snode.PRIMARY_OBJECT)
 
     def MtrVerbPhrase(self, ctx, tam):
         tense, aspect, mood = tam
@@ -280,8 +313,8 @@ class Fact:
         assert aspect in [SIMPLE,PERFECT,CONTINUOUS], aspect
         assert mood in [INDICATIVE,CONDITIONAL]
         negated = False if "negated" not in self.json else self.json["negated"]
-        person = self.Subject(ctx).Person()
-        number = self.Subject(ctx).Number()
+        person = self.Subject(ctx).Person(ctx)
+        number = self.Subject(ctx).Number(ctx)
         negator = PT("not") if negated else P({})
         if self.Relation() == DID:
             infinitive = self.json["infinitive"]

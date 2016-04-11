@@ -76,9 +76,9 @@ class CommonEntityEliminator(SyntaxRewriter):
         self.entities = set([])
             
     def _rewrite(self, s):
-        subjEntity = s.Type() == snode.ENTITY and any([t.Type() == self.tp for t in self.stack])
+        subjEntity = s.Type() == snode.ENTITY and "entity_type" in s.tags and s.tags["entity_type"] == self.tp
         if subjEntity:
-            name = s.tags["name"]
+            name = s.tags["key"]
             if name in self.entities:
                 pron = self.ctx.SubjectPronoun(name) if self.tp == snode.SUBJECT else self.ctx.ObjectPronoun(name)
                 if pron is not None:
@@ -120,31 +120,38 @@ class SentenceFlattener(SyntaxRewriter):
     
 class ContractionIntroducer(SyntaxRewriter):
 
+    def __init__(self, conts):
+        self.conts = conts
+    
+
     def _rewrite(self, s):        
         cs = []
         i = 0
         while i < len(s):        
-            if len(s) > i+1 and s[i].IsLeaf() and s[i+1].IsLeaf() and (s[i].Word().lower(), s[i+1].Word().lower()) in contractions.contractions:
-                c = contractions.contractions[(s[i].Word().lower(), s[i+1].Word().lower())]
+            if len(s) > i+1 and s[i].IsLeaf() and s[i+1].IsLeaf() and (s[i].Word().lower(), s[i+1].Word().lower()) in self.conts:
+                c = self.conts[(s[i].Word().lower(), s[i+1].Word().lower())]
                 cs.append(snode.SNode(s[i].tags, c))
                 i = i + 1
             else:
                 cs.append(s[i])
             i = i + 1
         return snode.SNode(s.tags, *cs)
+
     
 def RewriteSyntax(ctx, s):
     if ctx.debug: print "[REWRITER] (start)           ", s.ToText()
     s = SyntaxNormalizer()(ctx, s)
     if ctx.debug: print "[REWRITER] (normalized)      ", s.ToText()
-    s = CommonEntityEliminator(snode.SUBJECT)(ctx, s)
+    s = CommonEntityEliminator(snode.PRIMARY_SUBJECT)(ctx, s)
     if ctx.debug: print "[REWRITER] (subject pronoun) ", s.ToText()
-    s = CommonEntityEliminator(snode.OBJECT)(ctx, s)
+    s = CommonEntityEliminator(snode.PRIMARY_OBJECT)(ctx, s)
     if ctx.debug: print "[REWRITER] (object pronoun)  ", s.ToText()
     s = SentenceFlattener()(ctx, s)
     if ctx.debug: print "[REWRITER] (flattener)       ", s.ToText()
-    s = ContractionIntroducer()(ctx, s)
+    s = ContractionIntroducer(contractions.contractions)(ctx, s)
     if ctx.debug: print "[REWRITER] (contractions)    ", s.ToText()
+    s = ContractionIntroducer(contractions.protracts)(ctx, s)
+    if ctx.debug: print "[REWRITER] (pron contracts)  ", s.ToText()
     s = SentenceCapitalizer()(ctx, s)
     if ctx.debug: print "[REWRITER] (capitalizer)     ", s.ToText()
     return s
