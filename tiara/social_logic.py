@@ -6,7 +6,6 @@ from util import *
 import persisted as p
 import ticker as t
 import sys
-import artrat_utils as au
 import server
 
 class SocialLogic:
@@ -50,8 +49,6 @@ class SocialLogic:
         self.tickers.append(t.Ticker(g_data, self.params["mean_follow_time"], lambda: self.Follow(), "Follow"))
         self.tickers.append(t.Ticker(g_data, self.params["mean_bother_time"], lambda: self.Bother(), "BotherRandom"))
         self.tickers.append(t.Ticker(g_data, 16, lambda: self.g_data.dbmgr.Act(), "ManageDb", exponential=False))
-        if self.params["reply"]["mode"] == "artrat":
-            self.tickers.append(t.Ticker(g_data, 16, lambda: self.GatherSources(), "GatherSources", exponential=False))
 
     def SetMaxId(self, max_id):
         log_assert(self.max_id.Get() <= max_id, "Attempt to set max_id to smaller than current value, risk double-posting", self.g_data)
@@ -87,8 +84,6 @@ class SocialLogic:
         
         if self.params["reply"]["mode"] == "classic":
             response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.params["reply"]["alliteration_mode"])
-        elif self.params["reply"]["mode"] == "artrat":
-            response = au.ArtRatReplyTo(self.g_data, self.params["reply"]["personality"], tweet=tweet)
         else:
             assert False, self.params["reply"]
             
@@ -121,8 +116,6 @@ class SocialLogic:
         
         if self.params["reply"]["mode"] == "classic":            
             response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.params["reply"]["alliteration_mode"])
-        elif self.params["reply"]["mode"] == "artrat":
-            response = au.ArtRatReplyTo(self.g_data, self.params["reply"]["personality"], user=user)
         else:
             assert False, self.params["reply"]
 
@@ -152,30 +145,6 @@ class SocialLogic:
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
 
-    def GatherSources(self, src=None):
-        if src is None:
-            src = self.g_data.dbmgr.GetSource(self.params["reply"]["personality"])
-        ss = self.g_data.ApiHandler().ShowStatuses(user_id=src)
-        if ss is None:
-            return None
-        count = 0
-        overconfirmed = False
-        precount = 0
-        for s in ss:
-            used = False
-            for url in (s.urls if not s.urls is None else []):
-                precount = precount + 1
-                used = self.g_data.dbmgr.PushArticle(url.expanded_url, s.GetId(), self.params["reply"]["personality"]) or used
-            if used:
-                if not overconfirmed and count < 28 and s.GetRetweetCount() > 0:
-                    count = count + 1
-                    retweeted = self.g_data.ApiHandler().GetRetweets(s.GetId())
-                    for u in retweeted:
-                        overconfirmed = not self.g_data.dbmgr.AddSource(self.params["reply"]["personality"], u.GetUser().GetId())
-                        if overconfirmed:
-                            break
-        self.g_data.TraceInfo("Inserted %d articles and added %d unconfirmed sources" % (precount, count))
-                
     def IsArtRat(self):
         return self.params["reply"]["mode"] == "artrat"
 
@@ -184,16 +153,7 @@ class SocialLogic:
                 
     def Act(self):
         self.Reply()
-        for t in self.tickers:
-            t.Tick()
+        for tc in self.tickers:
+            tc.Tick()
     
 
-if __name__ == "__main__":
-    if sys.argv[1] == "gather_sources":        
-        g_datas = server.GDatas()
-        while True:
-            for g_data in g_datas:
-                if g_data.SocialLogic().IsArtRat():
-                    g_data.SocialLogic().GatherSources()
-            print "sleepy time"
-            time.sleep(8 * 60)

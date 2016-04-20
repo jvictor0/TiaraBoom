@@ -10,7 +10,6 @@ from input_handler import HandleUserInput
 import random
 import hashlib
 import json
-import artrat_utils as au
 import threading
 import atexit, signal
 
@@ -56,10 +55,6 @@ def StartServer():
 
     sys.excepthook = exceptionTrace
 
-    refreshProcess = threading.Thread(target = au.ArticleInsertionThread,
-                                      args=(g_datas[0].TraceArticleThread,))
-    refreshProcess.setDaemon(True)
-    refreshProcess.start()
                 
     server_address = (host, port)
     server.bind(server_address)
@@ -76,7 +71,6 @@ def StartServer():
 
         for g_data in g_datas:
             g_data.SocialLogic().Act()
-        assert refreshProcess.is_alive()
         
         ############# Begin server stuff ##################
         readable, writable, exceptional = select.select(inputs, outputs, inputs, 60)

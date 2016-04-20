@@ -2,7 +2,6 @@ import rewriter as r
 import twitter
 import random
 from util import *
-import artrat_utils as au
 
 class InputHandler:
     def __init__(self, name, func, help):
