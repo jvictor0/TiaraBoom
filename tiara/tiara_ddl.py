@@ -89,17 +89,6 @@ def TiaraCreateTables(con):
     con.query(("create reference table if not exists token_representatives("
                "id bigint not null,"
                "token varbinary(200) primary key)"))
-    con.query(("create reference table if not exists artrat_tfidf("
-               "user_id bigint not null,"
-               "token bigint not null,"
-               "tfidf_norm double not null,"
-               "primary key(user_id, token) using hash)"))
-    con.query(("create table if not exists artrat_tfidf_insertable("
-               "user_id bigint not null,"
-               "token bigint not null,"
-               "tfidf_norm double not null,"
-               "primary key(user_id, token),"
-               "shard(token))"))
     con.query(("create table if not exists user_token_frequency_proj_token("
                "user_id bigint not null,"
                "token bigint not null,"
@@ -126,25 +115,6 @@ def TiaraCreateTables(con):
                "token bigint not null,"
                "count bigint not null,"
                "primary key(token) using hash)"))
-
-    # artrat article tables
-    #
-    con.query(("create table if not exists sources("
-               "personality varbinary(100),"
-               "user_id bigint,"
-               "primary key(personality, user_id),"
-               "confirmed tinyint,"
-               "updated timestamp default current_timestamp on update current_timestamp)"))
-    con.query(("create table if not exists articles("
-               "tweet_id bigint not null,"
-               "inserted datetime not null,"
-               "processed datetime,"
-               "personality varbinary(100) not null,"
-               "url blob not null, "
-               "key(tweet_id, personality),"
-               "key(personality, url),"
-               "key (inserted),"                    
-               "shard())"))
 
     # targeting tables
     #
@@ -202,11 +172,6 @@ def TiaraCreateViews(con):
                "select ts.id, ts.user_id, ts.parent_id, ts.parent, tweets.favorites, tweets.retweets, ts.body, ts.ts, '{}' as json "
                "from tweets_storage ts join tweets_cs tweets "
                "on ts.user_id = tweets.user_id and ts.id = tweets.id "))
-    con.query(("create view artrat_tfidf_view as "
-               "select bots.screen_name, ti.token, art.tfidf_norm "
-               "from bots join artrat_tfidf art join token_id ti "
-               "on bots.id = art.user_id and art.token = ti.id "))               
-
     # views for user level TFIDF
     #
     con.query("create view user_document_frequency_view as "
@@ -226,20 +191,6 @@ def TiaraCreateViews(con):
               "select tid.token, tid.id as token_id, users.screen_name, tf.user_id, tf.tf, tf.df, tf.tfidf "
               "from tfidf_view_internal tf join token_id tid join users "
               "on tf.token = tid.id and tf.user_id = users.id")
-    con.query("create view important_words_view as "
-              "select bots.screen_name as bot_name, tv.user_id, tv.token_id, tv.token, art.tfidf_norm as artrat_tfidf, tv.tfidf as user_tfidf, art.tfidf_norm * tv.tfidf importance "
-              "from tfidf_view tv join artrat_tfidf art join bots "
-              "on art.token = tv.token_id and art.user_id = bots.id ")
-    con.query("create view tfidf_distance_view_internal as "
-              "select t1.user_id as bot_id, t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
-              "from artrat_tfidf t1 join tfidf_view_internal t2 "
-              "on t1.token = t2.token "
-              "group by t1.user_id, t2.user_id "
-              "having count(t1.token) > 0")
-    con.query("create view tfidf_distance_view as "
-              "select bots.screen_name as bot_name, bots.id as bot_id, users.screen_name, users.id as user_id, td.dist "
-              "from users join tfidf_distance_view_internal td join bots "
-              "on users.id = td.user_id and td.bot_id = bots.id ")
 
     # views for tweet level TFIDF
     #
@@ -250,13 +201,6 @@ def TiaraCreateViews(con):
               "log(1000000/(1+tdf.count)) as tfidf "
               "from tweet_tokens tt join tweet_document_frequency tdf "
               "on tt.token = tdf.token " )
-    con.query("create view tweet_tfidf_distance_view_internal as "
-              "select t1.user_id as bot_id, t2.user_id, t2.id, "
-              "       sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist, "
-              "       count(*) as count "
-              "from artrat_tfidf t1 join tweet_tfidf_view_internal t2 "
-              "on t1.token = t2.token "
-              "group by t2.user_id, t2.id, t1.user_id ")
 
     # views for selecting users to follow
     #
@@ -287,22 +231,16 @@ def TiaraCreateViews(con):
               "from candidates_joined_filtered_view "
               "group by bot_id, uid "
               "having count(*) >= 10")
-    con.query("create view candidates_predictors_no_distance_view as "
+    con.query("create view candidates_predictors_view as "
               "select cv.bot_id, cv.screen_name, uid, "
               "       3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, "
               "       3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, "
               "       (1/25) * cv.count as count_score "
               "from candidates_view cv ")
-    con.query("create view candidates_predictors_view as "
-              "select cv.bot_id, cv.screen_name, cv.uid, cv.follower_score, cv.friend_score, cv.count_score, "
-              "       50 * sum(art.tfidf_norm * tt.tfidf)/sqrt(sum(tt.tfidf*tt.tfidf))  as dist_score "
-              "from candidates_predictors_no_distance_view cv join tfidf_view_internal tt join artrat_tfidf art "
-              "on cv.uid = tt.user_id and cv.bot_id = art.user_id and tt.token = art.token "
-              "group by 1, 3")
     con.query("create view candidates_scored_view as "
               "select bot_id, screen_name, uid, "
-              "       follower_score , friend_score , count_score , dist_score ,"
-              "       follower_score + friend_score + count_score + dist_score as score "
+              "       follower_score , friend_score , count_score , "
+              "       follower_score + friend_score + count_score as score "
               "from candidates_predictors_view")
 
     # bother targeting views
@@ -334,15 +272,12 @@ def TiaraCreateViews(con):
               "and ts.maybe_followbacker = 0 "
               "and ts.language like 'en%' ")
     con.query("create view botherable_tweets_predictors_view as "
-              "select art.user_id as bot_id, tt.user_id, tt.id, "
+              "select btv.bot_id as bot_id, btv.user_id, btv.id, "
               "       4 * (1 - (count(*)/4 - 1) * (count(*)/4 - 1)) as count_score, "
-              "       250 * sum(art.tfidf_norm * tt.tfidf)/sqrt(sum(tt.tfidf*tt.tfidf))  as dist_score, "
               "       - recentness / (24 * 60 * 60) as recentness_score, "
               "       2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, "
               "       2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score "
-              "from botherable_tweets_view btv join tweet_tfidf_view_internal tt join artrat_tfidf art "
-              "on btv.user_id = tt.user_id and btv.id = tt.id "
-              "and art.token = tt.token and art.user_id = btv.bot_id "
+              "from botherable_tweets_view btv "
               "group by 1,2,3")
     con.query("create view botherable_tweets_scored_view_internal as "
               "select bot_id, user_id, id, "
