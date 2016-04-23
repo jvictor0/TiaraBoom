@@ -79,7 +79,7 @@
         "frequency" : "recurring"
     },{
         "id" : 8,
-        "subject" : ["chemtrails","Trump's chemtrails"],
+        "preproc_subjects" : ["chemtrails","Trump's chemtrails"],
         "relation" : "be",
         "object" : "real"
     },{

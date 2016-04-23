@@ -36,6 +36,13 @@ class Chat(cmd.Cmd):
             elif line.strip() == "_debug":
                 self.ctx.debug = not self.ctx.debug
                 print "debug mode =", self.ctx.debug
+            elif line.strip() == "_converse":
+                for i in xrange(10):
+                    self.convo.Append(reply.InterlocutorMessage("why"))
+                    if i > 0:
+                        print "me: why"
+                    self.convo.Append(self.convo.FormReply())                    
+                    print "bot:", self.convo[-1]                    
             elif line.strip().startswith("_"):
                 print "unknown command"
             else:

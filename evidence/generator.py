@@ -164,7 +164,7 @@ class Context:
         return random.choice(facts)
             
     def FactIds(self):
-        return self.facts.keys()
+        return [(k,v.OriginalId()) for k,v in self.facts.iteritems()]
 
     def EntityTags(self):
         return {t:n for n,e in self.entities.iteritems() for t in e.Tags()}
@@ -556,10 +556,11 @@ class Relation:
         assert self.json["type"] in [EVIDENCE, WHY, SIMILAR, HOW]
         return self.json["type"]
 
-    def FactIds(self):
+    def FactIds(self, ctx):
+        res = [ctx.GetFact(self.json["gov"])]
         if "dep" in self.json:
-            return [self.json["gov"],self.json["dep"]]
-        return [self.json["gov"]]
+            res.append(ctx.GetFact(self.json["dep"]))
+        return [(f.Id(), f.OriginalId()) for f in res]
 
     def Mtr(self, ctx):
         g = self.Gov(ctx)
