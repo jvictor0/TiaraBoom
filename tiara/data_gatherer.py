@@ -270,9 +270,9 @@ class DataManager:
             self.con.query("delete from user_afflictions where id = %d and affliction = %d" % (uid, AFFLICT_BLOCKER))
         return [r["affliction"] for r in self.con.query("select * from user_afflictions where id = %d" % uid)]
 
-    def InsertTweet(self, s, single_xact=True, insert_user=True, prefilter={}):
+    def InsertTweet(self, s, single_xact=True, insert_user=True):
         if s.GetRetweeted_status() is not None:
-            self.InsertTweet(s.GetRetweeted_status(), single_xact=single_xact, prefilter=prefilter)
+            self.InsertTweet(s.GetRetweeted_status(), single_xact=single_xact)
         parent = "null"
         parent_id  = "null"
         if not s.GetInReplyToStatusId() is None:
@@ -311,22 +311,12 @@ class DataManager:
         try:
             if single_xact:
                 self.Begin()
-            update_query = "update tweets_cs set favorites = %d, retweets = %d where user_id = %d and favorites = %d" % (likes, retweets, uid, sid)
-            if uid not in prefilter:
-                prefilter[uid] = self.GetPrefilter(uid)
-            if sid in prefilter[uid]:
-                if prefilter[uid][sid] != (likes,retweets):
-                    self.con.query(update_query)
-                updated = 1
-            else:
-                updated = 0
-            assert updated in [0,1], (updated, uid, sid)
-            if updated == 0:
-                assert uid in prefilter and sid not in prefilter[uid]                
-                prefilter[uid][sid] = (likes,retweets)
+            upsert_query = (("insert into tweets(id,user_id,retweets,favorites) values (%d,%d,%d,%d) "
+                             "on duplicate key update favorites = values(favorites), retweets = values(favorites)") % (sid, uid, retweets, likes))
+            upserted = self.con.query(upsert_query)
+            if upserted == 1:
                 if s.GetUser().GetId() in self.GetBotIds() or s.GetInReplyToUserId() in self.GetBotIds():
                     self.needsUpdateBotTweets = True
-                self.Horde("tweets_cs(id,user_id,retweets,favorites)", "(%d,%d,%d,%d)" % (sid,uid,retweets, likes))
                 self.Horde("tweets_storage", values, body.encode("utf8"), json.dumps(jsdict).encode("utf8"))
                 self.InsertTweetTokens(s.GetId(), s.GetUser().GetId(), s.GetText(), single_xact=False)
             if insert_user:
@@ -339,10 +329,6 @@ class DataManager:
             traceback.print_tb(tb)
             self.Rollback()
             raise
-
-    def GetPrefilter(self, uid):
-        rows = self.con.query("select * from tweets_cs where user_id = %d" % uid)
-        return { int(r["id"]) : (int(r["favorites"]), int(r["retweets"])) for r in rows }
 
     def RemoveDuplicateTweets(self):
         self.Begin()
@@ -377,12 +363,12 @@ class DataManager:
         assert not uid is None, uid
         if tid is not None:
             res = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
-                                 "from tweets_storage ts join tweets_cs t "
+                                 "from tweets_storage ts join tweets t "
                                  "on ts.user_id = t.user_id and ts.id = t.id "
                                  "where ts.id = %d and ts.user_id = %d" % (tid, uid))
         else:
             res = self.con.query("select t.id, t.user_id, ts.parent, ts.parent_id, ts.body, ts.json, ts.ts, t.retweets, t.favorites "
-                                 "from tweets_storage ts join tweets_cs t "
+                                 "from tweets_storage ts join tweets t "
                                  "on ts.user_id = t.user_id and ts.id = t.id "
                                  "where ts.user_id = %d" % (uid))
         return res
@@ -554,10 +540,10 @@ class DataManager:
         
     
     def UpdateFavoritesRetweets(self):
-        q = """select tweets_cs.user_id, tweets_cs.id, tweets_cs.favorites, tweets_cs.retweets
-               from tweets_cs join bot_tweets 
-               on tweets_cs.user_id = bot_tweets.user_id and tweets_cs.id = bot_tweets.id 
-               where tweets_cs.retweets != bot_tweets.retweets or tweets_cs.favorites != bot_tweets.favorites"""
+        q = """select tweets.user_id, tweets.id, tweets.favorites, tweets.retweets
+               from tweets join bot_tweets 
+               on tweets.user_id = bot_tweets.user_id and tweets.id = bot_tweets.id 
+               where tweets.retweets != bot_tweets.retweets or tweets.favorites != bot_tweets.favorites"""
         for r in self.con.query(q):
             self.con.query("update bot_tweets set retweets = %s, favorites = %s where user_id = %s and id = %s" % (r['retweets'], r['favorites'], r['user_id'], r['id']))
 
@@ -588,7 +574,7 @@ class DataManager:
             # we find tweets whose parent is in the bot_tweets, but not it
             #
             q = (("select t.user_id, t.id "
-                  "from tweets_cs t join bot_tweets bt "
+                  "from tweets t join bot_tweets bt "
                   "on bt.parent = t.id and bt.parent_id = t.user_id "
                   "where not exists (select * from bot_tweets bs_inner where t.user_id = bs_inner.user_id and t.id = bs_inner.id)"))
             rows = self.con.query(q)

@@ -67,5 +67,7 @@ if __name__ == "__main__":
         g_data.dbmgr.Upvote(-1, int(sys.argv[2]), 1)
     elif sys.argv[1] == "downvote":
         g_data.dbmgr.PinDownvote(int(sys.argv[2]))
+    elif sys.argv[1] == "update_users":
+        g_data.dbmgr.UpdateUsers()
     else:
         assert False
