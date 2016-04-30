@@ -851,67 +851,6 @@ class DataManager:
         self.con.query("truncate table tweet_document_frequency")
         self.con.query("insert into tweet_document_frequency select token, sum(count) from user_token_frequency group by 1")
 
-    def PushArticle(self, url, tweet_id, personality):
-        q = "select * from articles where personality = %s and url = %s"
-        arts = self.con.query(q, personality, url)
-        if len(arts) == 0:
-            q = ("insert into articles values(%d, NOW(), NULL, '%s', %%s)" % (tweet_id, personality))
-            self.con.query(q,url)
-            return True
-        else:
-            assert len(arts) == 1, arts
-            updates = []
-            if tweet_id < int(arts[0]['tweet_id']):
-                updates.append("tweet_id = %d" % tweet_id)
-            if arts[0]['processed'] is None:
-                updates.append("inserted = NOW()")
-            if len(updates) > 0:
-                q = "update articles set %s where personality = %%s and url = %%s" % (",".join(updates))
-                self.con.query(q, personality, url)
-            return False
-
-    def PopArticle(self):
-        q = "select * from articles where processed is null order by tweet_id desc limit 1"
-        arts = self.TimedQuery(q,"PopArticle")
-        if len(arts) == 0:
-            return None
-        assert len(arts) == 1, arts
-        return arts[0]['url'], arts[0]['personality']
-
-    def PopAllArticles(self):
-        q = "select * from articles where processed is null"
-        arts = self.TimedQuery(q,"PopAllArticles")
-        return [(a["url"], a["personality"]) for a in arts]
-
-    def FinishArticle(self, url, personality):
-        q = "update articles set processed = NOW() where personality = %s and url = %s"
-        self.TimedQuery(q, "FinishArticles", personality, url)
-
-    def GetSource(self, personality, confirmed=True):
-        confirmed = int(confirmed)
-        q = "select user_id from sources where confirmed = %d and personality = '%s' order by updated limit 1" % (confirmed,personality)
-        result = int(self.con.query(q)[0]['user_id'])
-        self.con.query("update sources set updated=now() where user_id=%d and personality='%s'" % (result,personality))
-        return result
-
-    def AddSource(self, personality, user_id, confirmed=False):
-        if not confirmed:
-            unconfirmed = int(self.con.query("select count(*) as a from sources where personality = '%s' and confirmed=0")[0]['a'])
-            if unconfirmed > 10:
-                return False
-        confirmed = int(confirmed)
-        q = "insert into sources values ('%s', %d, %d, now())" % (personality, user_id, confirmed)
-        try:
-            self.con.query(q)
-        except Exception as e:
-            assert e[0] == 1062, e # dup key                    
-        return True
-        
-    def ConfirmSource(self, personality, user_id, confirm=True):
-        confirm = 1 if confirm else -1
-        q = "update sources set confirmed = %d where personality = '%s' and user_id = %d" % (confirm,personality,user_id)
-        assert self.con.query(q) == 1
-
     def Feat2Id(self, feature, allow_insert=True):
         q = "select id from token_id where token=%s"
         feat = self.con.query(q, feature)
