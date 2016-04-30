@@ -73,7 +73,7 @@ class DataManager:
             return
         self.apiHandler = g_data.ApiHandler()
         self.DDL()
-        self.updatedArtratTFIDF = False
+        self.updatedUserDocumentFreq = False
         try:
             self.con.query("insert into bots values (%d,'%s', 10)" % (self.GetUserId(), self.g_data.myName))
         except Exception as e:
@@ -759,75 +759,10 @@ class DataManager:
                                    "TFIDF_tweet", *params)                
         return [(r["token"], float(r["tfidf"])) for r in rows]
 
-    def UpdateArtRatTFIDF(self):
-        if self.g_data.SocialLogic().IsArtRat():
-            min_normalizer = 0.0
-            max_normalizer = None
-            for i in xrange(10):
-                maxdf = self.con.query("select val from max_df_view")[0]["val"]
-                normalizer = float(self.con.query("select normalizer from bots where id = %d" % self.GetUserId())[0]['normalizer'])
-                personality = self.g_data.SocialLogic().ArtRatPersonality()
-                q = ("select tr.id as token, exp(log(1 + count(*)) * log(%s/(1+udf.count))/%f) as tfidf "
-                     "from %s_dependencies dp "
-                     "straight_join token_representatives tr "
-                     "straight_join user_document_frequency udf "
-                     "on dp.dependant = tr.token and tr.id = udf.token "
-                     "group by 1") % (maxdf, normalizer, personality)
-                nq = "select %d, token, tfidf/(select sqrt(sum(tfidf * tfidf)) from (%s) unv) as tfidf_norm from (%s) tb" % (self.GetUserId(), q,q)
-                # SUSPECT
-                self.TimedQuery("insert into artrat_tfidf_insertable %s on duplicate key update tfidf_norm=values(tfidf_norm)" % nq, "UpdateArtRatTFIDF")
-                self.updatedArtratTFIDF = True
-                
-                frac = float(self.con.query("select sqrt(sum(tfidf_norm * tfidf_norm)) as frac "
-                                            "from (select tfidf_norm from artrat_tfidf_insertable where user_id=%d order by tfidf_norm desc limit 100) sub "
-                                            % self.GetUserId())[0]['frac'])
-                new_normalizer = None
-                if frac < 0.45:
-                    max_normalizer = normalizer
-                    new_normalizer = (normalizer + min_normalizer)/2
-                elif frac > 0.55:
-                    min_normalizer = normalizer
-                    if max_normalizer is None:
-                        new_normalizer = 2 * normalizer
-                    else:
-                        new_normalizer = (normalizer + max_normalizer)/2                        
-                else:
-                    break
-                self.con.query("update bots set normalizer = %f where id = %d" % (new_normalizer, self.GetUserId()))
-                
-        q = ("insert into artrat_tfidf_insertable(user_id, token, tfidf_norm) select %d, id, 0 from token_id on duplicate key update tfidf_norm=tfidf_norm" 
-             % (self.GetUserId()))
-        self.con.query(q)
-        # SUSPECT
-        self.con.query("insert into artrat_tfidf select * from artrat_tfidf_insertable on duplicate key update tfidf_norm=values(tfidf_norm)")
+    def UpdateUserDocumentFrequency(self):
+        self.updatedUserDocumentFreq = True
         self.con.query("insert into user_document_frequency select * from user_document_frequency_view on duplicate key update count = values(count)")
             
-    def TFIDFDistance(self, uids=None):
-        if not self.updatedArtratTFIDF:
-            self.UpdateArtRatTFIDF()
-        if uids is None:
-            uidpred = ""
-        elif len(uids) == 1:
-            uidpred = "and t2.user_id = %d" % uids[0]
-        else:
-            uidpred = "and t2.user_id in (%s)" % ",".join(map(str,uids))
-        q = ("select t2.user_id, sum(t1.tfidf_norm * t2.tfidf)/sqrt(sum(t2.tfidf*t2.tfidf)) as dist "
-             "from artrat_tfidf t1 right join tfidf_view_internal t2 "
-             "on t1.token = t2.token "
-             "where t1.user_id = %d %s "
-             "group by t2.user_id "
-             "having count(t1.token) > 0") % (self.GetUserId(),uidpred)
-        if uids is None:
-            self.con.query("drop view if exists tfidf_bot_distance_%s" % self.g_data.myName)
-            self.con.query("drop view if exists tfidf_bot_distance_%s_internal" % self.g_data.myName)
-            self.con.query("create view tfidf_bot_distance_%s_internal as %s" % (self.g_data.myName, q))
-            self.con.query("create view tfidf_bot_distance_%s as "
-                           "select users.screen_name, td.dist "
-                           "from users join tfidf_bot_distance_%s_internal td "
-                           "on users.id = td.user_id " % (self.g_data.myName, self.g_data.myName))
-        else:
-            return { int(r["user_id"]) : float(r["dist"]) for r in self.TimedQuery(q, "TFIDFDistance") }
-
     def InsertTweetTokens(self, tid, uid, tweet, single_xact=True):
         if single_xact:
             self.Begin()
@@ -1041,8 +976,8 @@ class DataManager:
             self.con.query("update target_candidates set eliminated=1 where processed is not null and id not in (%s)" % rows)
 
     def NextTargetCandidate(self):
-        if not self.updatedArtratTFIDF:
-            self.UpdateArtRatTFIDF()
+        if not self.updatedUserDocumentFreq:
+            self.UpdateUserDocumentFrequency()
         q = "select uid from candidates_scored_view where bot_id = %d order by score desc limit 1" % (self.GetUserId())
         rows = self.TimedQuery(q, "NextTargetCandidate")
         if len(rows) == 0:
@@ -1050,8 +985,8 @@ class DataManager:
         return int(rows[0]['uid'])
 
     def NextTargetStatus(self, user_id=None):
-        if not self.updatedArtratTFIDF:
-            self.UpdateArtRatTFIDF()
+        if not self.updatedUserDocumentFreq:
+            self.UpdateUserDocumentFrequency()
         q = "select user_id, id from botherable_tweets_scored_view_internal where bot_id = %d %s order by score desc limit 1" 
         q = q % (self.GetUserId(), "" if user_id is None else ("and user_id = %d" % user_id))
         rows = self.TimedQuery(q, "NextTargetStatus")
@@ -1065,7 +1000,7 @@ class DataManager:
             self.UpdateUsers()
         elif self.shard % MODES == 1:
             self.UpdateTweets()
-            self.UpdateArtRatTFIDF()
+            self.UpdateUserDocumentFrequency()
         elif self.shard % MODES == 2:
             self.ProcessUnprocessedTweets()
             self.UpdateUsers()

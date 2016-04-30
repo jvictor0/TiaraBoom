@@ -281,12 +281,12 @@ def TiaraCreateViews(con):
               "group by 1,2,3")
     con.query("create view botherable_tweets_scored_view_internal as "
               "select bot_id, user_id, id, "
-              "       count_score , dist_score , recentness_score , favorites_score , retweets_score , "
-              "       count_score + dist_score + recentness_score + favorites_score + retweets_score as score "
+              "       count_score , recentness_score , favorites_score , retweets_score , "
+              "       count_score + recentness_score + favorites_score + retweets_score as score "
               "from botherable_tweets_predictors_view")
     con.query("create view botherable_tweets_scored_view as "
               "select bots.screen_name as bot_name, concat('www.twitter.com/', users.screen_name, '/status/',csv.id) as url, "
-              "       count_score , dist_score , recentness_score , favorites_score , retweets_score , score "
+              "       count_score , recentness_score , favorites_score , retweets_score , score "
               "from botherable_tweets_scored_view_internal csv join bots join users "
               "on bots.id = csv.bot_id and users.id = csv.user_id ")
 

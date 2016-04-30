@@ -27,17 +27,8 @@ class SocialLogic:
 
         if self.params["reply"]["mode"] == "classic":
             SKD("alliteration_mode",  self.params["reply"], False)
-        elif self.params["reply"]["mode"] == "artrat":
-            if not "personality" in self.params["reply"]:
-                print "no personality"
-                self.invalid = True
-                return
-            if len(self.params["reply"]) != 3:
-                print "wrong param len"
-                self.invalid = True
-                return
         else:
-            print "not artrat"
+            print "unknown mode"
             self.invalid = True
             return
             
@@ -145,12 +136,6 @@ class SocialLogic:
     def FriendBotLogics(self):
         return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
 
-    def IsArtRat(self):
-        return self.params["reply"]["mode"] == "artrat"
-
-    def ArtRatPersonality(self):
-        return self.params["reply"]["personality"]
-                
     def Act(self):
         self.Reply()
         for tc in self.tickers:

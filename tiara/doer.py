@@ -40,21 +40,8 @@ if __name__ == "__main__":
     elif sys.argv[1] == "add_source":
         uid = g_data.ApiHandler().ShowUser(screen_name = sys.argv[3]).GetId()
         g_data.dbmgr.AddSource(sys.argv[2], uid, confirmed=True)
-    elif sys.argv[1] == "add_sources_from_config":
-        for g_data in server.GDatas():
-            if g_data.SocialLogic().IsArtRat():
-                for sn in g_data.SocialLogic().params["reply"]["sources"]:
-                    uid = g_data.ApiHandler().ShowUser(screen_name = sn)
-                    if uid is None:
-                        print "problem with " + sn
-                        continue
-                    uid = uid.GetId()
-                    g_data.dbmgr.AddSource(g_data.SocialLogic().params["reply"]["personality"], uid, confirmed=True)
     elif sys.argv[1] == "drop_views":
         tiara_ddl.DropViews(g_data.dbmgr.con)
-    elif sys.argv[1] == "update_artrat_tfidf":
-        dbmgr = g.GlobalData(name=sys.argv[2]).dbmgr
-        dbmgr.UpdateArtRatTFIDF()
     elif sys.argv[1] == "new_ddl":
         tiara_ddl.DropViews(g_data.dbmgr.con)
         print "alter table"
