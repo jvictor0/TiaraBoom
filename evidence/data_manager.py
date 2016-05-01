@@ -38,7 +38,7 @@ class EvidenceDataMgr:
         return convo
 
     def InsertMsg(self, tweet, msg):
-        q = "insert into evidence_tweets (user_id, id, facts) values (%d,%d,%s)" % (tweet.GetUser().GetId(), tweet.GetId(), msg.Facts())
+        q = "insert into evidence_tweets (user_id, id, facts) values (%d,%d,'%s')" % (tweet.GetUser().GetId(), tweet.GetId(), msg.Facts())
         self.con.query(q)
 
     def FormConversationFromTweet(self, tweet):
@@ -52,10 +52,10 @@ class EvidenceDataMgr:
             return convo
         else:
             assert len(cid) == 1, cid
-            return self.GetConversation(cid[0]['conversation_id'])
+            return self.GetConversation(int(cid[0]['conversation_id']))
             
     def Reply(self, tweet):
         convo = self.FormConversationFromTweet(tweet)
-        convo.FormReply()
-        convo[-1].text = "@" + tweet.GetUser().GetScreenName() + " " + convo[-1].text
-        return convo[-1]
+        result = convo.FormReply()
+        result.Prepend("@" + tweet.GetUser().GetScreenName() + " ")
+        return result

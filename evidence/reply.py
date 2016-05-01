@@ -41,6 +41,9 @@ class EvidenceMessage(Message):
 
     def SentByMe(self):
         return True
+
+    def Prepend(self, prefix):
+        self.text = prefix + self.text
             
 class Conversation:
     def __init__(self, ctx):
