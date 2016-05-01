@@ -15,6 +15,8 @@ import union_find
 from twitter.status import Status
 from twitter.user import User
 
+from evidence import data_manager
+
 from util import *
 
 import threading
@@ -77,7 +79,10 @@ class DataManager:
         try:
             self.con.query("insert into bots values (%d,'%s', 10)" % (self.GetUserId(), self.g_data.myName))
         except Exception as e:
-            assert e[0] == 1062, e # dup key        
+            assert e[0] == 1062, e # dup key
+
+    def GetEvidenceManager(self, infile):
+        return data_manager.EvidenceDataMgr(self.con, self, infile=infile)
 
     def Begin(self):
         assert not self.xact

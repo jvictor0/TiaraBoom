@@ -6,7 +6,6 @@ def Reload():
     syntax_rewriter.Reload()
     return reload(sys.modules[__name__])
 
-
 class Message:
     def Facts(self):
         return []

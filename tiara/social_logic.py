@@ -7,6 +7,7 @@ import persisted as p
 import ticker as t
 import sys
 import server
+import os.path
 
 class SocialLogic:
     def __init__(self, g_data, args):
@@ -27,6 +28,9 @@ class SocialLogic:
 
         if self.params["reply"]["mode"] == "classic":
             SKD("alliteration_mode",  self.params["reply"], False)
+        elif self.IsEvidence():
+            path = os.path.join(os.path.dirname(__file__), "../evidence/arguments", self.params["reply"]["argument_file"])
+            self.evidence_manager = g_data.dbmgr.GetEvidenceManager(path)
         else:
             print "unknown mode"
             self.invalid = True
@@ -75,6 +79,9 @@ class SocialLogic:
         
         if self.params["reply"]["mode"] == "classic":
             response = r.ChooseResponse(self.g_data, tweet=tweet, alliteration_mode=self.params["reply"]["alliteration_mode"])
+        elif self.IsEvidence():
+            msg = self.evidence_manager.Reply(tweet)
+            response = msg.Text()
         else:
             assert False, self.params["reply"]
             
@@ -85,15 +92,19 @@ class SocialLogic:
                 return tweet
             result = self.g_data.ApiHandler().Tweet(response, in_reply_to_status=tweet)
             if not result is None:
+                if self.IsEvidence():
+                    self.evidence_manager.InsertMsg(result, msg)
                 return result
         self.g_data.TraceWarn("Failed to reply to tweet %d" % tweet.GetId())
         return None
             
 
     def Bother(self, screen_name=None,user_id=None):
+        if self.IsEvidence():
+            return None
         if screen_name is not None:
             u = self.g_data.ApiHandler().ShowUser(screen_name=screen_name)
-            user_id=u.GetId()
+            user_id = u.GetId()
         if user_id is not None:
             self.g_data.TraceInfo("Bothering id = %s" % user_id)
         s = self.g_data.dbmgr.NextTargetStatus(user_id)
@@ -107,6 +118,8 @@ class SocialLogic:
         
         if self.params["reply"]["mode"] == "classic":            
             response = r.ChooseResponse(self.g_data, user=user, alliteration_mode=self.params["reply"]["alliteration_mode"])
+        elif self.IsEvidence():
+            return None
         else:
             assert False, self.params["reply"]
 
@@ -134,7 +147,10 @@ class SocialLogic:
         return fn()
         
     def FriendBotLogics(self):
-        return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?  
+        return [g.SocialLogic() for g in self.g_data.g_datas] # silly function?
+
+    def IsEvidence(self):
+        return self.params["reply"]["mode"] == "evidence"
 
     def Act(self):
         self.Reply()
