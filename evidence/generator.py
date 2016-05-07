@@ -41,12 +41,16 @@ PERFECT = "perfect"
 PERFECT_CONTINUOUS = "perfect_continuous"
 
 INDICATIVE = "indicative"
-CONDITIONAL = "conditional"
+CONDITIONAL_COULD = "conditional_could"
+CONDITIONAL_SHOULD = "conditional_should"
+CONDITIONAL_WOULD = "conditional_would"
+SUBJUNCTIVE = "subjunctive"
 
 WHY = "why"
 HOW = "how"
 EVIDENCE = "evidence"
 SIMILAR = "similar"
+IFTHEN = "ifthen"
 
 MALE = "male"
 FEMALE = "femalse"
@@ -304,21 +308,22 @@ class Fact:
         return self.Subject(ctx).Mtr(ctx, entity_type = snode.PRIMARY_SUBJECT)
 
     def MtrObject(self, ctx):
-        return self.Object(ctx).Mtr(ctx, entity_type = snode.PRIMARY_OBJECT)
+        if "object" in self.json:
+            return self.Object(ctx).Mtr(ctx, entity_type = snode.PRIMARY_OBJECT)
+        return P({})
 
-    def MtrVerbPhrase(self, ctx, tam):
+    def MtrVerbPhrase(self, ctx, tam, negated=False):
         tense, aspect, mood = tam
         if tense is None or aspect is None or mood is None:
             raise MtrException("Cannot use TAM")
         assert aspect in [SIMPLE,PERFECT,CONTINUOUS], aspect
-        assert mood in [INDICATIVE,CONDITIONAL]
-        negated = False if "negated" not in self.json else self.json["negated"]
+        assert mood in [INDICATIVE,CONDITIONAL_COULD,CONDITIONAL_WOULD,CONDITIONAL_SHOULD,SUBJUNCTIVE]
         person = self.Subject(ctx).Person(ctx)
         number = self.Subject(ctx).Number(ctx)
         negator = PT("not") if negated else P({})
         if self.Relation() == DID:
             infinitive = self.json["infinitive"]
-        elif self.json["relation"] == BE:
+        elif self.Relation() == BE:
             infinitive = "be"
         else:
             assert False, ("cannot conjugate ", self.json)
@@ -330,7 +335,10 @@ class Fact:
                         helper = PT(self.Modal(aspect))
                     else:
                         helper = P({})
-                    negator = TenseSwitch(tense, PT("didn't"), PT("doesn't"), PT("not")) if negated else P({})
+                    if number == pen.SINGULAR:
+                        negator = TenseSwitch(tense, PT("didn't"), PT("doesn't"), PT("not")) if negated else P({})
+                    else:
+                        negator = TenseSwitch(tense, PT("didn't"), PT("don't"), PT("not")) if negated else P({})
                     return PT(helper , negator, PT(infinitive))
                 else:
                     return PT(Conjugate(infinitive, tense, person, number))
@@ -357,12 +365,30 @@ class Fact:
                     hw = Conjugate("have", tense, person, number)
                 helper = PT(hw)
                 return PT(helper, negator, vb)
-        elif mood == CONDITIONAL:
+        elif mood in [CONDITIONAL_COULD,CONDITIONAL_WOULD, CONDITIONAL_SHOULD]:
             if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
                 # could run / can run / will be able to run
-                helper = TenseSwitch(tense,PT("could", negator),PT("can", negator),PT("will", negator, "be able to"))
-                return PT(helper, infinitive)
-        
+                if mood == CONDITIONAL_COULD:
+                    helper = TenseSwitch(tense,PT("could", negator),PT("can", negator),PT("will", negator, "be able to"))
+                # would have ran / would run / will run
+                elif mood == CONDITIONAL_WOULD:
+                    helper = TenseSwitch(tense,PT("would", negator, "have"),PT("would", negator),PT("will", negator))
+                # should have ran, should run, shall run
+                elif mood == CONDITIONAL_SHOULD:
+                    helper = TenseSwitch(tense,PT("should", negator, "have"),PT("should", negator),PT("shall", negator))
+                vb = infinitive
+                if tense == PAST and mood in [CONDITIONAL_SHOULD,CONDITIONAL_WOULD]:
+                    vb = Conjugate(infinitive, tense, person, number)
+                return PT(helper, vb)
+        elif mood == SUBJUNCTIVE:
+            if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
+                # were running / be running / will be running
+                helper = TenseSwitch(tense, PT("were", negator), PT(negator, "be"), PT("will", negator, "be"))
+                if self.Relation() == BE:
+                    return helper
+                else:
+                    return PT(helper, PresentParticiple(infinitive))
+                
 
     def MtrAux(self, aux_type):
         aux_type = "aux_" + aux_type
@@ -383,12 +409,12 @@ class Fact:
     def MtrSimpleSentence(self, ctx, tam):
         return P({"type":snode.SENTENCE}, self.MtrSimple(ctx, tam), P({"type":snode.PUNCT}, random.choice(".!")))
 
-    def MtrSimple(self, ctx, tam):
+    def MtrSimple(self, ctx, tam, negated=False):
         return P({"type":snode.FACT, "id":self.json["id"]},
                  self.MtrAux("pre_sub"),
                  P({"type":snode.SUBJECT}, self.MtrSubject(ctx)),
                  self.MtrAux("pre_verb"),
-                 P({"type":snode.VERB}, self.MtrVerbPhrase(ctx, tam)),
+                 P({"type":snode.VERB}, self.MtrVerbPhrase(ctx, tam, negated)),
                  self.MtrAux("pre_obj"),
                  P({"type":snode.OBJECT}, self.MtrObject(ctx)),
                  self.MtrAux("post_obj"))
@@ -414,7 +440,7 @@ class Fact:
             aspect = [aspect]
         aspect = [a for a in aspect if a in self.Aspects()]
         if mood is None:
-            mood = self.Moods()
+            mood = [m for m in self.Moods() if m != SUBJUNCTIVE]
         elif isinstance(mood, str):
             mood = [mood]
         mood = [m for m in mood if m in self.Moods()]
@@ -439,6 +465,9 @@ class Fact:
             return DID
         assert self.json["relation"] in [DID,BE]
         return self.json["relation"]
+
+    def IsAvailable(self):
+        return "available" not in self.json or self.json["available"]
     
     def Tenses(self):
         if "tenses" not in self.json:
@@ -460,7 +489,7 @@ class Fact:
             return [SIMPLE]
             
     def Moods(self):
-        return [INDICATIVE,CONDITIONAL]
+        return [INDICATIVE,CONDITIONAL_COULD,CONDITIONAL_WOULD,CONDITIONAL_SHOULD,SUBJUNCTIVE]
 
     def MF(self, tense=None, aspect=None, mood=None):
         return MaterializableFact(self, tense, aspect, mood)
@@ -468,8 +497,8 @@ class Fact:
     def MFI(self, tense=None, aspect=None):
         return MaterializableFact(self, tense, aspect, mood=INDICATIVE)
 
-    def MFSI(self, tense=None):
-        return MaterializableFact(self, tense, aspect=SIMPLE, mood=INDICATIVE)
+    def MFSI(self, tense=None, negated=False):
+        return MaterializableFact(self, tense, aspect=SIMPLE, mood=INDICATIVE, negated=negated)
     
     def MFPI(self, tense=None):
         return MaterializableFact(self, tense, aspect=PERFECT, mood=INDICATIVE)
@@ -478,19 +507,20 @@ class Fact:
         return MaterializableFact(self, tense, aspect=CONTINUOUS, mood=INDICATIVE)
 
     def MFC(self, tense=None, aspect=None):
-        return MaterializableFact(self, tense, aspect=aspect, mood=CONDITIONAL)
+        return MaterializableFact(self, tense, aspect=aspect, mood=CONDITIONAL_COULD)
     
-    def MFSC(self, tense=None):
-        return MaterializableFact(self, tense, aspect=SIMPLE, mood=CONDITIONAL)
+    def MFS(self, tense=None, mood=None):
+        return MaterializableFact(self, tense, aspect=SIMPLE, mood=mood)
 
     
 class MaterializableFact:
-    def __init__(self, f, tense=None, aspect=None, mood=None):
+    def __init__(self, f, tense=None, aspect=None, mood=None, negated=False):
         self.f = f
         self.tam = f.RTAM(tense, aspect, mood)
+        self.negated = negated
 
     def Mtr(self, ctx):
-        return self.f.MtrSimple(ctx, self.tam)
+        return self.f.MtrSimple(ctx, self.tam, negated=self.negated)
 
     def Tense(self):
         return self.tam[0]
@@ -553,7 +583,7 @@ class Relation:
         return None
 
     def Type(self):
-        assert self.json["type"] in [EVIDENCE, WHY, SIMILAR, HOW]
+        assert self.json["type"] in [EVIDENCE, WHY, SIMILAR, HOW, IFTHEN], self.json
         return self.json["type"]
 
     def FactIds(self, ctx):
@@ -585,10 +615,13 @@ class Relation:
             dep_tenses = gmfsi.LE()
             ra(S(gmfsi, Cntr("because"), d.MFI(tense=dep_tenses)))
         elif t == HOW:
-            ra(S(d.MFI(tense=shared_tense), Cntr("so that"), g.MFSC(tense=shared_tense)))
+            ra(S(d.MFI(tense=shared_tense), Cntr("so that"), g.MFS(tense=shared_tense,mood=CONDITIONAL_COULD)))
         elif t == SIMILAR:
             g,d = random.choice([(g,d),(d,g)])
             ra(T(S(g.MFI()), S(d.MFI())))
             ra(S(g.MFI(), Cntr("and"), d.MFI()))
-                 
+        elif t == IFTHEN:
+            ra(S(Cntr("if"), g.MFS(tense=PAST, mood=SUBJUNCTIVE), PU(","), d.MFS(tense=None, mood=CONDITIONAL_WOULD)))
+            ra(S(Cntr("if"), g.MFS(tense=PAST, mood=SUBJUNCTIVE), PU(","), Cntr("how come"), d.MFSI(tense=[PAST,PRESENT], negated=True)))
+        
         return random.choice(r).Mtr(ctx)

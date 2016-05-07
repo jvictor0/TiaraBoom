@@ -92,6 +92,18 @@
         "subject" : "Trump's chemtrails",
         "relation" : "be",
         "object" : "some of the most dangerous ever made"
+    },{
+        "id" : 11,
+        "available" : false,
+        "subject" : "chemtrails",
+        "relation" : "be",
+        "object" : "safe"
+    },{
+        "id" : 12,
+        "available" : false,
+        "subject" : "chemtrails",
+        "infinitive" : "disipate",
+        "object" : "immidiately"
     }
     ],
 
@@ -111,6 +123,7 @@
         { "gov" : 7, "dep" : 9, "type" : "similar"    },
         { "gov" : 9, "dep" : 10, "type" : "similar"   },
         { "gov" : 7, "dep" : 10, "type" : "similar"   },
-        { "gov" : 1, "dep" : 10, "type" : "similar"   }
+        { "gov" : 1, "dep" : 10, "type" : "similar"   },
+        { "gov" : 11, "dep" : 12, "type" : "ifthen"   }
     ]
 }

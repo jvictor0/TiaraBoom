@@ -65,8 +65,8 @@ class Conversation:
         return self.RandomFactMsg()
         
     def RandomFactMsg(self, entityName=None):
-        unusedFacts = [(fi,fo) for fi,fo in self.ctx.FactIds() if fo not in self.UsedFacts()]
-        relevantFacts = [(fi,fo) for fi,fo in self.ctx.FactIds() if entityName is None or self.ctx.GetFact(fi).ReferencesEntity(entityName)]
+        unusedFacts = [(fi,fo) for fi,fo in self.ctx.FactIds() if fo not in self.UsedFacts() and self.ctx.GetFact(fi).IsAvailable()]
+        relevantFacts = [(fi,fo) for fi,fo in self.ctx.FactIds() if entityName is None or self.ctx.GetFact(fi).ReferencesEntity(entityName) and self.ctx.GetFact(fi).IsAvailable()]
         intersect = list(set(unusedFacts) & set(relevantFacts))
         if len(intersect) == 0:
             if len(relevantFacts) == 0 and len(unusedFacts) == 0:                
