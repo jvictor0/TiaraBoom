@@ -213,7 +213,7 @@ def TiaraCreateViews(con):
               "having sum(is_followbacker) > 0 or avg(maybe_followbacker) > 0.5 ")
     views["candidates_joined_view"] = """
                 select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, 
-                        ts.id as tid, ts.body, 
+                        ts.id as tid, ts.lcase_body, 
                         ts.num_hashtags, ts.num_media, ts.num_urls, ts.num_user_mentions, ts.language as tweet_language, 
                         ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, ts.parent_id, 
                         tc.bot_id, tc.processed 
@@ -228,7 +228,7 @@ def TiaraCreateViews(con):
     con.query("create view candidates_joined_view as %s" % (views["candidates_joined_view"] % default_args))
 
     views["candidates_joined_filtered_view"] = """
-                 select bot_id, screen_name, uid, body, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
+                 select bot_id, screen_name, uid, lcase_body, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
                  from (%s) candidates_joined_view 
                  where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 
                  and parent_id is null and not is_retweet and ts > processed - interval 7 day and ts < processed 
@@ -238,10 +238,10 @@ def TiaraCreateViews(con):
     con.query("create view candidates_joined_filtered_view as %s" % (views["candidates_joined_filtered_view"] % default_args))
     
     views["candidates_view"] = """
-              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, sum(%(extra_agg)s) as count
+              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, sum(%%(extra_agg)s) as count
               from (%s) candidates_joined_filtered_view 
-              group by %%(bot_id_comma)s uid 
-              having sum(%(extra_agg)s) >= 10"""
+              group by %%(bot_id_comma)s uid
+              having sum(%%(extra_agg)s) > 0"""
     views["candidates_view"] = views["candidates_view"] % views["candidates_joined_filtered_view"]
     default_args["bot_id_comma"] = "bot_id,"
     default_args["extra_agg"] = "1"
@@ -251,7 +251,7 @@ def TiaraCreateViews(con):
               select %%(bot_id_comma)s cv.screen_name, uid, 
                      3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, 
                      3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, 
-                     (1/25) * cv.count as count_score,
+                     (1/25) * cv.count as count_score
               from (%s) cv """
     views["candidates_predictors_view"] = views["candidates_predictors_view"] % views["candidates_view"]
     con.query("create view candidates_predictors_view as %s" % (views["candidates_predictors_view"] % default_args))
@@ -292,7 +292,7 @@ def TiaraCreateViews(con):
     con.query("create view botherable_friends_view as %s" % (views["botherable_friends_view"] % default_args))
     
     views["botherable_tweets_view"] = """
-              select %%(bot_id_comma)s bfv.user_id, ts.id, ts.body, timestampdiff(second, ts.ts, now()) as recentness, 
+              select %%(bot_id_comma)s bfv.user_id, ts.id, ts.lcase_body, timestampdiff(second, ts.ts, now()) as recentness, 
                      tweets.favorites, tweets.retweets 
               from (%s) bfv join tweets_storage ts join tweets tweets 
               on bfv.user_id = ts.user_id and ts.user_id = tweets.user_id and ts.id = tweets.id 
@@ -300,8 +300,8 @@ def TiaraCreateViews(con):
               and ts.parent_id is null and not ts.is_retweet and ts.ts > now() - interval 7 day 
               and ts.maybe_followbacker = 0 
               and ts.language like 'en%%%%' 
-              %(and_extra_pred)s"""
-    default_args["and_extra_pred"] == ""
+              %%(and_extra_pred)s"""
+    default_args["and_extra_pred"] = ""
     views["botherable_tweets_view"] = views["botherable_tweets_view"] % views["botherable_friends_view"]
     con.query("create view botherable_tweets_view as %s" % (views["botherable_tweets_view"] % default_args))
     
@@ -309,7 +309,7 @@ def TiaraCreateViews(con):
               select %%(bot_id_comma)s btv.user_id, btv.id, 
                      - recentness / (24 * 60 * 60) as recentness_score, 
                      2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, 
-                     2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score, 
+                     2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score
               from (%s) btv"""
     views["botherable_tweets_predictors_view"] = views["botherable_tweets_predictors_view"] % views["botherable_tweets_view"]
     con.query("create view botherable_tweets_predictors_view as %s" % (views["botherable_tweets_predictors_view"] % default_args))
@@ -324,7 +324,7 @@ def TiaraCreateViews(con):
     
     con.query("create view botherable_tweets_scored_view as "
               "select bots.screen_name as bot_name, concat('www.twitter.com/', users.screen_name, '/status/',csv.id) as url, "
-              "       count_score , recentness_score , favorites_score , retweets_score , score "
+              "       recentness_score , favorites_score , retweets_score , score "
               "from botherable_tweets_scored_view_internal csv join bots join users "
               "on bots.id = csv.bot_id and users.id = csv.user_id ")
 

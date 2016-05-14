@@ -912,7 +912,7 @@ class DataManager:
 
     def SetExtraAggLikeList(self, words):
         exp = "|".join(["(%s)" % w.lower() for w in words if "'" not in w])
-        self.extra_expr = "body like '%s'" % exp
+        self.extra_expr = "10 * (lcase_body regexp '%s')" % exp
             
     def SelectorViewArgs(self):
         return {
