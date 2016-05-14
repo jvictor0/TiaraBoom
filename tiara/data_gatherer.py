@@ -908,7 +908,7 @@ class DataManager:
     def SelectorViewArgs(self):
         return {
             "and_bot_id" : "and bot_id = %d" % self.GetUserId(),
-            "and_bots_dot_id" : "and bot.id = %d" % self.GetUserId(),
+            "and_bots_dot_id" : "and bots.id = %d" % self.GetUserId(),
             "bot_id_comma" : "",
             "user_id_comma" : "",
             "extra_agg" : "0"}
