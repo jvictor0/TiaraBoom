@@ -76,6 +76,7 @@ def TiaraCreateTables(con):
                "bot_id bigint not null,"
                "following tinyint not null,"
                "has_followed tinyint not null,"
+               "unfollow_reason tinyint not null,"
                "updated timestamp default current_timestamp on update current_timestamp,"
                "primary key(id, bot_id),"
                "shard(id))"))
@@ -328,6 +329,20 @@ def TiaraCreateViews(con):
               "from botherable_tweets_scored_view_internal csv join bots join users "
               "on bots.id = csv.bot_id and users.id = csv.user_id ")
 
+
+    # GC friend view
+    con.query("""
+              create view gc_friends_view as
+              select bot_id, ufs.id as user_id 
+              from user_following_status ufs 
+              left join bot_tweets bs on bs.user_id = ufs.id and bs.parent_id = ufs.bot_id 
+              left join (%s) ltv on ufs.id = ltv.user_id and ufs.bot_id = ltv.ts_bot_id 
+              where ufs.following = 1 
+              and (ltv.last_targeted < now() - interval 7 day) 
+              and ufs.id not in (select id from user_afflictions) 
+              group by bot_id, ufs.id 
+              having count(bs.user_id) = 0 and ltv.tweets_to >= 2""")
+    
     # web populating views
     con.query("create view conversations_view as "
               "select bot_tweets.conversation_id, max(bot_tweets.id) as max_id, count(*) as count, "

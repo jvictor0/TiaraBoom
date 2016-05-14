@@ -25,7 +25,7 @@ import tiara_ddl
 
 import traceback
 
-MODES=4
+MODES = 4
 
 AFFLICT_FOLLOWBACK = 1
 AFFLICT_DELETER = 2
@@ -34,6 +34,8 @@ AFFLICT_SUSPENDED = 4
 AFFLICT_BLOCKER = 5
 AFFLICT_DEACTIVATED = 6
 AFFLICT_NON_ENGLISH = 7
+
+UNFOLLOW_REASON_NO_RESPOND = 1
 
 class FakeGData:
     def __init__(self, name):
@@ -905,6 +907,13 @@ class DataManager:
         if len(users) > 0:
             self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
 
+    def GCFriends(self, limit):
+        q = "select user_id from gc_friends_view where bot_id = %d limit %d" % (self.GetUserId(), limit)
+        rows = self.con.query(q)
+        for r in rows:
+            self.con.query("update user_following_status set unfollow_reason = %d where bot_id = %d and id = %s" % (UNFOLLOW_REASON_NO_RESPOND, self.GetUserId(), int(r["user_id"])))
+            self.ApiHandler().UnFollow(user_id = int(r["user_id"]))
+            
     def EliminateTargetCandidates(self):
         rows = ",".join([a["uid"] for a in self.con.query("select uid from candidates_predictors_no_distance_view")])
         if len(rows) != 0:
