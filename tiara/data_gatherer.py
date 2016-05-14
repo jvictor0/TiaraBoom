@@ -247,7 +247,7 @@ class DataManager:
         if following == "1":
             updates.append("has_followed = 1")
         
-        q = ("insert into user_following_status values (%s,%d,%s,%s,NOW()) "
+        q = ("insert into user_following_status(id, bot_id, following, has_followed, updated, unfollow_reason) values (%s,%d,%s,%s,NOW(),0) "
              "on duplicate key update %s")
         q = q % (uid, self.GetUserId(), following, has_followed, ",".join(updates))
         self.con.query(q)
@@ -274,7 +274,7 @@ class DataManager:
         if self.con is None:
             return None
         rows = self.con.query(("select * from user_following_status "
-                               "where bot_id = %d and id = %d and has_followed = 1 and following = 0")
+                               "where bot_id = %d and id = %d and has_followed = 1 and following = 0 and unfollow_reason = 0")
                               % (self.GetUserId(), uid))
         if len(rows) == 1:
             self.InsertAfflicted(uid, AFFLICT_BLOCKER)
@@ -728,6 +728,7 @@ class DataManager:
         q = ("select id from user_following_status "
              "where has_followed = 1 and bot_id = %d and "
              "id not in (select id from user_afflictions where affliction in (%d,%d)) "
+             "and unfollow_reason = 0 "
              "order by updated limit 75")
         q = q % (self.GetUserId(), AFFLICT_SUSPENDED, AFFLICT_DEACTIVATED)
         result = self.TimedQuery(q, "UpdateUsers")
