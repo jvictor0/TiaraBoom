@@ -71,7 +71,7 @@ class DataManager:
         self.needsUpdateBotTweets = False
         self.xact = False
         self.timedQueryLimit = 1.0
-        self.extra_expr = "0"
+        self.extra_expr = "1"
         self.evidence_mgr = None
         if no_ddl:
             return
@@ -912,7 +912,7 @@ class DataManager:
 
     def SetExtraAggLikeList(self, words):
         exp = "|".join(["(%s)" % w.lower() for w in words if "'" not in w])
-        self.extra_expr = "sum(body like '%s')" % exp
+        self.extra_expr = "body like '%s'" % exp
             
     def SelectorViewArgs(self):
         return {
@@ -920,8 +920,8 @@ class DataManager:
             "and_bots_dot_id" : "and bots.id = %d" % self.GetUserId(),
             "bot_id_comma" : "",
             "user_id_comma" : "",
-            "extra_agg" : "0" if self.extra.expr == "0" else ("sum(%s)" % self.extra_expr),
-            "extra_expr" : self.extra_expr}
+            "extra_agg" : self.extra_expr,
+            "and_extra_pred" : "and %s" % self.extra_expr}
             
     def NextTargetCandidate(self):
         if not self.updatedUserDocumentFreq:

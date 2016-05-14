@@ -238,13 +238,13 @@ def TiaraCreateViews(con):
     con.query("create view candidates_joined_filtered_view as %s" % (views["candidates_joined_filtered_view"] % default_args))
     
     views["candidates_view"] = """
-              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, count(*) as count, %%(extra_agg)s as body_feature
+              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, sum(%(extra_agg)s) as count
               from (%s) candidates_joined_filtered_view 
               group by %%(bot_id_comma)s uid 
-              having count(*) >= 10"""
+              having sum(%(extra_agg)s) >= 10"""
     views["candidates_view"] = views["candidates_view"] % views["candidates_joined_filtered_view"]
     default_args["bot_id_comma"] = "bot_id,"
-    default_args["extra_agg"] = "0"
+    default_args["extra_agg"] = "1"
     con.query("create view candidates_view as %s" % (views["candidates_view"] % default_args))
     
     views["candidates_predictors_view"] = """
@@ -252,15 +252,14 @@ def TiaraCreateViews(con):
                      3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, 
                      3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, 
                      (1/25) * cv.count as count_score,
-                     1 * body_feature as body_score
               from (%s) cv """
     views["candidates_predictors_view"] = views["candidates_predictors_view"] % views["candidates_view"]
     con.query("create view candidates_predictors_view as %s" % (views["candidates_predictors_view"] % default_args))
 
     views["candidates_scored_view"] = """
               select %%(bot_id_comma)s screen_name, uid, 
-                     follower_score , friend_score , count_score , body_score ,
-                     follower_score + friend_score + count_score + body_score as score 
+                     follower_score , friend_score , count_score ,
+                     follower_score + friend_score + count_score as score 
               from (%s) candidates_predictors_view"""
     views["candidates_scored_view"] = views["candidates_scored_view"] % views["candidates_predictors_view"]
     con.query("create view candidates_scored_view as %s" % (views["candidates_scored_view"] % default_args))
@@ -300,27 +299,25 @@ def TiaraCreateViews(con):
               where ts.num_user_mentions = 0 and ts.num_media = 0 and ts.num_hashtags <= 2 and ts.num_urls = 0 
               and ts.parent_id is null and not ts.is_retweet and ts.ts > now() - interval 7 day 
               and ts.maybe_followbacker = 0 
-              and ts.language like 'en%%%%' """
+              and ts.language like 'en%%%%' 
+              %(and_extra_pred)s"""
+    default_args["and_extra_pred"] == ""
     views["botherable_tweets_view"] = views["botherable_tweets_view"] % views["botherable_friends_view"]
     con.query("create view botherable_tweets_view as %s" % (views["botherable_tweets_view"] % default_args))
     
     views["botherable_tweets_predictors_view"] = """
               select %%(bot_id_comma)s btv.user_id, btv.id, 
-                     4 * (1 - (count(*)/4 - 1) * (count(*)/4 - 1)) as count_score, 
                      - recentness / (24 * 60 * 60) as recentness_score, 
                      2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, 
                      2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score, 
-                     10 * %%(extra_expr)s as body_score
-              from (%s) btv 
-              group by %%(bot_id_comma)s btv.user_id, btv.id"""
-    default_args["extra_expr"] = "0"
+              from (%s) btv"""
     views["botherable_tweets_predictors_view"] = views["botherable_tweets_predictors_view"] % views["botherable_tweets_view"]
     con.query("create view botherable_tweets_predictors_view as %s" % (views["botherable_tweets_predictors_view"] % default_args))
     
     views["botherable_tweets_scored_view_internal"] = """
               select %%(bot_id_comma)s user_id, id, 
-                     count_score , recentness_score , favorites_score , retweets_score , body_score ,
-                     count_score + recentness_score + favorites_score + retweets_score + body_score as score 
+                     recentness_score , favorites_score , retweets_score ,
+                     recentness_score + favorites_score + retweets_score as score 
               from (%s) subq"""
     views["botherable_tweets_scored_view_internal"] = views["botherable_tweets_scored_view_internal"] % views["botherable_tweets_predictors_view"]
     con.query("create view botherable_tweets_scored_view_internal as %s" % (views["botherable_tweets_scored_view_internal"] % default_args))
