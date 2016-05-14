@@ -100,8 +100,6 @@ class SocialLogic:
             
 
     def Bother(self, screen_name=None,user_id=None):
-        if self.IsEvidence():
-            return None
         if screen_name is not None:
             u = self.g_data.ApiHandler().ShowUser(screen_name=screen_name)
             user_id = u.GetId()
