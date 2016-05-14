@@ -71,7 +71,7 @@ class DataManager:
         self.needsUpdateBotTweets = False
         self.xact = False
         self.timedQueryLimit = 1.0
-        self.extra_agg = "0"
+        self.extra_expr = "0"
         self.evidence_mgr = None
         if no_ddl:
             return
@@ -86,7 +86,7 @@ class DataManager:
     def GetEvidenceManager(self, infile=None):
         if self.evidence_mgr is None:
             self.evidence_mgr = data_manager.EvidenceDataMgr(self.con, self, infile=infile)
-            self.SetExtraAggLikeList(self.evidence_mgr.EntityTags().keys())
+            self.SetExtraAggLikeList(self.evidence_mgr.ctx.EntityTags().keys())
         return self.evidence_mgr
 
     def Begin(self):
@@ -911,8 +911,8 @@ class DataManager:
             self.con.query("update target_candidates set eliminated=1 where processed is not null and id not in (%s)" % rows)
 
     def SetExtraAggLikeList(self, words):
-        exp = "|".join(["(%s)" % w.lower() for w in words])
-        self.extra_agg = "sum(body like '%s')" % exp
+        exp = "|".join(["(%s)" % w.lower() for w in words if "'" not in w])
+        self.extra_expr = "sum(body like '%s')" % exp
             
     def SelectorViewArgs(self):
         return {
@@ -920,7 +920,8 @@ class DataManager:
             "and_bots_dot_id" : "and bots.id = %d" % self.GetUserId(),
             "bot_id_comma" : "",
             "user_id_comma" : "",
-            "extra_agg" : self.extra_agg}
+            "extra_agg" : "0" if self.extra.expr == "0" else ("sum(%s)" % self.extra_expr),
+            "extra_expr" : self.extra_expr}
             
     def NextTargetCandidate(self):
         if not self.updatedUserDocumentFreq:

@@ -228,7 +228,7 @@ def TiaraCreateViews(con):
     con.query("create view candidates_joined_view as %s" % (views["candidates_joined_view"] % default_args))
 
     views["candidates_joined_filtered_view"] = """
-                 select bot_id, screen_name, uid, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
+                 select bot_id, screen_name, uid, body, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
                  from (%s) candidates_joined_view 
                  where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 
                  and parent_id is null and not is_retweet and ts > processed - interval 7 day and ts < processed 
@@ -310,9 +310,10 @@ def TiaraCreateViews(con):
                      - recentness / (24 * 60 * 60) as recentness_score, 
                      2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, 
                      2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score, 
-                     %%(extra_agg)s as body_score
+                     10 * %%(extra_expr)s as body_score
               from (%s) btv 
               group by %%(bot_id_comma)s btv.user_id, btv.id"""
+    default_args["extra_expr"] = "0"
     views["botherable_tweets_predictors_view"] = views["botherable_tweets_predictors_view"] % views["botherable_tweets_view"]
     con.query("create view botherable_tweets_predictors_view as %s" % (views["botherable_tweets_predictors_view"] % default_args))
     
