@@ -23,7 +23,7 @@ class InputHandler:
 
 def HandleSearchReply(g_data, input):
     term = ' '.join(input)
-    tweets = [t for t in g_data.ApiHandler().Search(term) if g_data.SocialLogic().BotherAppropriate(t)]
+    tweets = [t for t in g_data.ApiHandler().Search(term)]
     if not tweets is None and len(tweets) > 0:
         tweet = random.choice(tweets)
         result = g_data.SocialLogic().ReplyTo(tweet)
@@ -38,7 +38,7 @@ def HandleSearch(g_data, input):
     term = ' '.join(input)
     tweets = [t for t in g_data.ApiHandler().Search(term)]
     if not tweets is None and len(tweets) > 0:
-        return "\n".join(["%s: Repliable = %s" % (GetURL(t),g_data.SocialLogic().BotherAppropriate(t)) for t in tweets])
+        return "\n".join(["%s: Repliable = %s" % (GetURL(t), "True") for t in tweets])
     if tweets is None:
         return "error searching for term"
     return "no tweets found matching search term"
