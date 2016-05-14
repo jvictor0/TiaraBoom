@@ -160,6 +160,9 @@ def DropViews(con):
                 pass
     
 def TiaraCreateViews(con):
+    views = {}
+    default_args = {}
+    
     DropViews(con)
 
     # views for convinience
@@ -208,82 +211,119 @@ def TiaraCreateViews(con):
               "select user_id from tweets_storage "
               "group by 1 "
               "having sum(is_followbacker) > 0 or avg(maybe_followbacker) > 0.5 ")
-    con.query("create view candidates_joined_view as "
-              "select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, "
-              "       ts.id as tid, ts.num_hashtags, ts.num_media, ts.num_urls, ts.num_user_mentions, ts.language as tweet_language, "
-              "       ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, ts.parent_id, "
-              "       tc.bot_id, tc.processed "
-              "from tweets_storage ts join users join target_candidates tc "
-              "on ts.user_id = users.id and users.id = tc.id "
-              "where not tc.eliminated "
-              "and users.id not in (select user_id from followbackers_view) "
-              "and users.id not in (select id from user_following_status where has_followed) "
-              "and users.id not in (select id from user_afflictions)")
-    con.query("create view candidates_joined_filtered_view as "
-              "select bot_id, screen_name, uid, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker "
-              "from candidates_joined_view " 
-              "where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 "
-              "and parent_id is null and not is_retweet and ts > processed - interval 7 day and ts < processed "
-              "and num_followers <= 2500 and num_friends <= 2500 and num_followers >= 100 and num_friends >= 100 "
-              "and language like 'en%' and tweet_language like 'en%' ")
-    con.query("create view candidates_view as " 
-              "select bot_id, screen_name, uid, num_followers, num_friends, count(*) as count "
-              "from candidates_joined_filtered_view "
-              "group by bot_id, uid "
-              "having count(*) >= 10")
-    con.query("create view candidates_predictors_view as "
-              "select cv.bot_id, cv.screen_name, uid, "
-              "       3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, "
-              "       3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, "
-              "       (1/25) * cv.count as count_score "
-              "from candidates_view cv ")
-    con.query("create view candidates_scored_view as "
-              "select bot_id, screen_name, uid, "
-              "       follower_score , friend_score , count_score , "
-              "       follower_score + friend_score + count_score as score "
-              "from candidates_predictors_view")
+    views["candidates_joined_view"] = """
+                select users.screen_name, users.id as uid, users.num_followers, users.num_friends, users.language, 
+                        ts.id as tid, ts.body, 
+                        ts.num_hashtags, ts.num_media, ts.num_urls, ts.num_user_mentions, ts.language as tweet_language, 
+                        ts.is_retweet, ts.ts, ts.is_followbacker, ts.maybe_followbacker, ts.parent_id, 
+                        tc.bot_id, tc.processed 
+                 from tweets_storage ts join users join target_candidates tc 
+                 on ts.user_id = users.id and users.id = tc.id 
+                 where not tc.eliminated 
+                 and users.id not in (select user_id from followbackers_view) 
+                 and users.id not in (select id from user_following_status where has_followed) 
+                 and users.id not in (select id from user_afflictions)
+                 %(and_bot_id)s"""
+    default_args["and_bot_id"] = ""    
+    con.query("create view candidates_joined_view as %s" % (views["candidates_joined_view"] % default_args))
+
+    views["candidates_joined_filtered_view"] = """
+                 select bot_id, screen_name, uid, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
+                 from (%s) candidates_joined_view 
+                 where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 
+                 and parent_id is null and not is_retweet and ts > processed - interval 7 day and ts < processed 
+                 and num_followers <= 2500 and num_friends <= 2500 and num_followers >= 100 and num_friends >= 100 
+                 and language like 'en%%%%' and tweet_language like 'en%%%%' """
+    views["candidates_joined_filtered_view"] = views["candidates_joined_filtered_view"] % views["candidates_joined_view"]
+    con.query("create view candidates_joined_filtered_view as %s" % (views["candidates_joined_filtered_view"] % default_args))
+    
+    views["candidates_view"] = """
+              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, count(*) as count, %%(extra_agg)s as body_feature
+              from (%s) candidates_joined_filtered_view 
+              group by %%(bot_id_comma)s uid 
+              having count(*) >= 10"""
+    views["candidates_view"] = views["candidates_view"] % views["candidates_joined_filtered_view"]
+    default_args["bot_id_comma"] = "bot_id,"
+    default_args["extra_agg"] = "0"
+    con.query("create view candidates_view as %s" % (views["candidates_view"] % default_args))
+    
+    views["candidates_predictors_view"] = """
+              select %%(bot_id_comma)s cv.screen_name, uid, 
+                     3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, 
+                     3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, 
+                     (1/25) * cv.count as count_score,
+                     1 * body_feature as body_score
+              from (%s) cv """
+    views["candidates_predictors_view"] = views["candidates_predictors_view"] % views["candidates_view"]
+    con.query("create view candidates_predictors_view as %s" % (views["candidates_predictors_view"] % default_args))
+
+    views["candidates_scored_view"] = """
+              select %%(bot_id_comma)s screen_name, uid, 
+                     follower_score , friend_score , count_score , body_score ,
+                     follower_score + friend_score + count_score + body_score as score 
+              from (%s) candidates_predictors_view"""
+    views["candidates_scored_view"] = views["candidates_scored_view"] % views["candidates_predictors_view"]
+    con.query("create view candidates_scored_view as %s" % (views["candidates_scored_view"] % default_args))
 
     # bother targeting views
     #
-    con.query("create view targeting_state_view as "
-              "select user_id as bot_id, parent_id as user_id, max(ts) as last_targeted, count(*) as tweets_to "
-              "from bot_tweets join bots "
-              "on bot_tweets.user_id = bots.id "
-              "where parent_id is not null "
-              "group by 1, 2 ")
-    con.query("create view botherable_friends_view as "
-              "select ufs.bot_id, ufs.id as user_id "
-              "from user_following_status ufs "
-              "left join bot_tweets bs on bs.user_id = ufs.id and bs.parent_id = ufs.bot_id "
-              "left join targeting_state ltv on ufs.id = ltv.user_id and ufs.bot_id = ltv.bot_id "
-              "where ufs.following = 1 "
-              "and (ltv.last_targeted is null or ltv.last_targeted < now() - interval 7 day) "
-              "and ufs.id not in (select id from user_afflictions) "
-              "and ufs.id not in (select user_id from followbackers_view) "
-              "group by ufs.bot_id, ufs.id "
-              "having count(bs.user_id) > 0 or ltv.tweets_to is null or ltv.tweets_to <= 1")
-    con.query("create view botherable_tweets_view as "
-              "select bfv.bot_id, bfv.user_id, ts.id, timestampdiff(second, ts.ts, now()) as recentness, "
-              "       tweets.favorites, tweets.retweets "
-              "from botherable_friends_view bfv join tweets_storage ts join tweets tweets "
-              "on bfv.user_id = ts.user_id and ts.user_id = tweets.user_id and ts.id = tweets.id "
-              "where ts.num_user_mentions = 0 and ts.num_media = 0 and ts.num_hashtags <= 2 and ts.num_urls = 0 "
-              "and ts.parent_id is null and not ts.is_retweet and ts.ts > now() - interval 7 day "
-              "and ts.maybe_followbacker = 0 "
-              "and ts.language like 'en%' ")
-    con.query("create view botherable_tweets_predictors_view as "
-              "select btv.bot_id as bot_id, btv.user_id, btv.id, "
-              "       4 * (1 - (count(*)/4 - 1) * (count(*)/4 - 1)) as count_score, "
-              "       - recentness / (24 * 60 * 60) as recentness_score, "
-              "       2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, "
-              "       2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score "
-              "from botherable_tweets_view btv "
-              "group by 1,2,3")
-    con.query("create view botherable_tweets_scored_view_internal as "
-              "select bot_id, user_id, id, "
-              "       count_score , recentness_score , favorites_score , retweets_score , "
-              "       count_score + recentness_score + favorites_score + retweets_score as score "
-              "from botherable_tweets_predictors_view")
+    views["targeting_state_view"] = """
+              select user_id as ts_bot_id, parent_id as user_id, max(ts) as last_targeted, count(*) as tweets_to 
+              from bot_tweets join bots 
+              on bot_tweets.user_id = bots.id 
+              where parent_id is not null %(and_bots_dot_id)s
+              group by %(user_id_comma)s bot_tweets.parent_id """
+    default_args["and_bots_dot_id"] = ""
+    default_args["user_id_comma"] = "user_id,"
+    con.query("create view targeting_state_view as %s" % views["targeting_state_view"] % default_args)
+    
+    views["botherable_friends_view"] = """
+              select %%(bot_id_comma)s ufs.id as user_id 
+              from user_following_status ufs 
+              left join bot_tweets bs on bs.user_id = ufs.id and bs.parent_id = ufs.bot_id 
+              left join (%s) ltv on ufs.id = ltv.user_id and ufs.bot_id = ltv.ts_bot_id 
+              where ufs.following = 1 
+              and (ltv.last_targeted is null or ltv.last_targeted < now() - interval 7 day) 
+              and ufs.id not in (select id from user_afflictions) 
+              and ufs.id not in (select user_id from followbackers_view) 
+              %%(and_bot_id)s
+              group by %%(bot_id_comma)s ufs.id 
+              having count(bs.user_id) > 0 or ltv.tweets_to is null or ltv.tweets_to <= 1"""
+    views["botherable_friends_view"] = views["botherable_friends_view"] % views["targeting_state_view"]
+    con.query("create view botherable_friends_view as %s" % (views["botherable_friends_view"] % default_args))
+    
+    views["botherable_tweets_view"] = """
+              select %%(bot_id_comma)s bfv.user_id, ts.id, ts.body, timestampdiff(second, ts.ts, now()) as recentness, 
+                     tweets.favorites, tweets.retweets 
+              from (%s) bfv join tweets_storage ts join tweets tweets 
+              on bfv.user_id = ts.user_id and ts.user_id = tweets.user_id and ts.id = tweets.id 
+              where ts.num_user_mentions = 0 and ts.num_media = 0 and ts.num_hashtags <= 2 and ts.num_urls = 0 
+              and ts.parent_id is null and not ts.is_retweet and ts.ts > now() - interval 7 day 
+              and ts.maybe_followbacker = 0 
+              and ts.language like 'en%%%%' """
+    views["botherable_tweets_view"] = views["botherable_tweets_view"] % views["botherable_friends_view"]
+    con.query("create view botherable_tweets_view as %s" % (views["botherable_tweets_view"] % default_args))
+    
+    views["botherable_tweets_predictors_view"] = """
+              select %%(bot_id_comma)s btv.user_id, btv.id, 
+                     4 * (1 - (count(*)/4 - 1) * (count(*)/4 - 1)) as count_score, 
+                     - recentness / (24 * 60 * 60) as recentness_score, 
+                     2 * (1 - (favorites/3 - 1) * (favorites/3 - 1)) as favorites_score, 
+                     2 * (1 - (retweets/2 - 1)  * (retweets/2 - 1))  as retweets_score, 
+                     %%(extra_agg)s as body_score
+              from (%s) btv 
+              group by %%(bot_id_comma)s btv.user_id, btv.id"""
+    views["botherable_tweets_predictors_view"] = views["botherable_tweets_predictors_view"] % views["botherable_tweets_view"]
+    con.query("create view botherable_tweets_predictors_view as %s" % (views["botherable_tweets_predictors_view"] % default_args))
+    
+    views["botherable_tweets_scored_view_internal"] = """
+              select %%(bot_id_comma)s user_id, id, 
+                     count_score , recentness_score , favorites_score , retweets_score , body_score ,
+                     count_score + recentness_score + favorites_score + retweets_score + body_score as score 
+              from (%s) subq"""
+    views["botherable_tweets_scored_view_internal"] = views["botherable_tweets_scored_view_internal"] % views["botherable_tweets_predictors_view"]
+    con.query("create view botherable_tweets_scored_view_internal as %s" % (views["botherable_tweets_scored_view_internal"] % default_args))
+    
     con.query("create view botherable_tweets_scored_view as "
               "select bots.screen_name as bot_name, concat('www.twitter.com/', users.screen_name, '/status/',csv.id) as url, "
               "       count_score , recentness_score , favorites_score , retweets_score , score "
@@ -302,3 +342,5 @@ def TiaraCreateViews(con):
               "     left join bots bots2 on bot_tweets.user_id = bots2.id "
               "     left join conversation_upvotes cu on cu.conversation_id = bot_tweets.conversation_id "
               "group by bot_tweets.conversation_id")
+
+    return views

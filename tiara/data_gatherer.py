@@ -157,7 +157,7 @@ class DataManager:
         
     def DDL(self):
         tiara_ddl.TiaraCreateTables(self.con)
-        tiara_ddl.TiaraCreateViews(self.con)
+        self.views = tiara_ddl.TiaraCreateViews(self.con)
                 
     def UpdateTweets(self):
         if self.con is None:
@@ -905,10 +905,19 @@ class DataManager:
         if len(rows) != 0:
             self.con.query("update target_candidates set eliminated=1 where processed is not null and id not in (%s)" % rows)
 
+    def SelectorViewArgs(self):
+        return {
+            "and_bot_id" : "and bot_id = %d" % self.GetUserId(),
+            "and_bots_dot_id" : "and bot.id = %d" % self.GetUserId(),
+            "bot_id_comma" : "",
+            "user_id_comma" : "",
+            "extra_agg" : "0"}
+            
     def NextTargetCandidate(self):
         if not self.updatedUserDocumentFreq:
             self.UpdateUserDocumentFrequency()
-        q = "select uid from candidates_scored_view where bot_id = %d order by score desc limit 1" % (self.GetUserId())
+        subq = self.views["candidates_scored_view"] % self.SelectorViewArgs()
+        q = "select uid from (%s) sub order by score desc limit 1" % subq
         rows = self.TimedQuery(q, "NextTargetCandidate")
         if len(rows) == 0:
             return None
@@ -917,8 +926,9 @@ class DataManager:
     def NextTargetStatus(self, user_id=None):
         if not self.updatedUserDocumentFreq:
             self.UpdateUserDocumentFrequency()
-        q = "select user_id, id from botherable_tweets_scored_view_internal where bot_id = %d %s order by score desc limit 1" 
-        q = q % (self.GetUserId(), "" if user_id is None else ("and user_id = %d" % user_id))
+        subq = self.views["botherable_tweets_scored_view_internal"] % self.SelectorViewArgs()
+        q = "select user_id, id from (%s) subB where %s order by score desc limit 1" 
+        q = q % (subq, "" if user_id is None else ("user_id = %d" % user_id))
         rows = self.TimedQuery(q, "NextTargetStatus")
         if len(rows) == 0:
             return None
