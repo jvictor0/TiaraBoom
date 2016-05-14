@@ -927,8 +927,8 @@ class DataManager:
         if not self.updatedUserDocumentFreq:
             self.UpdateUserDocumentFrequency()
         subq = self.views["botherable_tweets_scored_view_internal"] % self.SelectorViewArgs()
-        q = "select user_id, id from (%s) subB where %s order by score desc limit 1" 
-        q = q % (subq, "" if user_id is None else ("user_id = %d" % user_id))
+        q = "select user_id, id from (%s) suB %s order by score desc limit 1" 
+        q = q % (subq, "" if user_id is None else ("where user_id = %d" % user_id))
         rows = self.TimedQuery(q, "NextTargetStatus")
         if len(rows) == 0:
             return None
