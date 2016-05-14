@@ -71,6 +71,8 @@ class DataManager:
         self.needsUpdateBotTweets = False
         self.xact = False
         self.timedQueryLimit = 1.0
+        self.extra_agg = "0"
+        self.evidence_mgr = None
         if no_ddl:
             return
         self.apiHandler = g_data.ApiHandler()
@@ -81,8 +83,11 @@ class DataManager:
         except Exception as e:
             assert e[0] == 1062, e # dup key
 
-    def GetEvidenceManager(self, infile):
-        return data_manager.EvidenceDataMgr(self.con, self, infile=infile)
+    def GetEvidenceManager(self, infile=None):
+        if self.evidence_mgr is None:
+            self.evidence_mgr = data_manager.EvidenceDataMgr(self.con, self, infile=infile)
+            self.SetExtraAggLikeList(self.evidence_mgr.EntityTags().keys())
+        return self.evidence_mgr
 
     def Begin(self):
         assert not self.xact
@@ -905,13 +910,17 @@ class DataManager:
         if len(rows) != 0:
             self.con.query("update target_candidates set eliminated=1 where processed is not null and id not in (%s)" % rows)
 
+    def SetExtraAggLikeList(self, words):
+        exp = "|".join(["(%s)" % w.lower() for w in words])
+        self.extra_agg = "sum(body like '%s')" % exp
+            
     def SelectorViewArgs(self):
         return {
             "and_bot_id" : "and bot_id = %d" % self.GetUserId(),
             "and_bots_dot_id" : "and bots.id = %d" % self.GetUserId(),
             "bot_id_comma" : "",
             "user_id_comma" : "",
-            "extra_agg" : "0"}
+            "extra_agg" : self.extra_agg}
             
     def NextTargetCandidate(self):
         if not self.updatedUserDocumentFreq:
