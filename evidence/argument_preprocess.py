@@ -27,6 +27,9 @@ class Preprocessor:
     def PopFact(self, fid):
         self.json["facts"] = [f for f in self.json["facts"] if f["id"] != fid]
         self.json["relations"] = [r for r in self.json["relations"] if r["dep"] != fid and r["gov"] != fid]
+        for r in self.json["relations"]:
+            if "justifies" in r:
+                r["justifies"] = [j for j in r["justifies"] if j != fid]
 
     def CopyFact(self, f):
         fcopy = copy.deepcopy(f)
@@ -39,9 +42,25 @@ class Preprocessor:
                     rcopy = copy.deepcopy(r)
                     rcopy[k] = fcopy["id"]
                     self.json["relations"].append(rcopy)
-
+            if "justifies" in r and f["id"] in r["justifies"]:
+                r["justifies"].append(fcopy["id"])
         return fcopy
-                    
+
+    def ExpandInlineEntities(self, singular):
+        plural = "preproc_inline_" + singular + "s"
+        newplural = "preproc_" + singular + "s"
+        for f in self.json["facts"]:
+            if plural in f:
+                if newplural not in f:
+                    f[newplural] = []
+                for ent in f[plural]:
+                    assert "name" not in ent
+                    ent["name"] = "anonomous_entity_%d" % self.GetFactId()
+                    ent["anon"] = True
+                    f[newplural].append(ent["name"])
+                    self.json["entities"].append(ent)
+                del f[plural]
+    
     def ExpandMultiEntities(self, singular):
         plural = "preproc_" + singular + "s"
         for f in copy.copy(self.json["facts"]):
@@ -52,9 +71,11 @@ class Preprocessor:
                     fcopy[singular] = ent
                     del fcopy[plural]
                 self.PopFact(f["id"])
-
+                
     def Preprocess(self):
         self.MakeIds()
+        self.ExpandInlineEntities("subject")
+        self.ExpandInlineEntities("object")
         self.ExpandMultiEntities("subject")
         self.ExpandMultiEntities("object")
 

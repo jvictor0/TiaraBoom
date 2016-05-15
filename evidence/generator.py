@@ -53,7 +53,7 @@ SIMILAR = "similar"
 IFTHEN = "ifthen"
 
 MALE = "male"
-FEMALE = "femalse"
+FEMALE = "female"
 
 THING = "thing"
 PERSON = "person"
@@ -61,6 +61,7 @@ GROUP = "group"
 UNCOUNTABLE_THING = "uncountable_thing"
 
 POSSESSIVE = "possessive"
+SET = "set"
 
 class MtrException(Exception):
     def __init__(self, msg):
@@ -82,6 +83,7 @@ class Context:
         self.facts     = {}
         self.relations = {}
         self.reverse_relations = {}
+        self.justifies = {}
         self.debug = debug
 
     def AddEntity(self, json):
@@ -90,7 +92,7 @@ class Context:
     def GetEntity(self, name):
         if name in self.entities:
             return self.entities[name]
-        return Entity({"name":name})
+        return Entity({"name":name, "type":THING})
 
     def AddFact(self, json):
         tid = json["id"]
@@ -110,6 +112,11 @@ class Context:
         if json["dep"] not in self.reverse_relations:
             self.reverse_relations[json["dep"]] = []
         self.reverse_relations[json["dep"]].append(Relation(json))
+        if "justifies" in json:
+            for j in json["justifies"]:
+                if j not in self.justifies:
+                    self.justifies[j] = []
+                self.justifies[j].append(Relation(json))
         
     def FromJSON(self, json):
         for k in ["entities","facts","relations"]:
@@ -153,7 +160,9 @@ class Context:
         if factId in self.relations:
             result.extend(self.relations[factId])
         if factId in self.reverse_relations:
-            result.extend([r for r in self.reverse_relations[factId] if r.Type() in [SIMILAR]])
+            result.extend([r for r in self.reverse_relations[factId] if r.Type() in [SIMILAR, IFTHEN]])
+        if factId in self.justifies:
+            result.extend(self.justifies[factId])
         return result
 
     def RandomRelation(self):
@@ -178,30 +187,60 @@ class Entity(object):
         self.json = json
 
     def Tags(self):
-        return [self.json["name"].lower()]
+        result = self.Names()
+        result = [r.replace("#","").replace("%","").replace("@","").replace("'","").replace('"',"").lower() for r in result]
+        return result
 
     def Name(self):
         return self.json["name"]
 
     def Key(self):
         return self.Name()
+
+    def Names(self):
+        result = [] if ("anon" in self.json and self.json["anon"]) else [self.json["name"]]
+        if "aliases" in self.json:
+            for a in self.json["aliases"]:
+                result.append(a)
+        return result
     
     def Mtr(self, ctx, entity_type=None):
         if self.Type(ctx) in [PERSON,GROUP,THING,UNCOUNTABLE_THING]:
             tags = { "type" : snode.ENTITY, "key" : self.Key()}
             if entity_type is not None:
                 tags["entity_type"] = entity_type
-            return P(tags, self.json["name"])
+            return P(tags, random.choice(self.Names()))
+        if "aliases" in self.json and random.choice([True,False]):
+            tags = { "type" : snode.ENTITY, "key" : self.Key()}
+            if entity_type is not None:
+                tags["entity_type"] = entity_type
+            return P(tags, random.choice(self.json["aliases"]))
         elif self.Type(ctx) in [POSSESSIVE]:
             mtrgov = self.Gov(ctx).Mtr(ctx, entity_type = entity_type)
             mtrdep = self.Dep(ctx).Mtr(ctx)
             return P({ "type" : snode.ENTITY, "key" : self.Key()},
                      mtrgov, P({"type" : snode.PUNCT}, "'s"), mtrdep)
+        elif self.Type(ctx) in [SET]:
+            premtrs = [ctx.GetEntity(m) for m in self.json["members"]]
+            random.shuffle(premtrs)
+            mtrs = [m for m in premtrs if random.choice([True,False])]
+            # for gramatical reasons, we require at least two members of a set to be present
+            #
+            if len(mtrs) < 2:
+                mtrs = [premtrs[0], premtrs[1]]
+            mtrs = [m.Mtr(ctx, entity_type = entity_type) for m in mtrs]
+            res = [mtrs[0]]
+            for i in xrange(1,len(mtrs)):
+                res.append(PT("and"))
+                res.append(mtrs[i])
+            return P({ "type" : snode.ENTITY, "key" : self.Key()}, *res)
 
     def Person(self, ctx):
         if "person" not in self.json:
             if self.json["type"] in [POSSESSIVE]:
                 return self.Dep(ctx).Person(ctx)
+            if self.json["type"] == SET:
+                return min([ctx.GetEntity(m).Person(ctx) for m in self.json["members"]])
             else:
                 return 3
         return self.json["person"]
@@ -209,7 +248,7 @@ class Entity(object):
     def Number(self, ctx):
         if "type" not in self.json or self.json["type"] in [PERSON, THING]:
             return pen.SINGULAR
-        if self.json["type"] in [GROUP, UNCOUNTABLE_THING]:
+        if self.json["type"] in [GROUP, UNCOUNTABLE_THING, SET]:
             return pen.PLURAL
         if self.json["type"] in [POSSESSIVE]:
             return self.Dep(ctx).Number(ctx)
@@ -222,7 +261,7 @@ class Entity(object):
     def Type(self, ctx):
         if "type" not in self.json:
             return THING
-        assert self.json["type"] in [THING, PERSON, GROUP, UNCOUNTABLE_THING, POSSESSIVE], self.json
+        assert self.json["type"] in [THING, PERSON, GROUP, UNCOUNTABLE_THING, POSSESSIVE, SET], self.json
         return self.json["type"]
 
     def Dep(self, ctx):
@@ -318,13 +357,18 @@ class Fact:
             raise MtrException("Cannot use TAM")
         assert aspect in [SIMPLE,PERFECT,CONTINUOUS], aspect
         assert mood in [INDICATIVE,CONDITIONAL_COULD,CONDITIONAL_WOULD,CONDITIONAL_SHOULD,SUBJUNCTIVE]
+        if "negated" in self.json and self.json["negated"]:
+            negated = not negated
         person = self.Subject(ctx).Person(ctx)
         number = self.Subject(ctx).Number(ctx)
         negator = PT("not") if negated else P({})
+        post_inf = P({})
         if self.Relation() == DID:
             infinitive = self.json["infinitive"]
         elif self.Relation() == BE:
             infinitive = "be"
+            if number == pen.SINGULAR and self.Object(ctx).Type(ctx) == GROUP:
+                post_inf = PT("in")
         else:
             assert False, ("cannot conjugate ", self.json)
         if mood == INDICATIVE:
@@ -339,9 +383,9 @@ class Fact:
                         negator = TenseSwitch(tense, PT("didn't"), PT("doesn't"), PT("not")) if negated else P({})
                     else:
                         negator = TenseSwitch(tense, PT("didn't"), PT("don't"), PT("not")) if negated else P({})
-                    return PT(helper , negator, PT(infinitive))
+                    return PT(helper , negator, PT(infinitive), post_inf)
                 else:
-                    return PT(Conjugate(infinitive, tense, person, number))
+                    return PT(Conjugate(infinitive, tense, person, number), post_inf)
             elif aspect == CONTINUOUS:
                 # was running / is running / will be running
                 vb = PT(PresentParticiple(infinitive))
@@ -351,7 +395,7 @@ class Fact:
                 else:
                     hw = Conjugate("be", tense, person, number)
                 helper = PT(hw)
-                return PT(helper, negator, vb)
+                return PT(helper, negator, vb, post_inf)
             elif aspect in [PERFECT,PERFECT_CONTINUOUS]:
                 # had run /  has run / will have run
                 # had been running /  has been running / will have been running
@@ -364,7 +408,7 @@ class Fact:
                 else:
                     hw = Conjugate("have", tense, person, number)
                 helper = PT(hw)
-                return PT(helper, negator, vb)
+                return PT(helper, negator, vb, post_inf)
         elif mood in [CONDITIONAL_COULD,CONDITIONAL_WOULD, CONDITIONAL_SHOULD]:
             if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
                 # could run / can run / will be able to run
@@ -379,21 +423,23 @@ class Fact:
                 vb = infinitive
                 if tense == PAST and mood in [CONDITIONAL_SHOULD,CONDITIONAL_WOULD]:
                     vb = Conjugate(infinitive, tense, person, number)
-                return PT(helper, vb)
+                return PT(helper, vb, post_inf)
         elif mood == SUBJUNCTIVE:
             if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
-                # were running / be running / will be running
-                helper = TenseSwitch(tense, PT("were", negator), PT(negator, "be"), PT("will", negator, "be"))
+                # had ran / were running / would be running
                 if self.Relation() == BE:
+                    helper = TenseSwitch(tense, PT("were", negator, post_inf), PT(negator, "were", post_inf), PT("would", negator, "be", post_inf))
                     return helper
                 else:
-                    return PT(helper, PresentParticiple(infinitive))
+                    helper = TenseSwitch(tense, PT("had", negator, post_inf), PT(negator, "were", post_inf), PT("would", negator, "be", post_inf))
+                    return PT(helper, TenseSwitch(tense, Conjugate(infinitive, tense, person, number), PresentParticiple(infinitive), PresentParticiple(infinitive)))
                 
 
     def MtrAux(self, aux_type):
         aux_type = "aux_" + aux_type
         if aux_type in self.json:
-            return PT(self.json[aux_type])
+            assert isinstance(self.json[aux_type], list), self.json
+            return PT(random.choice(self.json[aux_type]))
         else:
             return P({})
             
@@ -509,8 +555,8 @@ class Fact:
     def MFC(self, tense=None, aspect=None):
         return MaterializableFact(self, tense, aspect=aspect, mood=CONDITIONAL_COULD)
     
-    def MFS(self, tense=None, mood=None):
-        return MaterializableFact(self, tense, aspect=SIMPLE, mood=mood)
+    def MFS(self, tense=None, mood=None, negated=False):
+        return MaterializableFact(self, tense, aspect=SIMPLE, mood=mood, negated=negated)
 
     
 class MaterializableFact:
@@ -567,6 +613,9 @@ def PU(punc):
 def S(*ls):
     return MtrList(snode.SENTENCE, list(ls) + [random.choice([PU("."), PU("!")])])
 
+def Q(*ls):
+    return MtrList(snode.SENTENCE, list(ls) + [random.choice([PU("?")])])
+
 def T(*ls):
     return MtrList(snode.SYNTAX, list(ls))
 
@@ -621,7 +670,7 @@ class Relation:
             ra(T(S(g.MFI()), S(d.MFI())))
             ra(S(g.MFI(), Cntr("and"), d.MFI()))
         elif t == IFTHEN:
-            ra(S(Cntr("if"), g.MFS(tense=PAST, mood=SUBJUNCTIVE), PU(","), d.MFS(tense=None, mood=CONDITIONAL_WOULD)))
-            ra(S(Cntr("if"), g.MFS(tense=PAST, mood=SUBJUNCTIVE), PU(","), Cntr("how come"), d.MFSI(tense=[PAST,PRESENT], negated=True)))
+            ra(S(Cntr("if"), g.MFS(tense=[PAST,PRESENT], mood=SUBJUNCTIVE), PU(","), d.MFS(tense=None, mood=CONDITIONAL_WOULD, negated=True)))
+            ra(Q(Cntr("if"), g.MFS(tense=[PAST,PRESENT], mood=SUBJUNCTIVE), PU(","), Cntr("how come"), d.MFSI(tense=[PAST,PRESENT])))
         
         return random.choice(r).Mtr(ctx)
