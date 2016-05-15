@@ -229,17 +229,17 @@ def TiaraCreateViews(con):
     con.query("create view candidates_joined_view as %s" % (views["candidates_joined_view"] % default_args))
 
     views["candidates_joined_filtered_view"] = """
-                 select bot_id, screen_name, uid, lcase_body, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
+                 select bot_id, screen_name, uid, lcase_body, parent_id, num_followers, num_friends, processed, ts, is_followbacker, maybe_followbacker 
                  from (%s) candidates_joined_view 
-                 where num_user_mentions = 0 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 
-                 and parent_id is null and not is_retweet and ts > processed - interval 7 day and ts < processed 
+                 where num_user_mentions <= 1 and num_media = 0 and num_hashtags <= 2 and num_urls = 0 
+                 and not is_retweet and ts > processed - interval 7 day and ts < processed 
                  and num_followers <= 2500 and num_friends <= 2500 and num_followers >= 100 and num_friends >= 100 
                  and language like 'en%%%%' and tweet_language like 'en%%%%' """
     views["candidates_joined_filtered_view"] = views["candidates_joined_filtered_view"] % views["candidates_joined_view"]
     con.query("create view candidates_joined_filtered_view as %s" % (views["candidates_joined_filtered_view"] % default_args))
     
     views["candidates_view"] = """
-              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, sum(%%(extra_agg)s) as count
+              select %%(bot_id_comma)s screen_name, uid, num_followers, num_friends, sum(if(parent_id is null, %%(extra_agg)s, 0)) as count, approx_count_distinct(parent_id) as convos
               from (%s) candidates_joined_filtered_view 
               group by %%(bot_id_comma)s uid
               having sum(%%(extra_agg)s) > 0"""
@@ -252,6 +252,7 @@ def TiaraCreateViews(con):
               select %%(bot_id_comma)s cv.screen_name, uid, 
                      3 * (1 - (1 - num_followers/500) * (1 - num_followers/500)) as follower_score, 
                      3 * (1 - (1 - num_friends/500)   * (1 - num_friends/500))   as friend_score, 
+                     (1/2) * convos as convos_score,
                      (1/25) * cv.count as count_score
               from (%s) cv """
     views["candidates_predictors_view"] = views["candidates_predictors_view"] % views["candidates_view"]
@@ -259,8 +260,8 @@ def TiaraCreateViews(con):
 
     views["candidates_scored_view"] = """
               select %%(bot_id_comma)s screen_name, uid, 
-                     follower_score , friend_score , count_score ,
-                     follower_score + friend_score + count_score as score 
+                     follower_score , friend_score , count_score , convos_score
+                     follower_score + friend_score + count_score + convos_score as score 
               from (%s) candidates_predictors_view"""
     views["candidates_scored_view"] = views["candidates_scored_view"] % views["candidates_predictors_view"]
     con.query("create view candidates_scored_view as %s" % (views["candidates_scored_view"] % default_args))

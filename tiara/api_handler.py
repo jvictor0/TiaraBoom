@@ -227,7 +227,7 @@ class ApiHandler():
         return self.StatusFromJson(s)
 
     def GetUserTimelineInternal(self, screen_name,user_id,count,max_id):
-        parameters = {"trim_user" : False, "count" : count}
+        parameters = {"trim_user" : False, "count" : count, "exclude_replies" : False, "include_rts": False}
         if user_id:
             parameters['user_id'] = user_id
         if screen_name:
