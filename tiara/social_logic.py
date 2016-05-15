@@ -142,7 +142,7 @@ class SocialLogic:
         self.g_data.ApiHandler().ShowStatuses(user_id=user.GetId())
         fn = random.choice([lambda : self.TweetFrom(user),
                             lambda : self.Bother(user.GetId())])
-        self.dbmgr.GCFriends(limit=2)
+        self.g_data.dbmgr.GCFriends(limit=2)
         return fn()
         
     def FriendBotLogics(self):
