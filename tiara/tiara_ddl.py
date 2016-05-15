@@ -260,7 +260,7 @@ def TiaraCreateViews(con):
 
     views["candidates_scored_view"] = """
               select %%(bot_id_comma)s screen_name, uid, 
-                     follower_score , friend_score , count_score , convos_score
+                     follower_score , friend_score , count_score , convos_score,
                      follower_score + friend_score + count_score + convos_score as score 
               from (%s) candidates_predictors_view"""
     views["candidates_scored_view"] = views["candidates_scored_view"] % views["candidates_predictors_view"]
