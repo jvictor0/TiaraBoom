@@ -54,7 +54,10 @@ class Preprocessor:
                 if newplural not in f:
                     f[newplural] = []
                 for ent in f[plural]:
-                    assert "name" not in ent
+                    if "name" in ent:
+                        if "aliases" not in ent:
+                            ent["aliases"] = []
+                        ent["aliases"].append(ent["name"])
                     ent["name"] = "anonomous_entity_%d" % self.GetFactId()
                     ent["anon"] = True
                     f[newplural].append(ent["name"])

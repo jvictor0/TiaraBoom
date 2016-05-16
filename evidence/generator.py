@@ -24,6 +24,11 @@ def PT(*nodes):
     nodes = [PT(n) if isinstance(n,str) else n for n in nodes]
     return P({"type":snode.SYNTAX}, *nodes)
 
+def PTU(x):
+    return P({"type":snode.PUNCT}, x)
+
+COMMA = PTU(",")
+
 ONGOING = "ongoing"
 RECURRING = "recurring"
 EVENT = "event"
@@ -439,8 +444,10 @@ class Fact:
                 elif mood == CONDITIONAL_SHOULD:
                     helper = TenseSwitch(tense,PT("should", negator, "have"),PT("should", negator),PT("shall", negator))
                 vb = infinitive
-                if tense == PAST and mood in [CONDITIONAL_SHOULD,CONDITIONAL_WOULD]:
+                if self.Relation() != BE and tense == PAST and mood in [CONDITIONAL_SHOULD,CONDITIONAL_WOULD]:
                     vb = Conjugate(infinitive, tense, person, number)
+                elif self.Relation() == BE and tense == PAST:
+                    vb = "been"
                 return PT(helper, vb, post_inf)
         elif mood == SUBJUNCTIVE:
             if aspect in [SIMPLE,CONTINUOUS,PERFECT,PERFECT_CONTINUOUS]:
@@ -468,7 +475,25 @@ class Fact:
             return "will still" if self.IsOngoing() else "will"
 
     def Mtr(self, ctx):
-        return self.MtrSimpleSentence(ctx, self.RTAM())
+        return random.choice([self.MtrGiveOpinion,
+                              self.MtrAskOpinion])(ctx)
+
+    def MtrGiveOpinion(self, ctx, tense=None, aspect=None, mood=[INDICATIVE]):
+        tam = self.RTAM(tense, aspect, mood)
+        prephrase = random.choice([PT("I heard that"),
+                                   PT("I think"),
+                                   PT("I think that"),
+                                   PT("you should know"),
+                                   PT("well", COMMA, "actually", COMMA),
+                                   PT("well", COMMA, "actually", COMMA, "dude", COMMA),
+                                   PT("dude", COMMA, "you know"),
+                                   PT("dude", COMMA)])
+        return P({"type":snode.SENTENCE}, prephrase, self.MtrSimple(ctx, tam), P({"type":snode.PUNCT}, random.choice(".!")))
+    
+    def MtrAskOpinion(self, ctx, tense=None, aspect=None, mood=[CONDITIONAL_COULD, CONDITIONAL_WOULD, INDICATIVE]):
+        tam = self.RTAM(tense, aspect, mood)
+        prephrase = random.choice([PT("do you think that")])
+        return P({"type":snode.SENTENCE}, prephrase, self.MtrSimple(ctx, tam), P({"type":snode.PUNCT}, "?"))
         
     def MtrSimpleSentence(self, ctx, tam):
         return P({"type":snode.SENTENCE}, self.MtrSimple(ctx, tam), P({"type":snode.PUNCT}, random.choice(".!")))
@@ -488,9 +513,16 @@ class Fact:
             for aspect in self.Aspects():
                 for mood in self.Moods():
                     if toText:
-                        print "    ", self.MtrSimpleSentence(ctx, (tense, aspect, mood)).ToText()
+                        pass
+                        #print "    ", self.MtrSimpleSentence(ctx, (tense, aspect, mood)).ToText()
                     else:
                         print self.MtrSimpleSentence(ctx, (tense, aspect, mood))
+                    if mood in [INDICATIVE, CONDITIONAL_COULD, CONDITIONAL_WOULD]:
+                        print (tense,aspect,mood)
+                        print "    ", syntax_rewriter.RewriteSyntax(ctx, self.MtrAskOpinion(ctx, tense, aspect, mood)).ToText()
+                    if mood in [INDICATIVE]:
+                        print (tense,aspect,mood)
+                        print "    ", syntax_rewriter.RewriteSyntax(ctx, self.MtrGiveOpinion(ctx, tense, aspect, mood)).ToText()
 
     def RTAM(self, tense=None, aspect=None, mood=None):
         if tense is None:
