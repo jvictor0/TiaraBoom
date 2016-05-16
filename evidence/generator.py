@@ -81,6 +81,7 @@ class Context:
     def __init__(self, debug=False):
         self.entities  = {}
         self.facts     = {}
+        self.originals = {}
         self.relations = {}
         self.reverse_relations = {}
         self.justifies = {}
@@ -98,6 +99,10 @@ class Context:
         tid = json["id"]
         assert tid not in self.facts, (tid, self.facts)
         self.facts[tid] = Fact(json)
+        oid = self.facts[tid].OriginalId()
+        if oid not in self.originals:
+            self.originals[oid] = []
+        self.originals[oid].append(tid)
 
     def GetFact(self, tid):
         return self.facts[tid]
@@ -158,14 +163,15 @@ class Context:
                     if times > 1:
                         print ""
 
-    def Justifications(self, factId):
+    def Justifications(self, originalFactId):
         result = []
-        if factId in self.relations:
-            result.extend(self.relations[factId])
-        if factId in self.reverse_relations:
-            result.extend([r for r in self.reverse_relations[factId] if r.Type() in [SIMILAR, IFTHEN]])
-        if factId in self.justifies:
-            result.extend(self.justifies[factId])
+        for factId in self.originals[originalFactId]:
+            if factId in self.relations:
+                result.extend(self.relations[factId])
+            if factId in self.reverse_relations:
+                result.extend([r for r in self.reverse_relations[factId] if r.Type() in [SIMILAR, IFTHEN]])
+            if factId in self.justifies:
+                result.extend(self.justifies[factId])
         return result
 
     def RandomRelation(self):
