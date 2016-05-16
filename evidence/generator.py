@@ -133,7 +133,10 @@ class Context:
         return self.GetEntity(name).SubjectPronoun(self)
 
     def ObjectPronoun(self, name):
-        return self.GetEntity(name).SubjectPronoun(self)
+        return self.GetEntity(name).ObjectPronoun(self)
+
+    def SelfPronoun(self, name):
+        return self.GetEntity(name).SelfPronoun(self)
     
     def PrintAllFacts(self, toText=True):
         for i, f in self.facts.iteritems():
@@ -290,7 +293,16 @@ class Entity(object):
         if self.Person(ctx) == 1:
             return "us" if self.Number(ctx) == pen.PLURAL else "me"
         return "it" if self.Number(ctx) == 1 else "them"
-        
+
+    def SelfPronoun(self, ctx):
+        if not self.KnownType(ctx):
+            return None
+        if self.Type(ctx) == "person":
+            return "himself" if self.Gender(ctx) == MALE else "herself"
+        if self.Person(ctx) == 1:
+            return "ourselves" if self.Number(ctx) == pen.PLURAL else "myself"
+        return "itself" if self.Number(ctx) == 1 else "themselves"
+    
     def __eq__(self, other):
         return self.Key() == other.Key()
     

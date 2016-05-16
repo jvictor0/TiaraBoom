@@ -24,6 +24,9 @@ class SyntaxRewriter(object):
         
     def _rewrite(self, s):
         return s    
+
+    def _after(self, result, s):
+        pass
     
     def PostOrderTraversal(self, s):
         self.stack.append(s)
@@ -33,6 +36,7 @@ class SyntaxRewriter(object):
             newNode = snode.SNode(s.tags, *[self.PostOrderTraversal(s[i]) for i in xrange(len(s))])
             result = self._rewrite(newNode)
         self.stack.pop()
+        self._after(result, s)
         return result
         
     def __call__(self, ctx, s):
@@ -68,7 +72,6 @@ class SyntaxNormalizer(SyntaxRewriter):
         return s
     
 class CommonEntityEliminator(SyntaxRewriter):
-
     def __init__(self, tp):
         self.tp = tp
     
@@ -80,12 +83,38 @@ class CommonEntityEliminator(SyntaxRewriter):
         if subjEntity:
             name = s.tags["key"]
             if name in self.entities:
-                pron = self.ctx.SubjectPronoun(name) if self.tp == snode.SUBJECT else self.ctx.ObjectPronoun(name)
+                pron = self.ctx.SubjectPronoun(name) if self.tp == snode.PRIMARY_SUBJECT else self.ctx.ObjectPronoun(name)
                 if pron is not None:
                     return snode.SNode(s.tags, snode.SNode({"type":snode.PRONOUN}, pron))
             self.entities.add(name)
         return s
 
+    def _rewrite_leaf(self, s):
+        return self._rewrite(s)
+
+class CommonAutoEntityEliminator(SyntaxRewriter):
+
+    def _init(self, s):
+        self.entities = set([])
+            
+    def _rewrite(self, s):
+        subjEntity = s.Type() == snode.ENTITY and "entity_type" in s.tags and s.tags["entity_type"] == snode.PRIMARY_SUBJECT
+        objEntity = s.Type() == snode.ENTITY and "entity_type" in s.tags and s.tags["entity_type"] == snode.PRIMARY_OBJECT
+        if subjEntity:
+            name = s.tags["key"]
+            self.entities.add(name)
+        if objEntity:
+            name = s.tags["key"]
+            if name in self.entities:
+                pron = self.ctx.SelfPronoun(name)
+                if pron is not None:
+                    return snode.SNode(s.tags, snode.SNode({"type":snode.PRONOUN}, pron))
+        return s
+
+    def _after(self, result, s):
+        if s.tags["type"] == snode.FACT:
+            self.entities = set([])
+    
     def _rewrite_leaf(self, s):
         return self._rewrite(s)
     
@@ -142,6 +171,8 @@ def RewriteSyntax(ctx, s):
     if ctx.debug: print "[REWRITER] (start)           ", s.ToText()
     s = SyntaxNormalizer()(ctx, s)
     if ctx.debug: print "[REWRITER] (normalized)      ", s.ToText()
+    s = CommonAutoEntityEliminator()(ctx, s)
+    if ctx.debug: print "[REWRITER] (auto entity)     ", s.ToText()
     s = CommonEntityEliminator(snode.PRIMARY_SUBJECT)(ctx, s)
     if ctx.debug: print "[REWRITER] (subject pronoun) ", s.ToText()
     s = CommonEntityEliminator(snode.PRIMARY_OBJECT)(ctx, s)
