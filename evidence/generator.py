@@ -213,21 +213,21 @@ class Entity(object):
                 result.append(a)
         return result
     
-    def Mtr(self, ctx, entity_type=None):
+    def Mtr(self, ctx, entity_type=None, toplevel=True):
         if self.Type(ctx) in [PERSON,GROUP,THING,UNCOUNTABLE_THING]:
-            tags = { "type" : snode.ENTITY, "key" : self.Key()}
+            tags = { "type" : snode.ENTITY, "key" : self.Key(), "toplevel" : toplevel}
             if entity_type is not None:
                 tags["entity_type"] = entity_type
             return P(tags, random.choice(self.Names()))
         if "aliases" in self.json and random.choice([True,False]):
-            tags = { "type" : snode.ENTITY, "key" : self.Key()}
+            tags = { "type" : snode.ENTITY, "key" : self.Key(), "toplevel" : toplevel}
             if entity_type is not None:
                 tags["entity_type"] = entity_type
             return P(tags, random.choice(self.json["aliases"]))
         elif self.Type(ctx) in [POSSESSIVE]:
-            mtrgov = self.Gov(ctx).Mtr(ctx, entity_type = entity_type)
-            mtrdep = self.Dep(ctx).Mtr(ctx)
-            return P({ "type" : snode.ENTITY, "key" : self.Key()},
+            mtrgov = self.Gov(ctx).Mtr(ctx, entity_type = entity_type, toplevel=False)
+            mtrdep = self.Dep(ctx).Mtr(ctx, toplevel=False)
+            return P({ "type" : snode.ENTITY, "key" : self.Key(), "toplevel" : toplevel},
                      mtrgov, P({"type" : snode.PUNCT}, "'s"), mtrdep)
         elif self.Type(ctx) in [SET]:
             premtrs = [ctx.GetEntity(m) for m in self.json["members"]]
@@ -242,7 +242,7 @@ class Entity(object):
             for i in xrange(1,len(mtrs)):
                 res.append(PT("and"))
                 res.append(mtrs[i])
-            return P({ "type" : snode.ENTITY, "key" : self.Key()}, *res)
+            return P({ "type" : snode.ENTITY, "key" : self.Key(), "toplevel" : toplevel}, *res)
 
     def Person(self, ctx):
         if "person" not in self.json:
