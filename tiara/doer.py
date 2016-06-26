@@ -69,5 +69,11 @@ if __name__ == "__main__":
         g_data.dbmgr.PinDownvote(int(sys.argv[2]))
     elif sys.argv[1] == "update_users":
         g_data.dbmgr.UpdateUsers()
+    elif sys.argv[1] == "follow":
+        uid = g.GlobalData(name=sys.argv[2]).SocialLogic().Follow()
+    elif sys.argv[1] == "bother_random":
+        uid = g.GlobalData(name=sys.argv[2]).SocialLogic().Bother()
+    elif sys.argv[1] == "manage_db":
+        uid = g.GlobalData(name=sys.argv[2]).dbmgr.Act()
     else:
         assert False
