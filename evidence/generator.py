@@ -217,6 +217,9 @@ class Entity(object):
             for a in self.json["aliases"]:
                 result.append(a)
         return result
+
+    def MtrGroupName(self, ctx):
+        return P({"type": snode.ENTITY, "key": self.Key(), "toplevel":True}, random.choice(self.GroupNames(ctx)))
     
     def Mtr(self, ctx, entity_type=None, toplevel=True):
         if self.Type(ctx) in [PERSON,GROUP,THING,UNCOUNTABLE_THING]:
@@ -278,6 +281,10 @@ class Entity(object):
         assert self.json["type"] in [THING, PERSON, GROUP, UNCOUNTABLE_THING, POSSESSIVE, SET], self.json
         return self.json["type"]
 
+    def GroupNames(self, ctx):
+        assert self.Type(ctx) == GROUP, self.json
+        return [] if ("group_names" not in self.json) else self.json["group_names"]
+    
     def Dep(self, ctx):
         return ctx.GetEntity(self.json["dep"])
 
@@ -371,9 +378,16 @@ class Fact:
 
     def MtrObject(self, ctx):
         if "object" in self.json:
-            return self.Object(ctx).Mtr(ctx, entity_type = snode.PRIMARY_OBJECT)
+            if self.UseGroupName(ctx):
+                return self.Object(ctx).MtrGroupName(ctx)
+            else:
+                return self.Object(ctx).Mtr(ctx, entity_type = snode.PRIMARY_OBJECT)
         return P({})
 
+    def UseGroupName(self, ctx):
+        number = self.Subject(ctx).Number(ctx)
+        return number == pen.SINGULAR and self.Object(ctx).Type(ctx) == GROUP and len(self.Object(ctx).GroupNames(ctx)) > 0
+    
     def MtrVerbPhrase(self, ctx, tam, negated=False):
         tense, aspect, mood = tam
         if tense is None or aspect is None or mood is None:
@@ -390,7 +404,7 @@ class Fact:
             infinitive = self.json["infinitive"]
         elif self.Relation() == BE:
             infinitive = "be"
-            if number == pen.SINGULAR and self.Object(ctx).Type(ctx) == GROUP:
+            if number == pen.SINGULAR and self.Object(ctx).Type(ctx) == GROUP and not self.UseGroupName(ctx):
                 post_inf = PT("in")
         else:
             assert False, ("cannot conjugate ", self.json)
@@ -559,7 +573,7 @@ class Fact:
     def Relation(self):
         if "relation" not in self.json:
             return DID
-        assert self.json["relation"] in [DID,BE]
+        assert self.json["relation"] in [DID,BE], self.json
         return self.json["relation"]
 
     def IsAvailable(self):
@@ -684,7 +698,7 @@ class Relation:
     def Type(self):
         assert self.json["type"] in [EVIDENCE, WHY, SIMILAR, HOW, IFTHEN], self.json
         return self.json["type"]
-
+    
     def FactIds(self, ctx):
         res = [ctx.GetFact(self.json["gov"])]
         if "dep" in self.json:
@@ -710,6 +724,7 @@ class Relation:
             ra(T(S(g.MFI()), S(d.MFI())))
             ra(T(S(g.MFI()), S(Cntr("You can tell because"), d.MFI())))
             ra(T(S(g.MFI()), S(Cntr("It's obvious"), PU(","), d.MFI())))
+            ra(T(S(d.MFI()), S(Cntr("That proves"), g.MFI())))
         elif t == WHY:
             dep_tenses = gmfsi.LE()
             ra(S(gmfsi, Cntr("because"), d.MFI(tense=dep_tenses)))
