@@ -199,11 +199,11 @@ class Context:
     def WeightedTags(self):
         result = {}
         for f in self.facts:
-            for e in f.Entities(self):
+            for e in self.GetFact(f).Entities(self):
                 for t in e.Tags():
-                    if e not in result:
-                        result[e] = 0
-                    result[e] += 1
+                    if t not in result:
+                        result[t] = 0
+                    result[t] += 1
         return result
     
 class Entity(object):

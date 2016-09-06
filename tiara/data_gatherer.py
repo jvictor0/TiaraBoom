@@ -933,8 +933,8 @@ class DataManager:
 
     def SetExtraAggLikeList(self, words):
         denom = sum([v for k,v in words.iteritems()])
-        exp = "+".join(["%f * (lcas_body regexp '%s')" % (float(wt)/denom, w.lower()) for w, wt in words.iteritems() if "'" not in w])
-        self.extra_expr = "10 * (lcase_body regexp '%s')" % exp
+        exp = " + ".join(["%f * (lcase_body regexp '%s')" % (10 * float(wt)/denom, w.lower()) for w, wt in words.iteritems() if "'" not in w])
+        self.extra_expr = exp
             
     def SelectorViewArgs(self):
         return {
