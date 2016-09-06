@@ -195,6 +195,16 @@ class Context:
 
     def EntityTags(self):
         return {t:n for n,e in self.entities.iteritems() for t in e.Tags()}
+
+    def WeightedTags(self):
+        result = {}
+        for f in self.facts:
+            for e in f.Entities(self):
+                for t in e.Tags():
+                    if e not in result:
+                        result[e] = 0
+                    result[e] += 1
+        return result
     
 class Entity(object):
     def __init__(self, json):
@@ -369,6 +379,9 @@ class Fact:
 
     def Object(self, ctx):
         return ctx.GetEntity(self.json["object"])
+
+    def Entities(self, ctx):
+        return [self.Subject(ctx)] if "object" not in self.json else [self.Subject(ctx), self.Object(ctx)]
 
     def ReferencesEntity(self, entityName):
         return self.json["subject"] == entityName or self.json["object"] == entityName

@@ -89,7 +89,7 @@ class DataManager:
     def GetEvidenceManager(self, infile=None):
         if self.evidence_mgr is None:
             self.evidence_mgr = data_manager.EvidenceDataMgr(self.con, self, infile=infile)
-            self.SetExtraAggLikeList(self.evidence_mgr.ctx.EntityTags().keys())
+            self.SetExtraAggLikeList(self.evidence_mgr.ctx.WeightedTags())
         return self.evidence_mgr
 
     def Begin(self):
@@ -932,7 +932,8 @@ class DataManager:
             self.con.query("update target_candidates set eliminated=1 where processed is not null and id not in (%s)" % rows)
 
     def SetExtraAggLikeList(self, words):
-        exp = "|".join(["(%s)" % w.lower() for w in words if "'" not in w])
+        denom = sum([v for k,v in words.iteritems()])
+        exp = "+".join(["%f * (lcas_body regexp '%s')" % (float(wt)/denom, w.lower()) for w, wt in words.iteritems() if "'" not in w])
         self.extra_expr = "10 * (lcase_body regexp '%s')" % exp
             
     def SelectorViewArgs(self):
