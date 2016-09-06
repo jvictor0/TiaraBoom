@@ -85,8 +85,8 @@ class SocialLogic:
         else:
             assert False, self.params["reply"]
             
-        if not response is None:
-            if self.params["reply"]["practice-mode"]:
+        if response is not None:
+            if tweet.GetInReplyToStatusId() != self.g_data.dbmgr.GetUserId() and self.params["reply"]["practice-mode"]:
                 self.g_data.TraceInfo("(PRACTICE) %s" % response)
                 self.g_data.TraceInfo("(PRACTICE) %s" % GetURL(tweet))
                 return tweet
