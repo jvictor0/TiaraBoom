@@ -864,6 +864,13 @@ class DataManager:
     def IgnoreUser(self, user_name):
         self.con.query("insert into ignored_users select id from users where screen_name = '%s'" % user_name)
 
+    def TargetFollowers(self):
+        follower_ids = self.ApiHandler().GetFollowerIDs()
+        if follower_ids is None:
+            return False
+        self.AddTargets(follower_ids)
+        return True
+        
     def AddTargets(self, ids):
         values = ",".join(["(%d,%d,null,0)" % (i,self.GetUserId()) for i in ids])
         self.con.query("insert into target_candidates(id, bot_id, processed, eliminated) values %s on duplicate key update processed=processed" % values)
@@ -875,6 +882,7 @@ class DataManager:
             assert e[0] == 1062, e # dup key                    
     
     def ProcessFollowerCursors(self):
+        self.TargetFollowers()
         while True:
             rows = self.con.query("select * from follower_cursors where bot_id = %d and processed is null limit 1" % self.GetUserId())
             if len(rows) == 0:
