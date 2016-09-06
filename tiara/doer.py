@@ -68,7 +68,9 @@ if __name__ == "__main__":
     elif sys.argv[1] == "downvote":
         g_data.dbmgr.PinDownvote(int(sys.argv[2]))
     elif sys.argv[1] == "update_users":
-        g_data.dbmgr.UpdateUsers()
+        g.GlobalData(name=sys.argv[2]).dbmgr.UpdateUsers()
+    elif sys.argv[1] == "process_tc":
+        g.GlobalData(name=sys.argv[2]).dbmgr.ProcessTargetCandidates()
     elif sys.argv[1] == "follow":
         uid = g.GlobalData(name=sys.argv[2]).SocialLogic().Follow()
     elif sys.argv[1] == "bother_random":

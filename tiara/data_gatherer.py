@@ -62,6 +62,7 @@ class DataManager:
     def __init__(self, g_data, host, no_ddl=False):
         self.con = None
         self.g_data = g_data
+        self.g_data.dbmgr = self
         self.shard = 0
         self.con = db.ConnectToMySQL(host=host)
         self.con.query("create database if not exists tiaraboom")
@@ -873,7 +874,9 @@ class DataManager:
         
     def AddTargets(self, ids):
         values = ",".join(["(%d,%d,null,0)" % (i,self.GetUserId()) for i in ids])
-        self.con.query("insert into target_candidates(id, bot_id, processed, eliminated) values %s on duplicate key update processed=processed" % values)
+        rows = self.con.query("insert into target_candidates(id, bot_id, processed, eliminated) values %s on duplicate key update processed=processed" % values)
+        if rows > 0:
+            self.g_data.TraceInfo("AddTarets added %d/%d new ids" % (rows, len(ids)))
 
     def EnqueueFollower(self, uid):
         try:
