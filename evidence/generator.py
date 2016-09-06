@@ -380,6 +380,15 @@ class Fact:
     def Object(self, ctx):
         return ctx.GetEntity(self.json["object"])
 
+    def SameObjective(self, ctx, other):
+        if self.Object(ctx) != other.Object(ctx):
+            return False
+        if self.Relation() != other.Relation():
+            return False
+        if self.Relation() == DID and self.json["infinitive"] != other.json["infinitive"]:
+            return False
+        return True
+    
     def Entities(self, ctx):
         return [self.Subject(ctx)] if "object" not in self.json else [self.Subject(ctx), self.Object(ctx)]
 
@@ -660,6 +669,13 @@ class MaterializableFact:
     def GT(self):
         return [a for a in [PAST,PRESENT,FUTURE] if TenseCmp(a, self.tam[0]) > 0]
 
+
+class Empty:
+    def __init__(self):
+        pass
+    
+    def Mtr(self, ctx):
+        return P({})
     
 class Cntr:
     def __init__(self, text):
@@ -745,8 +761,9 @@ class Relation:
             ra(S(d.MFI(tense=shared_tense), Cntr("so that"), g.MFS(tense=shared_tense,mood=CONDITIONAL_COULD)))
         elif t == SIMILAR:
             g,d = random.choice([(g,d),(d,g)])
-            ra(T(S(g.MFI()), S(d.MFI())))
-            ra(S(g.MFI(), Cntr("and"), d.MFI()))
+            final = Cntr("too") if g.SameObjective(ctx, d) else Empty()
+            ra(T(S(g.MFI()), S(d.MFI(), final)))
+            ra(S(g.MFI(), Cntr("and"), d.MFI(), final))
         elif t == IFTHEN:
             ra(S(Cntr("if"), g.MFS(tense=[PAST,PRESENT], mood=SUBJUNCTIVE), PU(","), d.MFS(tense=None, mood=CONDITIONAL_WOULD, negated=True)))
             ra(Q(Cntr("if"), g.MFS(tense=[PAST,PRESENT], mood=SUBJUNCTIVE), PU(","), Cntr("how come"), d.MFSI(tense=[PAST,PRESENT])))
