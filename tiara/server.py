@@ -33,7 +33,7 @@ def GDatas():
                 continue
             g_datas.append(g.GlobalData(g_data = None if len(g_datas) == 0 else g_datas[0], conf=conf["bots"][i], dbHost=conf["dbHost"]))
             g_datas[-1].TraceInfo("Initialized!")
-        for i in xrange(g_datas):
+        for i in xrange(len(g_datas)):
             if g_datas[i].invalid:
                 g_datas[-1].TraceWarn("g_data INVALID!")
                 assert False
