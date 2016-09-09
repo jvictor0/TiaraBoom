@@ -51,10 +51,12 @@ class SocialLogic:
         self.max_id.Set(max_id)
                  
     def Reply(self):
-        tweets = self.g_data.ApiHandler().RecentTweets(self.max_id.Get(), count=5)
-        if tweets is None:
+        tweets1 = self.g_data.ApiHandler().RecentTweets(self.max_id.Get(), count=5)
+        tweets2 = self.g_data.ApiHandler().RecentMentions(self.max_id.Get())        
+        if tweets1 is None or tweets2 is None:
             # warning already in log, no need to warn again
             return None
+        tweets = tweets1 + tweets2
         for t in sorted(tweets, key = lambda tw: tw.GetId()):
             if self.SignalsStop(t):
                 self.SetMaxId(t.GetId())
@@ -86,7 +88,8 @@ class SocialLogic:
             assert False, self.params["reply"]
             
         if response is not None:
-            if tweet.GetInReplyToStatusId() != self.g_data.dbmgr.GetUserId() and self.params["reply"]["practice-mode"]:
+            has_mentions = self.g_data.myName in [u.GetScreenName() for u in tweet.user_mentions]
+            if tweet.GetInReplyToStatusId() != self.g_data.dbmgr.GetUserId() and not has_mentions and self.params["reply"]["practice-mode"]:
                 self.g_data.TraceInfo("(PRACTICE) %s" % response)
                 self.g_data.TraceInfo("(PRACTICE) %s" % GetURL(tweet))
                 return tweet

@@ -141,6 +141,11 @@ class ApiHandler():
                                                            since_id=max_id),
                             tp="LOT")
 
+    def RecentMentions(self, max_id):
+        return self.ApiCall("RecentMentions","",
+                            lambda: self.GetMentionsInternal(since_id=max_id),
+                            tp="LOT")
+
     def Search(self, term, count=100, result_type="recent"):
         return self.ApiCall("Search",term,lambda : self.GetSearchInternal(term=term,count=count), tp="LOT")
 
@@ -221,6 +226,13 @@ class ApiHandler():
             args["since_id"] = since_id
         data = self.ApiCallInternal("search/tweets.json",args)
         return [self.StatusFromJson(s) for s in data["statuses"]]
+
+    def GetMentionsInternal(self,since_id=None):
+        args = {}
+        if not since_id is None:
+            args["since_id"] = since_id
+        data = self.ApiCallInternal("statuses/mentions_timeline.json",args)
+        return [self.StatusFromJson(s) for s in data]
 
     def ShowStatusInternal(self, status_id):
         s = self.ApiCallInternal("statuses/show/%s.json" % status_id, {})
