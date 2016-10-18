@@ -992,4 +992,4 @@ def ProcessCandidatesLoop(dbmgrs, screen_name):
             dbmgr.ProcessTargetCandidates(screen_name, 300)
         time_to_sleep = 16 * 60 - time.time() - t0
         dbmgr.g_data.TraceInfo("Done with dbmgrs.  Sleeping for %f secs" % time_to_sleep)
-        sleep(time_to_sleep)
+        time.sleep(time_to_sleep)
