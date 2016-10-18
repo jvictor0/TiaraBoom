@@ -51,12 +51,13 @@ class SocialLogic:
         self.max_id.Set(max_id)
                  
     def Reply(self):
-        tweets1 = self.g_data.ApiHandler().RecentTweets(self.max_id.Get(), count=5)
-        tweets2 = self.g_data.ApiHandler().RecentMentions(self.max_id.Get())        
-        if tweets1 is None or tweets2 is None:
+        if random.choice([True,False]):
+            tweets = self.g_data.ApiHandler().RecentTweets(self.max_id.Get(), count=5)
+        else:
+            tweets = self.g_data.ApiHandler().RecentMentions(self.max_id.Get())        
+        if tweets is None:
             # warning already in log, no need to warn again
             return None
-        tweets = tweets1 + tweets2
         for t in sorted(tweets, key = lambda tw: tw.GetId()):
             if self.SignalsStop(t):
                 self.SetMaxId(t.GetId())
