@@ -2,6 +2,7 @@ import global_data as g
 import sys
 from util import *
 import server
+import data_gatherer
 import database
 import tiara_ddl
 
@@ -77,5 +78,8 @@ if __name__ == "__main__":
         uid = g.GlobalData(name=sys.argv[2]).SocialLogic().Bother()
     elif sys.argv[1] == "manage_db":
         uid = g.GlobalData(name=sys.argv[2]).dbmgr.Act()
+    elif sys.argv[1] == "candidate_daemon":
+        g_datas = server.GDatas()
+        data_gatherer.ProcessCandidatesLoop([gd.dbmgr for gd in g_datas], sys.argv[2])
     else:
         assert False

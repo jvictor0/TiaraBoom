@@ -911,13 +911,17 @@ class DataManager:
             if self.ApiHandler().last_call_rate_limit_remaining < 5:
                 return
     
-    def ProcessTargetCandidates(self, screen_name = None):
-        q = "select id from target_candidates where bot_id = %d and processed is null limit 75" % self.GetUserId(screen_name)
+    def ProcessTargetCandidates(self, screen_name = None, limit=75):
+        q = "select id from target_candidates where bot_id = %d and processed is null limit %d" % (self.GetUserId(screen_name), limit)
         users = [int(r["id"]) for r in self.con.query(q)]
+        used_users = []
         for u in users:
             self.ApiHandler().ShowStatuses(user_id=u)
+            used_users.append(u)
+            if self.ApiHandler().last_call_rate_limit_remaining < 5:
+                return
         if len(users) > 0:
-            self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in users])))
+            self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in used_users])))
 
     def GCFriends(self, limit):
         q = "select user_id from gc_friends_view where bot_id = %d limit %d" % (self.GetUserId(), limit)
@@ -980,4 +984,12 @@ class DataManager:
             self.ProcessTargetCandidates()
         self.shard += 1
        
- 
+def ProcessCandidatesLoop(dbmgrs, screen_name):
+    while True:
+        t0 = time.time()
+        for dbmgr in dbmgrs:
+            dbmgr.ProcessFollowerCursors()
+            dbmgr.ProcessTargetCandidates(screen_name, 300)
+        time_to_sleep = 16 * 60 - time.time() - t0
+        dbmgr.g_data.TranceInfo("Done with dbmgrs.  Sleeping for %f secs" % time_to_sleep)
+        sleep(time_to_sleep)
