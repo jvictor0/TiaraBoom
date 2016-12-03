@@ -884,10 +884,10 @@ class DataManager:
         except Exception as e:
             assert e[0] == 1062, e # dup key                    
     
-    def ProcessFollowerCursors(self):
+    def ProcessFollowerCursors(self, screen_name=None):
         self.TargetFollowers()
         while True:
-            rows = self.con.query("select * from follower_cursors where bot_id = %d and processed is null limit 1" % self.GetUserId())
+            rows = self.con.query("select * from follower_cursors where bot_id = %d and processed is null limit 1" % self.GetUserId(screen_name))
             if len(rows) == 0:
                 return
             row = rows[0]
@@ -899,7 +899,7 @@ class DataManager:
                 self.Begin()
                 self.con.query("update follower_cursors set processed=now() where bot_id = %s and id = %s and cursr = %s" % (row["bot_id"],row["id"],row["cursr"]))
                 if next_cursor != 0:
-                    self.con.query("insert into follower_cursors values(%s,%d,%d,null)" % (row["id"], self.GetUserId(), next_cursor))
+                    self.con.query("insert into follower_cursors values(%s,%d,%d,null)" % (row["id"], self.GetUserId(screen_name), next_cursor))
                 self.AddTargets(ids)
                 self.Commit()
             except Exception as e:
@@ -919,8 +919,8 @@ class DataManager:
             self.ApiHandler().ShowStatuses(user_id=u)
             used_users.append(u)
             if self.ApiHandler().last_call_rate_limit_remaining < 5:
-                return
-        if len(users) > 0:
+                break
+        if len(used_users) > 0:
             self.con.query("update target_candidates set processed = NOW() where bot_id = %d and id in (%s)" % (self.GetUserId(screen_name), ",".join(["%d" % u for u in used_users])))
 
     def GCFriends(self, limit):
@@ -988,8 +988,8 @@ def ProcessCandidatesLoop(dbmgrs, screen_name):
     while True:
         t0 = time.time()
         for dbmgr in dbmgrs:
-            dbmgr.ProcessFollowerCursors()
+            dbmgr.ProcessFollowerCursors(screen_name)
             dbmgr.ProcessTargetCandidates(screen_name, 300)
-        time_to_sleep = 16 * 60 - time.time() - t0
+        time_to_sleep = 16 * 60 - (time.time() - t0)
         dbmgr.g_data.TraceInfo("Done with dbmgrs.  Sleeping for %f secs" % time_to_sleep)
         time.sleep(time_to_sleep)
